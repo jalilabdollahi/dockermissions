@@ -1,0 +1,32 @@
+{
+  "id": "module_02_level_02",
+  "moduleId": 2,
+  "levelId": 2,
+  "title": "List and Remove Images",
+  "moduleTitle": "Images & Dockerfile",
+  "difficulty": "easy",
+  "xp": 50,
+  "story": "The local image store is cluttered with old images consuming disk space. Remove the image `busybox:latest` to free space.",
+  "objectives": [
+    "Remove image `busybox:latest`"
+  ],
+  "hints": [
+    "`docker images` lists local images; `docker rmi <image>` removes one",
+    "`docker rmi busybox:latest`",
+    "`docker rmi busybox:latest`"
+  ],
+  "validation": [
+    {
+      "type": "image_not_exists",
+      "params": {
+        "name": "busybox",
+        "tag": "latest"
+      },
+      "description": "name=busybox, tag=latest"
+    }
+  ],
+  "initialState": {
+    "summary": "Image `busybox:latest` pre-pulled",
+    "workspaceFiles": []
+  }
+}

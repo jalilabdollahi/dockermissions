@@ -1,0 +1,46 @@
+{
+  "id": "module_02_level_04",
+  "moduleId": 2,
+  "levelId": 4,
+  "title": "ADD vs COPY",
+  "moduleTitle": "Images & Dockerfile",
+  "difficulty": "medium",
+  "xp": 100,
+  "story": "Your app needs its source code inside the image. Use COPY to add `app.py` from the build context into `/app/app.py` in the image.",
+  "objectives": [
+    "Write a Dockerfile using `FROM python:3.11-alpine`, `COPY app.py /app/app.py`, `CMD [\"python\", \"/app/app.py\"]`",
+    "Build as `pyapp:v1`"
+  ],
+  "hints": [
+    "`COPY <src> <dest>` copies files from build context to image",
+    "Dockerfile with FROM, COPY, CMD; build with `docker build -t pyapp:v1 /workspace`",
+    "Write the Dockerfile, then `docker build -t pyapp:v1 /workspace`"
+  ],
+  "validation": [
+    {
+      "type": "image_exists",
+      "params": {
+        "name": "pyapp",
+        "tag": "v1"
+      },
+      "description": "name=pyapp, tag=v1"
+    },
+    {
+      "type": "file_in_image",
+      "params": {
+        "image": "pyapp:v1",
+        "path": "/app/app.py"
+      },
+      "description": "image=pyapp:v1, path=/app/app.py"
+    }
+  ],
+  "initialState": {
+    "summary": "`/workspace/app.py` pre-created with `print(\"hello docker\")`",
+    "workspaceFiles": [
+      {
+        "path": "app.py",
+        "content": "print(\"hello docker\")\n"
+      }
+    ]
+  }
+}

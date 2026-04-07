@@ -1,0 +1,42 @@
+{
+  "id": "module_02_level_05",
+  "moduleId": 2,
+  "levelId": 5,
+  "title": "RUN Commands",
+  "moduleTitle": "Images & Dockerfile",
+  "difficulty": "medium",
+  "xp": 100,
+  "story": "A bare OS image needs software installed. Build an image based on `ubuntu:22.04` that has `curl` installed.",
+  "objectives": [
+    "Write a Dockerfile: `FROM ubuntu:22.04`, `RUN apt-get update && apt-get install -y curl`",
+    "Build as `curl-box:v1`",
+    "Verify: run a container from `curl-box:v1` and confirm `curl --version` works"
+  ],
+  "hints": [
+    "`RUN` executes commands during image build",
+    "Chain commands with `&&` to minimize layers",
+    "`RUN apt-get update && apt-get install -y curl`"
+  ],
+  "validation": [
+    {
+      "type": "image_exists",
+      "params": {
+        "name": "curl-box",
+        "tag": "v1"
+      },
+      "description": "name=curl-box, tag=v1"
+    },
+    {
+      "type": "binary_in_image",
+      "params": {
+        "image": "curl-box:v1",
+        "binary": "curl"
+      },
+      "description": "image=curl-box:v1, binary=curl"
+    }
+  ],
+  "initialState": {
+    "summary": "`/workspace` is empty",
+    "workspaceFiles": []
+  }
+}

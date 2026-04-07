@@ -1,0 +1,53 @@
+{
+  "id": "module_08_level_02",
+  "moduleId": 8,
+  "levelId": 2,
+  "title": "Cache Mount in BuildKit",
+  "moduleTitle": "Advanced Docker",
+  "difficulty": "hard",
+  "xp": 200,
+  "story": "Package manager downloads are slow and happen on every build. Use BuildKit's `--mount=type=cache` to cache `apt` downloads across builds.",
+  "objectives": [
+    "Edit `/workspace/Dockerfile` to use `RUN --mount=type=cache,target=/var/cache/apt apt-get install ...`",
+    "Build `cache-mount:v1` and then `cache-mount:v2` (same Dockerfile, second build should be faster)"
+  ],
+  "hints": [
+    "`RUN --mount=type=cache,target=/var/cache/apt` caches the apt directory",
+    "This is a BuildKit-only feature",
+    "```dockerfile"
+  ],
+  "validation": [
+    {
+      "type": "image_exists",
+      "params": {
+        "name": "cache-mount",
+        "tag": "v1"
+      },
+      "description": "name=cache-mount, tag=v1"
+    },
+    {
+      "type": "image_exists",
+      "params": {
+        "name": "cache-mount",
+        "tag": "v2"
+      },
+      "description": "name=cache-mount, tag=v2"
+    },
+    {
+      "type": "dockerfile_uses_cache_mount",
+      "params": {
+        "path": "/workspace/Dockerfile"
+      },
+      "description": "path=/workspace/Dockerfile"
+    }
+  ],
+  "initialState": {
+    "summary": "`/workspace/Dockerfile` with plain `RUN apt-get install` instructions",
+    "workspaceFiles": [
+      {
+        "path": "Dockerfile",
+        "content": "FROM ubuntu:22.04\nRUN apt-get update && apt-get install -y curl\n"
+      }
+    ]
+  }
+}

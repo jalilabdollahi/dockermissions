@@ -1,0 +1,32 @@
+{
+  "id": "module_01_level_07",
+  "moduleId": 1,
+  "levelId": 7,
+  "title": "Exec Into a Container",
+  "moduleTitle": "Docker Basics",
+  "difficulty": "medium",
+  "xp": 100,
+  "story": "Something is wrong inside the `debug-box` container. Get a shell inside it and create a file `/tmp/mission-complete` to signal success.",
+  "objectives": [
+    "Exec into container `debug-box` and create file `/tmp/mission-complete`"
+  ],
+  "hints": [
+    "`docker exec -it <name> <command>` runs a command inside a running container",
+    "Use `docker exec debug-box touch /tmp/mission-complete` or exec a shell",
+    "`docker exec debug-box touch /tmp/mission-complete`"
+  ],
+  "validation": [
+    {
+      "type": "file_in_container",
+      "params": {
+        "container": "debug-box",
+        "path": "/tmp/mission-complete"
+      },
+      "description": "container=debug-box, path=/tmp/mission-complete"
+    }
+  ],
+  "initialState": {
+    "summary": "Container `debug-box` (ubuntu, running with `sleep 3600`) pre-created",
+    "workspaceFiles": []
+  }
+}

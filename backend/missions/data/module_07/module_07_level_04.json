@@ -1,0 +1,41 @@
+{
+  "id": "module_07_level_04",
+  "moduleId": 7,
+  "levelId": 4,
+  "title": "Pull from Local Registry",
+  "moduleTitle": "Registry & Distribution",
+  "difficulty": "medium",
+  "xp": 100,
+  "story": "The image was pushed. Now remove the local copy and re-pull it from the registry to prove the registry works.",
+  "objectives": [
+    "Remove local image `localhost:5000/myapp:v1`",
+    "Pull it back from the registry",
+    "Run a container from it to verify"
+  ],
+  "hints": [
+    "`docker rmi` removes local image; `docker pull` re-downloads",
+    "`docker rmi localhost:5000/myapp:v1 && docker pull localhost:5000/myapp:v1`",
+    "Then `docker run --rm localhost:5000/myapp:v1`"
+  ],
+  "validation": [
+    {
+      "type": "image_exists",
+      "params": {
+        "name": "localhost:5000/myapp",
+        "tag": "v1 (after pull)"
+      },
+      "description": "name=localhost:5000/myapp, tag=v1 (after pull)"
+    },
+    {
+      "type": "container_ran",
+      "params": {
+        "image": "localhost:5000/myapp:v1"
+      },
+      "description": "image=localhost:5000/myapp:v1"
+    }
+  ],
+  "initialState": {
+    "summary": "Clean Docker environment",
+    "workspaceFiles": []
+  }
+}

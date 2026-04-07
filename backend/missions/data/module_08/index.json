@@ -1,0 +1,332 @@
+{
+  "id": 8,
+  "title": "Advanced Docker",
+  "theme": "Optimization & production patterns",
+  "totalLevels": 7,
+  "missions": [
+    {
+      "id": "module_08_level_01",
+      "moduleId": 8,
+      "levelId": 1,
+      "title": "BuildKit and Build Cache",
+      "moduleTitle": "Advanced Docker",
+      "difficulty": "medium",
+      "xp": 100,
+      "story": "Docker BuildKit dramatically speeds up builds using intelligent caching and parallel execution. Enable BuildKit and rebuild an existing image to see cache hits.",
+      "objectives": [
+        "Set `DOCKER_BUILDKIT=1` environment variable",
+        "Build `cached-app:v1` from `/workspace/Dockerfile`",
+        "Modify only `index.html` (not the Dockerfile) and rebuild as `cached-app:v2`",
+        "Confirm the second build uses cache for unchanged layers"
+      ],
+      "hints": [
+        "`DOCKER_BUILDKIT=1 docker build ...` enables BuildKit",
+        "Or set in Docker daemon config: `\"features\": {\"buildkit\": true}`",
+        "`DOCKER_BUILDKIT=1 docker build -t cached-app:v2 /workspace`"
+      ],
+      "validation": [
+        {
+          "type": "image_exists",
+          "params": {
+            "name": "cached-app",
+            "tag": "v1"
+          },
+          "description": "name=cached-app, tag=v1"
+        },
+        {
+          "type": "image_exists",
+          "params": {
+            "name": "cached-app",
+            "tag": "v2"
+          },
+          "description": "name=cached-app, tag=v2"
+        },
+        {
+          "type": "build_used_cache",
+          "params": {
+            "image": "cached-app:v2"
+          },
+          "description": "image=cached-app:v2"
+        }
+      ],
+      "initialState": {
+        "summary": "`/workspace` with Dockerfile and source files",
+        "workspaceFiles": [
+          {
+            "path": "Dockerfile",
+            "content": "FROM nginx:latest\nCOPY index.html /usr/share/nginx/html/index.html\n"
+          },
+          {
+            "path": "index.html",
+            "content": "<h1>Cache me if you can</h1>\n"
+          }
+        ]
+      }
+    },
+    {
+      "id": "module_08_level_02",
+      "moduleId": 8,
+      "levelId": 2,
+      "title": "Cache Mount in BuildKit",
+      "moduleTitle": "Advanced Docker",
+      "difficulty": "hard",
+      "xp": 200,
+      "story": "Package manager downloads are slow and happen on every build. Use BuildKit's `--mount=type=cache` to cache `apt` downloads across builds.",
+      "objectives": [
+        "Edit `/workspace/Dockerfile` to use `RUN --mount=type=cache,target=/var/cache/apt apt-get install ...`",
+        "Build `cache-mount:v1` and then `cache-mount:v2` (same Dockerfile, second build should be faster)"
+      ],
+      "hints": [
+        "`RUN --mount=type=cache,target=/var/cache/apt` caches the apt directory",
+        "This is a BuildKit-only feature",
+        "```dockerfile"
+      ],
+      "validation": [
+        {
+          "type": "image_exists",
+          "params": {
+            "name": "cache-mount",
+            "tag": "v1"
+          },
+          "description": "name=cache-mount, tag=v1"
+        },
+        {
+          "type": "image_exists",
+          "params": {
+            "name": "cache-mount",
+            "tag": "v2"
+          },
+          "description": "name=cache-mount, tag=v2"
+        },
+        {
+          "type": "dockerfile_uses_cache_mount",
+          "params": {
+            "path": "/workspace/Dockerfile"
+          },
+          "description": "path=/workspace/Dockerfile"
+        }
+      ],
+      "initialState": {
+        "summary": "`/workspace/Dockerfile` with plain `RUN apt-get install` instructions",
+        "workspaceFiles": [
+          {
+            "path": "Dockerfile",
+            "content": "FROM ubuntu:22.04\nRUN apt-get update && apt-get install -y curl\n"
+          }
+        ]
+      }
+    },
+    {
+      "id": "module_08_level_03",
+      "moduleId": 8,
+      "levelId": 3,
+      "title": "Docker Init",
+      "moduleTitle": "Advanced Docker",
+      "difficulty": "medium",
+      "xp": 100,
+      "story": "PID 1 in a container must properly handle signals and reap zombie processes. Use `--init` to run an init process as PID 1.",
+      "objectives": [
+        "Run container `signal-safe` from `node:18-alpine` with `--init` flag",
+        "Confirm PID 1 is `docker-init` (tini), not the Node process directly"
+      ],
+      "hints": [
+        "`--init` injects a tiny init process (tini) as PID 1",
+        "The actual application becomes a child of PID 1",
+        "`docker run -d --init --name signal-safe node:18-alpine node -e \"setInterval(()=>{}, 1000)\"`"
+      ],
+      "validation": [
+        {
+          "type": "container_running",
+          "params": {
+            "name": "signal-safe"
+          },
+          "description": "name=signal-safe"
+        },
+        {
+          "type": "uses_init",
+          "params": {
+            "container": "signal-safe"
+          },
+          "description": "container=signal-safe"
+        }
+      ],
+      "initialState": {
+        "summary": "Clean Docker environment",
+        "workspaceFiles": []
+      }
+    },
+    {
+      "id": "module_08_level_04",
+      "moduleId": 8,
+      "levelId": 4,
+      "title": "Docker Context",
+      "moduleTitle": "Advanced Docker",
+      "difficulty": "medium",
+      "xp": 100,
+      "story": "Docker contexts let you switch between different Docker daemons (local, remote, production). Create a context named `production` pointing to a remote Docker socket.",
+      "objectives": [
+        "Create a Docker context named `production` with host `ssh://deploy@10.0.0.100`",
+        "List contexts to confirm it exists",
+        "Switch back to `default` context after inspection"
+      ],
+      "hints": [
+        "`docker context create <name> --docker \"host=<endpoint>\"` creates a context",
+        "`docker context ls` lists all contexts",
+        "`docker context create production --docker \"host=ssh://deploy@10.0.0.100\"`"
+      ],
+      "validation": [
+        {
+          "type": "context_exists",
+          "params": {
+            "name": "production"
+          },
+          "description": "name=production"
+        },
+        {
+          "type": "context_host",
+          "params": {
+            "name": "production",
+            "host": "ssh://deploy@10.0.0.100"
+          },
+          "description": "name=production, host=ssh://deploy@10.0.0.100"
+        }
+      ],
+      "initialState": {
+        "summary": "Clean Docker environment",
+        "workspaceFiles": []
+      }
+    },
+    {
+      "id": "module_08_level_05",
+      "moduleId": 8,
+      "levelId": 5,
+      "title": "Healthcheck in Dockerfile",
+      "moduleTitle": "Advanced Docker",
+      "difficulty": "medium",
+      "xp": 100,
+      "story": "Docker can monitor your container's health and restart it if it becomes unhealthy. Add a HEALTHCHECK to a Dockerfile for an HTTP service.",
+      "objectives": [
+        "Edit `/workspace/Dockerfile` (nginx-based) to add:",
+        "Build as `healthy-nginx:v1`",
+        "Run a container and confirm it reaches `healthy` status"
+      ],
+      "hints": [
+        "`HEALTHCHECK` is a Dockerfile instruction",
+        "The CMD must return 0 for healthy, 1 for unhealthy",
+        "Wait ~30 seconds after starting for the health status to be `healthy`"
+      ],
+      "validation": [
+        {
+          "type": "image_exists",
+          "params": {
+            "name": "healthy-nginx",
+            "tag": "v1"
+          },
+          "description": "name=healthy-nginx, tag=v1"
+        },
+        {
+          "type": "dockerfile_has_healthcheck",
+          "params": {
+            "path": "/workspace/Dockerfile"
+          },
+          "description": "path=/workspace/Dockerfile"
+        },
+        {
+          "type": "container_health_healthy",
+          "params": {
+            "name": "*healthy-nginx*"
+          },
+          "description": "name=*healthy-nginx*"
+        }
+      ],
+      "initialState": {
+        "summary": "Clean Docker environment",
+        "workspaceFiles": []
+      }
+    },
+    {
+      "id": "module_08_level_06",
+      "moduleId": 8,
+      "levelId": 6,
+      "title": "Docker Swarm Init",
+      "moduleTitle": "Advanced Docker",
+      "difficulty": "hard",
+      "xp": 200,
+      "story": "Docker Swarm turns your Docker host into a cluster manager. Initialize a single-node Swarm.",
+      "objectives": [
+        "Initialize Docker Swarm with `docker swarm init`",
+        "Deploy a service named `web` with 3 replicas using `nginx` image",
+        "Confirm all 3 replicas are running"
+      ],
+      "hints": [
+        "`docker swarm init` initializes the Swarm",
+        "`docker service create --name web --replicas 3 nginx`",
+        "`docker service ls` shows services; `docker service ps web` shows tasks"
+      ],
+      "validation": [
+        {
+          "type": "swarm_active",
+          "params": {
+            "mode": "active"
+          },
+          "description": "mode=active"
+        },
+        {
+          "type": "swarm_service_running",
+          "params": {
+            "name": "web",
+            "replicas": 3
+          },
+          "description": "name=web, replicas=3"
+        }
+      ],
+      "initialState": {
+        "summary": "Clean Docker environment",
+        "workspaceFiles": []
+      }
+    },
+    {
+      "id": "module_08_level_07",
+      "moduleId": 8,
+      "levelId": 7,
+      "title": "Prune Everything",
+      "moduleTitle": "Advanced Docker",
+      "difficulty": "easy",
+      "xp": 200,
+      "story": "Your Docker host is running out of disk space. Clean up all stopped containers, unused images, unused networks, and dangling volumes in one sweep.",
+      "objectives": [
+        "Remove all stopped containers",
+        "Remove all unused images (not just dangling)",
+        "Remove all unused networks",
+        "Remove all unused volumes",
+        "Confirm disk space is recovered"
+      ],
+      "hints": [
+        "`docker system prune -a --volumes` cleans everything at once (with `-a` for all images)",
+        "Or run individually: `docker container prune`, `docker image prune -a`, `docker volume prune`, `docker network prune`",
+        "`docker system prune -a --volumes -f`"
+      ],
+      "validation": [
+        {
+          "type": "no_stopped_containers",
+          "params": {},
+          "description": "true"
+        },
+        {
+          "type": "no_dangling_images",
+          "params": {},
+          "description": "true"
+        },
+        {
+          "type": "no_unused_volumes",
+          "params": {},
+          "description": "true"
+        }
+      ],
+      "initialState": {
+        "summary": "Many stopped containers, unused images, and dangling volumes pre-created",
+        "workspaceFiles": []
+      }
+    }
+  ]
+}

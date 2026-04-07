@@ -1,0 +1,53 @@
+{
+  "id": "module_04_level_04",
+  "moduleId": 4,
+  "levelId": 4,
+  "title": "Bind Mounts",
+  "moduleTitle": "Volumes & Storage",
+  "difficulty": "medium",
+  "xp": 100,
+  "story": "Bind mounts link a host directory directly into a container — perfect for development. Mount the host directory `/workspace/html` into an nginx container at `/usr/share/nginx/html`.",
+  "objectives": [
+    "Run `nginx` container named `dev-web` with host path `/workspace/html` bind-mounted at `/usr/share/nginx/html`, publishing port 8080"
+  ],
+  "hints": [
+    "Use `-v /host/path:/container/path` for bind mounts",
+    "Bind mounts use absolute host paths",
+    "`docker run -d --name dev-web -v /workspace/html:/usr/share/nginx/html -p 8080:80 nginx`"
+  ],
+  "validation": [
+    {
+      "type": "container_running",
+      "params": {
+        "name": "dev-web"
+      },
+      "description": "name=dev-web"
+    },
+    {
+      "type": "bind_mount",
+      "params": {
+        "container": "dev-web",
+        "host_path": "/workspace/html",
+        "container_path": "/usr/share/nginx/html"
+      },
+      "description": "container=dev-web, host_path=/workspace/html, container_path=/usr/share/nginx/html"
+    },
+    {
+      "type": "http_responds",
+      "params": {
+        "url": "http://localhost:8080",
+        "body_contains": "DockerMissions"
+      },
+      "description": "url=http://localhost:8080, body_contains=DockerMissions"
+    }
+  ],
+  "initialState": {
+    "summary": "`/workspace/html/index.html` pre-created with `<h1>DockerMissions</h1>`",
+    "workspaceFiles": [
+      {
+        "path": "html/index.html",
+        "content": "<h1>DockerMissions</h1>\n"
+      }
+    ]
+  }
+}

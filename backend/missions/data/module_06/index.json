@@ -1,0 +1,283 @@
+{
+  "id": 6,
+  "title": "Docker Security",
+  "theme": "Hardening containers",
+  "totalLevels": 6,
+  "missions": [
+    {
+      "id": "module_06_level_01",
+      "moduleId": 6,
+      "levelId": 1,
+      "title": "Run as Non-Root",
+      "moduleTitle": "Docker Security",
+      "difficulty": "easy",
+      "xp": 50,
+      "story": "Containers running as root are dangerous. If they escape, they own your host. Run an alpine container as user ID `1000` instead of root.",
+      "objectives": [
+        "Run container `safe-app` from `alpine` as user `1000` (`sleep 3600`, detached)",
+        "Confirm the container process does NOT run as root"
+      ],
+      "hints": [
+        "Use `--user <uid>` to set the container user",
+        "`--user 1000`",
+        "`docker run -d --name safe-app --user 1000 alpine sleep 3600`"
+      ],
+      "validation": [
+        {
+          "type": "container_running",
+          "params": {
+            "name": "safe-app"
+          },
+          "description": "name=safe-app"
+        },
+        {
+          "type": "no_root",
+          "params": {
+            "container": "safe-app"
+          },
+          "description": "container=safe-app"
+        }
+      ],
+      "initialState": {
+        "summary": "Clean Docker environment",
+        "workspaceFiles": []
+      }
+    },
+    {
+      "id": "module_06_level_02",
+      "moduleId": 6,
+      "levelId": 2,
+      "title": "Read-Only Filesystem",
+      "moduleTitle": "Docker Security",
+      "difficulty": "easy",
+      "xp": 50,
+      "story": "A container that can't write to its own filesystem is significantly harder to compromise. Run nginx in read-only mode.",
+      "objectives": [
+        "Run `nginx` container named `readonly-web` with a read-only filesystem (`--read-only`)",
+        "Nginx needs a writable tmpfs at `/tmp` and `/var/run` to start — add those",
+        "Publish port 8080"
+      ],
+      "hints": [
+        "`--read-only` makes the root filesystem read-only",
+        "Combine with `--tmpfs` for directories that must be writable",
+        "`docker run -d --name readonly-web --read-only --tmpfs /tmp --tmpfs /var/run -p 8080:80 nginx`"
+      ],
+      "validation": [
+        {
+          "type": "container_running",
+          "params": {
+            "name": "readonly-web"
+          },
+          "description": "name=readonly-web"
+        },
+        {
+          "type": "readonly_rootfs",
+          "params": {
+            "container": "readonly-web"
+          },
+          "description": "container=readonly-web"
+        },
+        {
+          "type": "http_responds",
+          "params": {
+            "url": "http://localhost:8080",
+            "status": 200
+          },
+          "description": "url=http://localhost:8080, status=200"
+        }
+      ],
+      "initialState": {
+        "summary": "Clean Docker environment",
+        "workspaceFiles": []
+      }
+    },
+    {
+      "id": "module_06_level_03",
+      "moduleId": 6,
+      "levelId": 3,
+      "title": "Drop Linux Capabilities",
+      "moduleTitle": "Docker Security",
+      "difficulty": "medium",
+      "xp": 100,
+      "story": "Containers inherit too many Linux capabilities by default. Drop ALL capabilities from a container and add back only what's needed.",
+      "objectives": [
+        "Run container `minimal-caps` from `alpine` dropping ALL capabilities with `--cap-drop=ALL`",
+        "Add back only `NET_BIND_SERVICE` with `--cap-add`",
+        "Run `sleep 3600` detached"
+      ],
+      "hints": [
+        "`--cap-drop=ALL` drops every Linux capability",
+        "`--cap-add=<CAP>` adds individual capabilities back",
+        "`docker run -d --name minimal-caps --cap-drop=ALL --cap-add=NET_BIND_SERVICE alpine sleep 3600`"
+      ],
+      "validation": [
+        {
+          "type": "container_running",
+          "params": {
+            "name": "minimal-caps"
+          },
+          "description": "name=minimal-caps"
+        },
+        {
+          "type": "cap_dropped_all",
+          "params": {
+            "container": "minimal-caps"
+          },
+          "description": "container=minimal-caps"
+        },
+        {
+          "type": "cap_added",
+          "params": {
+            "container": "minimal-caps",
+            "cap": "NET_BIND_SERVICE"
+          },
+          "description": "container=minimal-caps, cap=NET_BIND_SERVICE"
+        }
+      ],
+      "initialState": {
+        "summary": "Clean Docker environment",
+        "workspaceFiles": []
+      }
+    },
+    {
+      "id": "module_06_level_04",
+      "moduleId": 6,
+      "levelId": 4,
+      "title": "Seccomp Profile",
+      "moduleTitle": "Docker Security",
+      "difficulty": "medium",
+      "xp": 100,
+      "story": "Seccomp filters which system calls a container can make. Apply the default Docker seccomp profile explicitly to lock down `syscall-test` container.",
+      "objectives": [
+        "Run container `syscall-test` from `alpine` with the default seccomp profile applied explicitly",
+        "Run `sleep 3600` detached"
+      ],
+      "hints": [
+        "`--security-opt seccomp=<path>` applies a seccomp profile",
+        "The profile is JSON file defining allowed syscalls",
+        "`docker run -d --name syscall-test --security-opt seccomp=/workspace/default-seccomp.json alpine sleep 3600`"
+      ],
+      "validation": [
+        {
+          "type": "container_running",
+          "params": {
+            "name": "syscall-test"
+          },
+          "description": "name=syscall-test"
+        },
+        {
+          "type": "seccomp_applied",
+          "params": {
+            "container": "syscall-test"
+          },
+          "description": "container=syscall-test"
+        }
+      ],
+      "initialState": {
+        "summary": "`/workspace/default-seccomp.json` contains Docker's default seccomp profile",
+        "workspaceFiles": [
+          {
+            "path": "default-seccomp.json",
+            "content": "{ \"defaultAction\": \"SCMP_ACT_ERRNO\", \"architectures\": [], \"syscalls\": [] }\n"
+          }
+        ]
+      }
+    },
+    {
+      "id": "module_06_level_05",
+      "moduleId": 6,
+      "levelId": 5,
+      "title": "Resource Limits",
+      "moduleTitle": "Docker Security",
+      "difficulty": "medium",
+      "xp": 100,
+      "story": "A runaway container can starve the host. Limit container `resource-hog` to 256MB RAM and 0.5 CPU.",
+      "objectives": [
+        "Run container `resource-hog` from `alpine` with:",
+        "Memory limit: `256m`",
+        "CPU limit: `0.5`",
+        "Run `sleep 3600` detached"
+      ],
+      "hints": [
+        "`--memory 256m` sets RAM limit; `--cpus 0.5` sets CPU limit",
+        "These prevent the container from consuming unlimited host resources",
+        "`docker run -d --name resource-hog --memory 256m --cpus 0.5 alpine sleep 3600`"
+      ],
+      "validation": [
+        {
+          "type": "container_running",
+          "params": {
+            "name": "resource-hog"
+          },
+          "description": "name=resource-hog"
+        },
+        {
+          "type": "memory_limit",
+          "params": {
+            "container": "resource-hog",
+            "limit": "268435456 (256MB in bytes)"
+          },
+          "description": "container=resource-hog, limit=268435456 (256MB in bytes)"
+        },
+        {
+          "type": "cpu_limit",
+          "params": {
+            "container": "resource-hog",
+            "cpus": 0.5
+          },
+          "description": "container=resource-hog, cpus=0.5"
+        }
+      ],
+      "initialState": {
+        "summary": "Clean Docker environment",
+        "workspaceFiles": []
+      }
+    },
+    {
+      "id": "module_06_level_06",
+      "moduleId": 6,
+      "levelId": 6,
+      "title": "Scan an Image for Vulnerabilities",
+      "moduleTitle": "Docker Security",
+      "difficulty": "hard",
+      "xp": 350,
+      "story": "You've built an image `legacy-app:v1`. Use Docker Scout or Trivy to scan it for critical CVEs, then rebuild using an updated base image to eliminate the critical vulnerabilities.",
+      "objectives": [
+        "Scan `legacy-app:v1` (pre-built with old ubuntu base) and identify critical vulnerabilities",
+        "Rebuild with updated base image `ubuntu:22.04` as `legacy-app:v2`",
+        "Scan `legacy-app:v2` and confirm zero critical CVEs"
+      ],
+      "hints": [
+        "`docker scout cves legacy-app:v1` or `trivy image legacy-app:v1`",
+        "Change `FROM ubuntu:18.04` to `FROM ubuntu:22.04` in the Dockerfile",
+        "Rebuild: `docker build -t legacy-app:v2 /workspace`"
+      ],
+      "validation": [
+        {
+          "type": "image_exists",
+          "params": {
+            "name": "legacy-app",
+            "tag": "v2"
+          },
+          "description": "name=legacy-app, tag=v2"
+        },
+        {
+          "type": "scan_critical_cves_zero",
+          "params": {
+            "image": "legacy-app:v2"
+          },
+          "description": "image=legacy-app:v2"
+        }
+      ],
+      "initialState": {
+        "summary": "- `legacy-app:v1` pre-built using `ubuntu:18.04` (has known CVEs) - `/workspace/Dockerfile` available for editing",
+        "workspaceFiles": [
+          {
+            "path": "Dockerfile",
+            "content": "FROM ubuntu:18.04\nRUN apt-get update\nRUN apt-get install -y curl\nRUN apt-get install -y wget\nCMD [\"bash\", \"-lc\", \"sleep 3600\"]\n"
+          }
+        ]
+      }
+    }
+  ]
+}

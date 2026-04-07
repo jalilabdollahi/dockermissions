@@ -1,0 +1,323 @@
+{
+  "id": 5,
+  "title": "Docker Compose",
+  "theme": "Multi-container applications",
+  "totalLevels": 7,
+  "missions": [
+    {
+      "id": "module_05_level_01",
+      "moduleId": 5,
+      "levelId": 1,
+      "title": "Your First Compose File",
+      "moduleTitle": "Docker Compose",
+      "difficulty": "easy",
+      "xp": 50,
+      "story": "Running multi-container apps with `docker run` is painful. Docker Compose lets you define everything in one YAML file. Write a Compose file that runs a single `nginx` service.",
+      "objectives": [
+        "Write `/workspace/docker-compose.yml` with one service: `web` using image `nginx:latest`, no port mapping yet",
+        "Run `docker compose up -d`",
+        "Confirm service `web` is running"
+      ],
+      "hints": [
+        "A Compose file has a `services:` key at the top level",
+        "```yaml",
+        "Write the file, then `docker compose -f /workspace/docker-compose.yml up -d`"
+      ],
+      "validation": [
+        {
+          "type": "compose_service_running",
+          "params": {
+            "service": "web",
+            "project": "workspace"
+          },
+          "description": "service=web, project=workspace"
+        }
+      ],
+      "initialState": {
+        "summary": "`/workspace` is empty",
+        "workspaceFiles": []
+      }
+    },
+    {
+      "id": "module_05_level_02",
+      "moduleId": 5,
+      "levelId": 2,
+      "title": "Multiple Services",
+      "moduleTitle": "Docker Compose",
+      "difficulty": "easy",
+      "xp": 50,
+      "story": "Real apps have multiple components. Define a Compose stack with a `web` (nginx) service and a `db` (postgres:15-alpine) service.",
+      "objectives": [
+        "Write a `docker-compose.yml` with services `web` (nginx) and `db` (postgres:15-alpine)",
+        "Set required env var for postgres: `POSTGRES_PASSWORD=secret`",
+        "Run `docker compose up -d`"
+      ],
+      "hints": [
+        "Add multiple entries under `services:`",
+        "Use `environment:` key for env vars",
+        "```yaml"
+      ],
+      "validation": [
+        {
+          "type": "compose_service_running",
+          "params": {
+            "service": "web"
+          },
+          "description": "service=web"
+        },
+        {
+          "type": "compose_service_running",
+          "params": {
+            "service": "db"
+          },
+          "description": "service=db"
+        },
+        {
+          "type": "env_var_set",
+          "params": {
+            "container": "*db*",
+            "key": "POSTGRES_PASSWORD",
+            "value": "secret"
+          },
+          "description": "container=*db*, key=POSTGRES_PASSWORD, value=secret"
+        }
+      ],
+      "initialState": {
+        "summary": "Clean Docker environment",
+        "workspaceFiles": []
+      }
+    },
+    {
+      "id": "module_05_level_03",
+      "moduleId": 5,
+      "levelId": 3,
+      "title": "Port Mapping in Compose",
+      "moduleTitle": "Docker Compose",
+      "difficulty": "easy",
+      "xp": 50,
+      "story": "Expose the nginx service on host port 8080.",
+      "objectives": [
+        "Add `ports: [\"8080:80\"]` to the `web` service",
+        "Restart the stack",
+        "Confirm http://localhost:8080 responds"
+      ],
+      "hints": [
+        "Use `ports:` key under the service",
+        "Format: `\"host:container\"`",
+        "`ports: [\"8080:80\"]`"
+      ],
+      "validation": [
+        {
+          "type": "port_exposed",
+          "params": {
+            "service": "web",
+            "host_port": 8080,
+            "container_port": 80
+          },
+          "description": "service=web, host_port=8080, container_port=80"
+        },
+        {
+          "type": "http_responds",
+          "params": {
+            "url": "http://localhost:8080",
+            "status": 200
+          },
+          "description": "url=http://localhost:8080, status=200"
+        }
+      ],
+      "initialState": {
+        "summary": "Clean Docker environment",
+        "workspaceFiles": []
+      }
+    },
+    {
+      "id": "module_05_level_04",
+      "moduleId": 5,
+      "levelId": 4,
+      "title": "Named Volumes in Compose",
+      "moduleTitle": "Docker Compose",
+      "difficulty": "medium",
+      "xp": 100,
+      "story": "Your Postgres data disappears on every `docker compose down`. Add a named volume `db-data` to persist it.",
+      "objectives": [
+        "Add a named volume `db-data` to the Compose file",
+        "Mount it in the `db` service at `/var/lib/postgresql/data`",
+        "Re-deploy the stack"
+      ],
+      "hints": [
+        "Define volumes at the top level `volumes:` and reference them in services",
+        "```yaml",
+        "db-data:/var/lib/postgresql/data",
+        "Add both the top-level `volumes:` block and the service-level mount"
+      ],
+      "validation": [
+        {
+          "type": "volume_exists",
+          "params": {
+            "name": "*db-data*"
+          },
+          "description": "name=*db-data*"
+        },
+        {
+          "type": "volume_mounted",
+          "params": {
+            "service": "db",
+            "volume": "*db-data*",
+            "path": "/var/lib/postgresql/data"
+          },
+          "description": "service=db, volume=*db-data*, path=/var/lib/postgresql/data"
+        }
+      ],
+      "initialState": {
+        "summary": "Clean Docker environment",
+        "workspaceFiles": []
+      }
+    },
+    {
+      "id": "module_05_level_05",
+      "moduleId": 5,
+      "levelId": 5,
+      "title": "Custom Network in Compose",
+      "moduleTitle": "Docker Compose",
+      "difficulty": "medium",
+      "xp": 100,
+      "story": "By default Compose creates one network. Define a custom network `backend` and put the `db` on it. Put `web` on both `backend` and a `frontend` network.",
+      "objectives": [
+        "Define two networks: `frontend` and `backend`",
+        "`web` service on both networks",
+        "`db` service only on `backend` network"
+      ],
+      "hints": [
+        "Define networks at the top level `networks:` and reference under each service",
+        "A service can list multiple networks",
+        "Use `networks:` key both at the top level and under each service"
+      ],
+      "validation": [
+        {
+          "type": "network_exists",
+          "params": {
+            "name": "*frontend*"
+          },
+          "description": "name=*frontend*"
+        },
+        {
+          "type": "network_exists",
+          "params": {
+            "name": "*backend*"
+          },
+          "description": "name=*backend*"
+        },
+        {
+          "type": "service_on_network",
+          "params": {
+            "service": "web",
+            "network": "frontend"
+          },
+          "description": "service=web, network=frontend"
+        },
+        {
+          "type": "service_on_network",
+          "params": {
+            "service": "web",
+            "network": "backend"
+          },
+          "description": "service=web, network=backend"
+        },
+        {
+          "type": "service_on_network",
+          "params": {
+            "service": "db",
+            "network": "backend"
+          },
+          "description": "service=db, network=backend"
+        },
+        {
+          "type": "service_not_on_network",
+          "params": {
+            "service": "db",
+            "network": "frontend"
+          },
+          "description": "service=db, network=frontend"
+        }
+      ],
+      "initialState": {
+        "summary": "Clean Docker environment",
+        "workspaceFiles": []
+      }
+    },
+    {
+      "id": "module_05_level_06",
+      "moduleId": 5,
+      "levelId": 6,
+      "title": "Health Checks and Depends_on",
+      "moduleTitle": "Docker Compose",
+      "difficulty": "hard",
+      "xp": 200,
+      "story": "The `web` service crashes on startup because `db` isn't ready. Use `depends_on` with a health check to make `web` wait for `db` to be healthy before starting.",
+      "objectives": [
+        "Add a `healthcheck` to the `db` service: `pg_isready -U postgres`",
+        "Add `depends_on: db: condition: service_healthy` to the `web` service",
+        "Redeploy and confirm `web` starts only after `db` is healthy"
+      ],
+      "hints": [
+        "`healthcheck` has `test`, `interval`, `timeout`, `retries` keys",
+        "`depends_on` can take a `condition: service_healthy` qualifier",
+        "```yaml"
+      ],
+      "validation": [
+        {
+          "type": "service_has_healthcheck",
+          "params": {
+            "service": "db"
+          },
+          "description": "service=db"
+        },
+        {
+          "type": "depends_on_healthy",
+          "params": {
+            "service": "web",
+            "depends_on": "db"
+          },
+          "description": "service=web, depends_on=db"
+        }
+      ],
+      "initialState": {
+        "summary": "Clean Docker environment",
+        "workspaceFiles": []
+      }
+    },
+    {
+      "id": "module_05_level_07",
+      "moduleId": 5,
+      "levelId": 7,
+      "title": "Scale a Service",
+      "moduleTitle": "Docker Compose",
+      "difficulty": "hard",
+      "xp": 200,
+      "story": "Traffic is spiking. Scale the `web` service to 3 replicas using Docker Compose.",
+      "objectives": [
+        "Scale the `web` service to 3 replicas",
+        "Confirm 3 containers for the `web` service are running"
+      ],
+      "hints": [
+        "`docker compose up --scale web=3 -d` scales a service",
+        "Or add `deploy.replicas: 3` in the Compose file (requires Swarm or Compose v3 with deploy)",
+        "`docker compose up --scale web=3 -d`"
+      ],
+      "validation": [
+        {
+          "type": "service_replicas",
+          "params": {
+            "service": "web",
+            "count": 3
+          },
+          "description": "service=web, count=3"
+        }
+      ],
+      "initialState": {
+        "summary": "Clean Docker environment",
+        "workspaceFiles": []
+      }
+    }
+  ]
+}

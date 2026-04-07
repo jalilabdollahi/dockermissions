@@ -1,0 +1,297 @@
+{
+  "id": 1,
+  "title": "Docker Basics",
+  "theme": "First contact with containers",
+  "totalLevels": 8,
+  "missions": [
+    {
+      "id": "module_01_level_01",
+      "moduleId": 1,
+      "levelId": 1,
+      "title": "Hello, Container!",
+      "moduleTitle": "Docker Basics",
+      "difficulty": "easy",
+      "xp": 50,
+      "story": "Welcome, recruit. Your first mission is simple: prove you can launch a container. The docks are quiet, but not for long.",
+      "objectives": [
+        "Run an `nginx` container in the foreground (any name)"
+      ],
+      "hints": [
+        "The command to run a container is `docker run`",
+        "Try `docker run nginx`",
+        "`docker run nginx` — this runs nginx in the foreground"
+      ],
+      "validation": [
+        {
+          "type": "container_running",
+          "params": {
+            "image": "nginx"
+          },
+          "description": "image=nginx"
+        }
+      ],
+      "initialState": {
+        "summary": "Clean Docker environment",
+        "workspaceFiles": []
+      }
+    },
+    {
+      "id": "module_01_level_02",
+      "moduleId": 1,
+      "levelId": 2,
+      "title": "Detach and Name",
+      "moduleTitle": "Docker Basics",
+      "difficulty": "easy",
+      "xp": 50,
+      "story": "Running in the foreground blocks your terminal. Real operators run containers in the background. Name your assets so you can find them later.",
+      "objectives": [
+        "Run an `nginx` container named `webserver` in detached mode"
+      ],
+      "hints": [
+        "Use flags to detach and name: `-d` and `--name`",
+        "`docker run -d --name webserver nginx`",
+        "`docker run -d --name webserver nginx`"
+      ],
+      "validation": [
+        {
+          "type": "container_running",
+          "params": {
+            "name": "webserver",
+            "image": "nginx"
+          },
+          "description": "name=webserver, image=nginx"
+        }
+      ],
+      "initialState": {
+        "summary": "Clean Docker environment",
+        "workspaceFiles": []
+      }
+    },
+    {
+      "id": "module_01_level_03",
+      "moduleId": 1,
+      "levelId": 3,
+      "title": "Inspect the Fleet",
+      "moduleTitle": "Docker Basics",
+      "difficulty": "easy",
+      "xp": 50,
+      "story": "A good operator always knows the state of their fleet. List all running containers and identify the one named `mission-agent`.",
+      "objectives": [
+        "Run `docker ps` to see running containers (validation auto-passes after you run `docker ps` once)",
+        "Extra: Find the container ID of `mission-agent` and run `docker inspect mission-agent`"
+      ],
+      "hints": [
+        "`docker ps` lists running containers",
+        "`docker inspect <name>` shows full details",
+        "`docker ps` then `docker inspect mission-agent`"
+      ],
+      "validation": [
+        {
+          "type": "command_run",
+          "params": {},
+          "description": "docker ps executed"
+        },
+        {
+          "type": "command_run",
+          "params": {},
+          "description": "docker inspect mission-agent executed"
+        }
+      ],
+      "initialState": {
+        "summary": "Container `mission-agent` (alpine, running) pre-created",
+        "workspaceFiles": []
+      }
+    },
+    {
+      "id": "module_01_level_04",
+      "moduleId": 1,
+      "levelId": 4,
+      "title": "Port Mapping",
+      "moduleTitle": "Docker Basics",
+      "difficulty": "easy",
+      "xp": 50,
+      "story": "The web server is running but no one outside can reach it. Map port 8080 on the host to port 80 inside the container.",
+      "objectives": [
+        "Run an `nginx` container named `webserver` mapping host port 8080 to container port 80, in detached mode"
+      ],
+      "hints": [
+        "Use `-p` flag for port mapping: `-p host:container`",
+        "`docker run -d --name webserver -p 8080:80 nginx`",
+        "`docker run -d --name webserver -p 8080:80 nginx`"
+      ],
+      "validation": [
+        {
+          "type": "container_running",
+          "params": {
+            "name": "webserver"
+          },
+          "description": "name=webserver"
+        },
+        {
+          "type": "port_exposed",
+          "params": {
+            "container": "webserver",
+            "host_port": 8080,
+            "container_port": 80
+          },
+          "description": "container=webserver, host_port=8080, container_port=80"
+        }
+      ],
+      "initialState": {
+        "summary": "Clean Docker environment",
+        "workspaceFiles": []
+      }
+    },
+    {
+      "id": "module_01_level_05",
+      "moduleId": 1,
+      "levelId": 5,
+      "title": "Environment Variables",
+      "moduleTitle": "Docker Basics",
+      "difficulty": "easy",
+      "xp": 50,
+      "story": "Applications need configuration. Pass secrets and settings through environment variables — never hardcode them.",
+      "objectives": [
+        "Run a container from image `alpine` named `env-demo` with env var `APP_ENV=production` and `APP_VERSION=1.0`, keep it running (use `sleep 3600`)"
+      ],
+      "hints": [
+        "Use `-e` flag to set environment variables",
+        "`docker run -d --name env-demo -e APP_ENV=production -e APP_VERSION=1.0 alpine sleep 3600`",
+        "`docker run -d --name env-demo -e APP_ENV=production -e APP_VERSION=1.0 alpine sleep 3600`"
+      ],
+      "validation": [
+        {
+          "type": "container_running",
+          "params": {
+            "name": "env-demo"
+          },
+          "description": "name=env-demo"
+        },
+        {
+          "type": "env_var_set",
+          "params": {
+            "container": "env-demo",
+            "key": "APP_ENV",
+            "value": "production"
+          },
+          "description": "container=env-demo, key=APP_ENV, value=production"
+        },
+        {
+          "type": "env_var_set",
+          "params": {
+            "container": "env-demo",
+            "key": "APP_VERSION",
+            "value": 1
+          },
+          "description": "container=env-demo, key=APP_VERSION, value=1.0"
+        }
+      ],
+      "initialState": {
+        "summary": "Clean Docker environment",
+        "workspaceFiles": []
+      }
+    },
+    {
+      "id": "module_01_level_06",
+      "moduleId": 1,
+      "levelId": 6,
+      "title": "Stop and Remove",
+      "moduleTitle": "Docker Basics",
+      "difficulty": "easy",
+      "xp": 50,
+      "story": "Containers left running waste resources. Stop and remove the container named `old-service` to clean up the docks.",
+      "objectives": [
+        "Stop the container named `old-service`",
+        "Remove the container named `old-service`"
+      ],
+      "hints": [
+        "`docker stop <name>` stops a container; `docker rm <name>` removes it",
+        "Stop first, then remove: `docker stop old-service && docker rm old-service`",
+        "Or force remove in one step: `docker rm -f old-service`"
+      ],
+      "validation": [
+        {
+          "type": "container_not_exists",
+          "params": {
+            "name": "old-service"
+          },
+          "description": "name=old-service"
+        }
+      ],
+      "initialState": {
+        "summary": "Container `old-service` (nginx, running) pre-created",
+        "workspaceFiles": []
+      }
+    },
+    {
+      "id": "module_01_level_07",
+      "moduleId": 1,
+      "levelId": 7,
+      "title": "Exec Into a Container",
+      "moduleTitle": "Docker Basics",
+      "difficulty": "medium",
+      "xp": 100,
+      "story": "Something is wrong inside the `debug-box` container. Get a shell inside it and create a file `/tmp/mission-complete` to signal success.",
+      "objectives": [
+        "Exec into container `debug-box` and create file `/tmp/mission-complete`"
+      ],
+      "hints": [
+        "`docker exec -it <name> <command>` runs a command inside a running container",
+        "Use `docker exec debug-box touch /tmp/mission-complete` or exec a shell",
+        "`docker exec debug-box touch /tmp/mission-complete`"
+      ],
+      "validation": [
+        {
+          "type": "file_in_container",
+          "params": {
+            "container": "debug-box",
+            "path": "/tmp/mission-complete"
+          },
+          "description": "container=debug-box, path=/tmp/mission-complete"
+        }
+      ],
+      "initialState": {
+        "summary": "Container `debug-box` (ubuntu, running with `sleep 3600`) pre-created",
+        "workspaceFiles": []
+      }
+    },
+    {
+      "id": "module_01_level_08",
+      "moduleId": 1,
+      "levelId": 8,
+      "title": "Container Logs",
+      "moduleTitle": "Docker Basics",
+      "difficulty": "medium",
+      "xp": 100,
+      "story": "The `log-service` container is misbehaving. Read its logs to find the secret code it printed, then create a file `/tmp/found` inside it to confirm you found it.",
+      "objectives": [
+        "Read the logs of `log-service`",
+        "Create file `/tmp/found` inside `log-service`"
+      ],
+      "hints": [
+        "`docker logs <name>` prints the stdout/stderr of a container",
+        "After reading logs, exec in and create the file",
+        "`docker logs log-service` then `docker exec log-service touch /tmp/found`"
+      ],
+      "validation": [
+        {
+          "type": "command_run",
+          "params": {},
+          "description": "docker logs log-service executed"
+        },
+        {
+          "type": "file_in_container",
+          "params": {
+            "container": "log-service",
+            "path": "/tmp/found"
+          },
+          "description": "container=log-service, path=/tmp/found"
+        }
+      ],
+      "initialState": {
+        "summary": "- Container `log-service` (alpine, running) pre-created, it ran: `echo \"SECRET_CODE=DOCKER42\"` then `sleep 3600`",
+        "workspaceFiles": []
+      }
+    }
+  ]
+}

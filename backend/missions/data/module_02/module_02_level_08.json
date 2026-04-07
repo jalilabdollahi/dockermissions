@@ -1,0 +1,48 @@
+{
+  "id": "module_02_level_08",
+  "moduleId": 2,
+  "levelId": 8,
+  "title": ".dockerignore",
+  "moduleTitle": "Images & Dockerfile",
+  "difficulty": "medium",
+  "xp": 100,
+  "story": "Your build context is huge because it includes `node_modules` and `.git`. Create a `.dockerignore` file to exclude them and speed up builds.",
+  "objectives": [
+    "Create `/workspace/.dockerignore` that excludes `node_modules` and `.git`",
+    "Build image `clean-build:v1` from the existing Dockerfile in `/workspace`",
+    "Verify the build context sent to daemon is under 1KB"
+  ],
+  "hints": [
+    "`.dockerignore` works like `.gitignore` — list patterns to exclude from build context",
+    "Add `node_modules` and `.git` on separate lines",
+    "Create `.dockerignore` with those two entries, then `docker build -t clean-build:v1 /workspace`"
+  ],
+  "validation": [
+    {
+      "type": "file_exists",
+      "params": {
+        "path": "/workspace/.dockerignore"
+      },
+      "description": "path=/workspace/.dockerignore"
+    },
+    {
+      "type": "dockerignore_excludes",
+      "params": {
+        "entries": "[node_modules, .git]"
+      },
+      "description": "entries=[node_modules, .git]"
+    },
+    {
+      "type": "image_exists",
+      "params": {
+        "name": "clean-build",
+        "tag": "v1"
+      },
+      "description": "name=clean-build, tag=v1"
+    }
+  ],
+  "initialState": {
+    "summary": "`/workspace` contains a Dockerfile, a small `index.js`, large `node_modules/` (fake, 100MB), `.git/`",
+    "workspaceFiles": []
+  }
+}

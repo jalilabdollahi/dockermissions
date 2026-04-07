@@ -1,0 +1,43 @@
+{
+  "id": "module_08_level_07",
+  "moduleId": 8,
+  "levelId": 7,
+  "title": "Prune Everything",
+  "moduleTitle": "Advanced Docker",
+  "difficulty": "easy",
+  "xp": 200,
+  "story": "Your Docker host is running out of disk space. Clean up all stopped containers, unused images, unused networks, and dangling volumes in one sweep.",
+  "objectives": [
+    "Remove all stopped containers",
+    "Remove all unused images (not just dangling)",
+    "Remove all unused networks",
+    "Remove all unused volumes",
+    "Confirm disk space is recovered"
+  ],
+  "hints": [
+    "`docker system prune -a --volumes` cleans everything at once (with `-a` for all images)",
+    "Or run individually: `docker container prune`, `docker image prune -a`, `docker volume prune`, `docker network prune`",
+    "`docker system prune -a --volumes -f`"
+  ],
+  "validation": [
+    {
+      "type": "no_stopped_containers",
+      "params": {},
+      "description": "true"
+    },
+    {
+      "type": "no_dangling_images",
+      "params": {},
+      "description": "true"
+    },
+    {
+      "type": "no_unused_volumes",
+      "params": {},
+      "description": "true"
+    }
+  ],
+  "initialState": {
+    "summary": "Many stopped containers, unused images, and dangling volumes pre-created",
+    "workspaceFiles": []
+  }
+}

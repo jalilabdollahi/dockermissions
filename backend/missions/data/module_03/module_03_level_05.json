@@ -1,0 +1,40 @@
+{
+  "id": "module_03_level_05",
+  "moduleId": 3,
+  "levelId": 5,
+  "title": "Host Network",
+  "moduleTitle": "Docker Networking",
+  "difficulty": "medium",
+  "xp": 100,
+  "story": "For maximum performance (no NAT), some containers run on the host network. Run a container using the `host` network driver and confirm it sees the host's network interfaces.",
+  "objectives": [
+    "Run container `host-mode` from `alpine` using `--network host` running `sleep 3600` (detached)",
+    "Exec into it and run `ip addr` — confirm `eth0` or host interface is visible"
+  ],
+  "hints": [
+    "`--network host` attaches container directly to host network",
+    "No port mapping needed or possible with host mode",
+    "`docker run -d --name host-mode --network host alpine sleep 3600`"
+  ],
+  "validation": [
+    {
+      "type": "container_running",
+      "params": {
+        "name": "host-mode"
+      },
+      "description": "name=host-mode"
+    },
+    {
+      "type": "container_network_mode",
+      "params": {
+        "container": "host-mode",
+        "mode": "host"
+      },
+      "description": "container=host-mode, mode=host"
+    }
+  ],
+  "initialState": {
+    "summary": "Clean Docker environment",
+    "workspaceFiles": []
+  }
+}

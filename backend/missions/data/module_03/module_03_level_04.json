@@ -1,0 +1,49 @@
+{
+  "id": "module_03_level_04",
+  "moduleId": 3,
+  "levelId": 4,
+  "title": "Expose vs Publish",
+  "moduleTitle": "Docker Networking",
+  "difficulty": "medium",
+  "xp": 100,
+  "story": "`EXPOSE` in a Dockerfile is documentation only — it doesn't publish the port to the host. You must use `-p` to actually publish. Run nginx publishing port 9090 on the host.",
+  "objectives": [
+    "Run `nginx` container named `public-web` with host port `9090` mapped to container port `80`",
+    "Confirm the port is reachable on `localhost:9090`"
+  ],
+  "hints": [
+    "`-p <host>:<container>` publishes a port",
+    "`-p 9090:80`",
+    "`docker run -d --name public-web -p 9090:80 nginx`"
+  ],
+  "validation": [
+    {
+      "type": "container_running",
+      "params": {
+        "name": "public-web"
+      },
+      "description": "name=public-web"
+    },
+    {
+      "type": "port_exposed",
+      "params": {
+        "container": "public-web",
+        "host_port": 9090,
+        "container_port": 80
+      },
+      "description": "container=public-web, host_port=9090, container_port=80"
+    },
+    {
+      "type": "http_responds",
+      "params": {
+        "url": "http://localhost:9090",
+        "status": 200
+      },
+      "description": "url=http://localhost:9090, status=200"
+    }
+  ],
+  "initialState": {
+    "summary": "Clean Docker environment",
+    "workspaceFiles": []
+  }
+}

@@ -1,0 +1,42 @@
+{
+  "id": "module_04_level_02",
+  "moduleId": 4,
+  "levelId": 2,
+  "title": "Mount a Volume",
+  "moduleTitle": "Volumes & Storage",
+  "difficulty": "easy",
+  "xp": 50,
+  "story": "A volume is only useful when mounted. Run an `alpine` container named `writer` with volume `app-data` mounted at `/data`, then write a file to it.",
+  "objectives": [
+    "Run container `writer` from `alpine` with `app-data` mounted at `/data` (detached, `sleep 3600`)",
+    "Create file `/data/record.txt` inside the container with content `mission=complete`"
+  ],
+  "hints": [
+    "Use `-v <volume>:<path>` or `--mount` to attach a volume",
+    "`docker run -d --name writer -v app-data:/data alpine sleep 3600`",
+    "Then `docker exec writer sh -c 'echo mission=complete > /data/record.txt'`"
+  ],
+  "validation": [
+    {
+      "type": "volume_mounted",
+      "params": {
+        "container": "writer",
+        "volume": "app-data",
+        "path": "/data"
+      },
+      "description": "container=writer, volume=app-data, path=/data"
+    },
+    {
+      "type": "file_in_container",
+      "params": {
+        "container": "writer",
+        "path": "/data/record.txt"
+      },
+      "description": "container=writer, path=/data/record.txt"
+    }
+  ],
+  "initialState": {
+    "summary": "Volume `app-data` pre-created",
+    "workspaceFiles": []
+  }
+}

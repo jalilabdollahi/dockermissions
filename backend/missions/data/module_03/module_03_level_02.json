@@ -1,0 +1,32 @@
+{
+  "id": "module_03_level_02",
+  "moduleId": 3,
+  "levelId": 2,
+  "title": "Create a Custom Network",
+  "moduleTitle": "Docker Networking",
+  "difficulty": "easy",
+  "xp": 50,
+  "story": "User-defined networks give you DNS resolution between containers. Create a network named `mission-net` of type `bridge`.",
+  "objectives": [
+    "Create a Docker network named `mission-net` with driver `bridge`"
+  ],
+  "hints": [
+    "`docker network create <name>` creates a network",
+    "Use `--driver bridge` (bridge is the default anyway)",
+    "`docker network create --driver bridge mission-net`"
+  ],
+  "validation": [
+    {
+      "type": "network_exists",
+      "params": {
+        "name": "mission-net",
+        "driver": "bridge"
+      },
+      "description": "name=mission-net, driver=bridge"
+    }
+  ],
+  "initialState": {
+    "summary": "Clean Docker environment",
+    "workspaceFiles": []
+  }
+}

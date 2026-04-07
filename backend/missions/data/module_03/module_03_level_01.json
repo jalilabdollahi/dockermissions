@@ -1,0 +1,57 @@
+{
+  "id": "module_03_level_01",
+  "moduleId": 3,
+  "levelId": 1,
+  "title": "Default Bridge Network",
+  "moduleTitle": "Docker Networking",
+  "difficulty": "easy",
+  "xp": 50,
+  "story": "By default, containers join the `bridge` network. Run two alpine containers and observe that they can't resolve each other by name on the default bridge.",
+  "objectives": [
+    "Run container `alpha` from `alpine` (detached, `sleep 3600`)",
+    "Run container `beta` from `alpine` (detached, `sleep 3600`)",
+    "Try to ping `beta` from `alpha` — observe it fails (expected)",
+    "Confirm both containers are on the `bridge` network"
+  ],
+  "hints": [
+    "Default containers use the `bridge` network automatically",
+    "`docker run -d --name alpha alpine sleep 3600`",
+    "DNS-based name resolution only works on user-defined networks"
+  ],
+  "validation": [
+    {
+      "type": "container_running",
+      "params": {
+        "name": "alpha"
+      },
+      "description": "name=alpha"
+    },
+    {
+      "type": "container_running",
+      "params": {
+        "name": "beta"
+      },
+      "description": "name=beta"
+    },
+    {
+      "type": "container_on_network",
+      "params": {
+        "container": "alpha",
+        "network": "bridge"
+      },
+      "description": "container=alpha, network=bridge"
+    },
+    {
+      "type": "container_on_network",
+      "params": {
+        "container": "beta",
+        "network": "bridge"
+      },
+      "description": "container=beta, network=bridge"
+    }
+  ],
+  "initialState": {
+    "summary": "Clean Docker environment",
+    "workspaceFiles": []
+  }
+}

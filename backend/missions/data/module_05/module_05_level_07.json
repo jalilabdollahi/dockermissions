@@ -1,0 +1,33 @@
+{
+  "id": "module_05_level_07",
+  "moduleId": 5,
+  "levelId": 7,
+  "title": "Scale a Service",
+  "moduleTitle": "Docker Compose",
+  "difficulty": "hard",
+  "xp": 200,
+  "story": "Traffic is spiking. Scale the `web` service to 3 replicas using Docker Compose.",
+  "objectives": [
+    "Scale the `web` service to 3 replicas",
+    "Confirm 3 containers for the `web` service are running"
+  ],
+  "hints": [
+    "`docker compose up --scale web=3 -d` scales a service",
+    "Or add `deploy.replicas: 3` in the Compose file (requires Swarm or Compose v3 with deploy)",
+    "`docker compose up --scale web=3 -d`"
+  ],
+  "validation": [
+    {
+      "type": "service_replicas",
+      "params": {
+        "service": "web",
+        "count": 3
+      },
+      "description": "service=web, count=3"
+    }
+  ],
+  "initialState": {
+    "summary": "Clean Docker environment",
+    "workspaceFiles": []
+  }
+}

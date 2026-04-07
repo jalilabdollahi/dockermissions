@@ -1,0 +1,48 @@
+{
+  "id": "module_06_level_02",
+  "moduleId": 6,
+  "levelId": 2,
+  "title": "Read-Only Filesystem",
+  "moduleTitle": "Docker Security",
+  "difficulty": "easy",
+  "xp": 50,
+  "story": "A container that can't write to its own filesystem is significantly harder to compromise. Run nginx in read-only mode.",
+  "objectives": [
+    "Run `nginx` container named `readonly-web` with a read-only filesystem (`--read-only`)",
+    "Nginx needs a writable tmpfs at `/tmp` and `/var/run` to start — add those",
+    "Publish port 8080"
+  ],
+  "hints": [
+    "`--read-only` makes the root filesystem read-only",
+    "Combine with `--tmpfs` for directories that must be writable",
+    "`docker run -d --name readonly-web --read-only --tmpfs /tmp --tmpfs /var/run -p 8080:80 nginx`"
+  ],
+  "validation": [
+    {
+      "type": "container_running",
+      "params": {
+        "name": "readonly-web"
+      },
+      "description": "name=readonly-web"
+    },
+    {
+      "type": "readonly_rootfs",
+      "params": {
+        "container": "readonly-web"
+      },
+      "description": "container=readonly-web"
+    },
+    {
+      "type": "http_responds",
+      "params": {
+        "url": "http://localhost:8080",
+        "status": 200
+      },
+      "description": "url=http://localhost:8080, status=200"
+    }
+  ],
+  "initialState": {
+    "summary": "Clean Docker environment",
+    "workspaceFiles": []
+  }
+}

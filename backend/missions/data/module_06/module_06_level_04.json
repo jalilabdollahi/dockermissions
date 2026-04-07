@@ -1,0 +1,44 @@
+{
+  "id": "module_06_level_04",
+  "moduleId": 6,
+  "levelId": 4,
+  "title": "Seccomp Profile",
+  "moduleTitle": "Docker Security",
+  "difficulty": "medium",
+  "xp": 100,
+  "story": "Seccomp filters which system calls a container can make. Apply the default Docker seccomp profile explicitly to lock down `syscall-test` container.",
+  "objectives": [
+    "Run container `syscall-test` from `alpine` with the default seccomp profile applied explicitly",
+    "Run `sleep 3600` detached"
+  ],
+  "hints": [
+    "`--security-opt seccomp=<path>` applies a seccomp profile",
+    "The profile is JSON file defining allowed syscalls",
+    "`docker run -d --name syscall-test --security-opt seccomp=/workspace/default-seccomp.json alpine sleep 3600`"
+  ],
+  "validation": [
+    {
+      "type": "container_running",
+      "params": {
+        "name": "syscall-test"
+      },
+      "description": "name=syscall-test"
+    },
+    {
+      "type": "seccomp_applied",
+      "params": {
+        "container": "syscall-test"
+      },
+      "description": "container=syscall-test"
+    }
+  ],
+  "initialState": {
+    "summary": "`/workspace/default-seccomp.json` contains Docker's default seccomp profile",
+    "workspaceFiles": [
+      {
+        "path": "default-seccomp.json",
+        "content": "{ \"defaultAction\": \"SCMP_ACT_ERRNO\", \"architectures\": [], \"syscalls\": [] }\n"
+      }
+    ]
+  }
+}

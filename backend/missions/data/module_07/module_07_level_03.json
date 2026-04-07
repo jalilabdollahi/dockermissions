@@ -1,0 +1,38 @@
+{
+  "id": "module_07_level_03",
+  "moduleId": 7,
+  "levelId": 3,
+  "title": "Push to Local Registry",
+  "moduleTitle": "Registry & Distribution",
+  "difficulty": "medium",
+  "xp": 100,
+  "story": "Your local registry is running. Push `localhost:5000/myapp:v1` to it.",
+  "objectives": [
+    "Push the image `localhost:5000/myapp:v1` to the local registry"
+  ],
+  "hints": [
+    "`docker push <image>` pushes to the registry encoded in the image name",
+    "`docker push localhost:5000/myapp:v1`",
+    "`docker push localhost:5000/myapp:v1`"
+  ],
+  "validation": [
+    {
+      "type": "image_in_registry",
+      "params": {
+        "registry": "localhost:5000",
+        "name": "myapp",
+        "tag": "v1"
+      },
+      "description": "registry=localhost:5000, name=myapp, tag=v1"
+    }
+  ],
+  "initialState": {
+    "summary": "- Local registry running on port 5000 - `localhost:5000/myapp:v1` image tagged locally",
+    "workspaceFiles": [
+      {
+        "path": "Dockerfile",
+        "content": "FROM ubuntu:22.04\nRUN apt-get update\nRUN apt-get install -y curl\nRUN apt-get install -y wget\nRUN apt-get install -y git\nCMD [\"bash\", \"-lc\", \"echo mission ready\"]\n"
+      }
+    ]
+  }
+}

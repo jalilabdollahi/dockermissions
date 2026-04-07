@@ -1,0 +1,48 @@
+{
+  "id": "module_07_level_05",
+  "moduleId": 7,
+  "levelId": 5,
+  "title": "Image Layers and History",
+  "moduleTitle": "Registry & Distribution",
+  "difficulty": "hard",
+  "xp": 200,
+  "story": "Every Dockerfile instruction adds a layer. Understanding layers helps you optimize images. Inspect the layer history of `myapp:v1` and rebuild with optimized layers (fewer RUN commands merged).",
+  "objectives": [
+    "Run `docker history myapp:v1` to see all layers",
+    "Identify layers that can be merged (multiple consecutive `RUN` commands)",
+    "Edit `/workspace/Dockerfile` to merge the RUN commands",
+    "Build `myapp:v2` and confirm it has fewer layers than `myapp:v1`"
+  ],
+  "hints": [
+    "`docker history <image>` shows all layers and their sizes",
+    "Merge multiple `RUN` commands with `&&` to reduce layer count",
+    "```dockerfile"
+  ],
+  "validation": [
+    {
+      "type": "image_exists",
+      "params": {
+        "name": "myapp",
+        "tag": "v2"
+      },
+      "description": "name=myapp, tag=v2"
+    },
+    {
+      "type": "fewer_layers",
+      "params": {
+        "image_a": "myapp:v2",
+        "image_b": "myapp:v1"
+      },
+      "description": "image_a=myapp:v2, image_b=myapp:v1"
+    }
+  ],
+  "initialState": {
+    "summary": "- `myapp:v1` pre-built with at least 3 separate `RUN apt-get ...` instructions - `/workspace/Dockerfile` editable",
+    "workspaceFiles": [
+      {
+        "path": "Dockerfile",
+        "content": "FROM ubuntu:22.04\nRUN apt-get update\nRUN apt-get install -y curl\nRUN apt-get install -y wget\nRUN apt-get install -y git\nCMD [\"bash\", \"-lc\", \"echo mission ready\"]\n"
+      }
+    ]
+  }
+}

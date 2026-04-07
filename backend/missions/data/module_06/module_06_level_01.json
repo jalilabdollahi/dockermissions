@@ -1,0 +1,39 @@
+{
+  "id": "module_06_level_01",
+  "moduleId": 6,
+  "levelId": 1,
+  "title": "Run as Non-Root",
+  "moduleTitle": "Docker Security",
+  "difficulty": "easy",
+  "xp": 50,
+  "story": "Containers running as root are dangerous. If they escape, they own your host. Run an alpine container as user ID `1000` instead of root.",
+  "objectives": [
+    "Run container `safe-app` from `alpine` as user `1000` (`sleep 3600`, detached)",
+    "Confirm the container process does NOT run as root"
+  ],
+  "hints": [
+    "Use `--user <uid>` to set the container user",
+    "`--user 1000`",
+    "`docker run -d --name safe-app --user 1000 alpine sleep 3600`"
+  ],
+  "validation": [
+    {
+      "type": "container_running",
+      "params": {
+        "name": "safe-app"
+      },
+      "description": "name=safe-app"
+    },
+    {
+      "type": "no_root",
+      "params": {
+        "container": "safe-app"
+      },
+      "description": "container=safe-app"
+    }
+  ],
+  "initialState": {
+    "summary": "Clean Docker environment",
+    "workspaceFiles": []
+  }
+}

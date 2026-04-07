@@ -1,0 +1,43 @@
+{
+  "id": "module_05_level_04",
+  "moduleId": 5,
+  "levelId": 4,
+  "title": "Named Volumes in Compose",
+  "moduleTitle": "Docker Compose",
+  "difficulty": "medium",
+  "xp": 100,
+  "story": "Your Postgres data disappears on every `docker compose down`. Add a named volume `db-data` to persist it.",
+  "objectives": [
+    "Add a named volume `db-data` to the Compose file",
+    "Mount it in the `db` service at `/var/lib/postgresql/data`",
+    "Re-deploy the stack"
+  ],
+  "hints": [
+    "Define volumes at the top level `volumes:` and reference them in services",
+    "```yaml",
+    "db-data:/var/lib/postgresql/data",
+    "Add both the top-level `volumes:` block and the service-level mount"
+  ],
+  "validation": [
+    {
+      "type": "volume_exists",
+      "params": {
+        "name": "*db-data*"
+      },
+      "description": "name=*db-data*"
+    },
+    {
+      "type": "volume_mounted",
+      "params": {
+        "service": "db",
+        "volume": "*db-data*",
+        "path": "/var/lib/postgresql/data"
+      },
+      "description": "service=db, volume=*db-data*, path=/var/lib/postgresql/data"
+    }
+  ],
+  "initialState": {
+    "summary": "Clean Docker environment",
+    "workspaceFiles": []
+  }
+}

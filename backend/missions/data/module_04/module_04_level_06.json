@@ -1,0 +1,40 @@
+{
+  "id": "module_04_level_06",
+  "moduleId": 4,
+  "levelId": 6,
+  "title": "Volume Backup",
+  "moduleTitle": "Volumes & Storage",
+  "difficulty": "hard",
+  "xp": 200,
+  "story": "Volumes must be backed up. Use a temporary container to tar the contents of `app-data` volume to `/backup/app-data.tar.gz` on the host.",
+  "objectives": [
+    "Run a temporary container that mounts `app-data` at `/data` and `/backup` as a bind mount",
+    "Compress `/data` contents into `/backup/app-data.tar.gz`",
+    "Container should stop after completing the backup"
+  ],
+  "hints": [
+    "Use `docker run --rm` for throwaway containers",
+    "Mount both the volume and the backup directory",
+    "`docker run --rm -v app-data:/data -v /backup:/backup alpine tar czf /backup/app-data.tar.gz -C /data .`"
+  ],
+  "validation": [
+    {
+      "type": "file_exists_on_host",
+      "params": {
+        "path": "/backup/app-data.tar.gz"
+      },
+      "description": "path=/backup/app-data.tar.gz"
+    },
+    {
+      "type": "tar_valid",
+      "params": {
+        "path": "/backup/app-data.tar.gz"
+      },
+      "description": "path=/backup/app-data.tar.gz"
+    }
+  ],
+  "initialState": {
+    "summary": "- Volume `app-data` with files pre-created - Host directory `/backup` exists and is writable",
+    "workspaceFiles": []
+  }
+}

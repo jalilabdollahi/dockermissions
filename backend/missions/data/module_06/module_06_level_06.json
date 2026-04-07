@@ -1,0 +1,46 @@
+{
+  "id": "module_06_level_06",
+  "moduleId": 6,
+  "levelId": 6,
+  "title": "Scan an Image for Vulnerabilities",
+  "moduleTitle": "Docker Security",
+  "difficulty": "hard",
+  "xp": 350,
+  "story": "You've built an image `legacy-app:v1`. Use Docker Scout or Trivy to scan it for critical CVEs, then rebuild using an updated base image to eliminate the critical vulnerabilities.",
+  "objectives": [
+    "Scan `legacy-app:v1` (pre-built with old ubuntu base) and identify critical vulnerabilities",
+    "Rebuild with updated base image `ubuntu:22.04` as `legacy-app:v2`",
+    "Scan `legacy-app:v2` and confirm zero critical CVEs"
+  ],
+  "hints": [
+    "`docker scout cves legacy-app:v1` or `trivy image legacy-app:v1`",
+    "Change `FROM ubuntu:18.04` to `FROM ubuntu:22.04` in the Dockerfile",
+    "Rebuild: `docker build -t legacy-app:v2 /workspace`"
+  ],
+  "validation": [
+    {
+      "type": "image_exists",
+      "params": {
+        "name": "legacy-app",
+        "tag": "v2"
+      },
+      "description": "name=legacy-app, tag=v2"
+    },
+    {
+      "type": "scan_critical_cves_zero",
+      "params": {
+        "image": "legacy-app:v2"
+      },
+      "description": "image=legacy-app:v2"
+    }
+  ],
+  "initialState": {
+    "summary": "- `legacy-app:v1` pre-built using `ubuntu:18.04` (has known CVEs) - `/workspace/Dockerfile` available for editing",
+    "workspaceFiles": [
+      {
+        "path": "Dockerfile",
+        "content": "FROM ubuntu:18.04\nRUN apt-get update\nRUN apt-get install -y curl\nRUN apt-get install -y wget\nCMD [\"bash\", \"-lc\", \"sleep 3600\"]\n"
+      }
+    ]
+  }
+}

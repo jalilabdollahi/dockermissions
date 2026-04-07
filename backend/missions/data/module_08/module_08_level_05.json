@@ -1,0 +1,48 @@
+{
+  "id": "module_08_level_05",
+  "moduleId": 8,
+  "levelId": 5,
+  "title": "Healthcheck in Dockerfile",
+  "moduleTitle": "Advanced Docker",
+  "difficulty": "medium",
+  "xp": 100,
+  "story": "Docker can monitor your container's health and restart it if it becomes unhealthy. Add a HEALTHCHECK to a Dockerfile for an HTTP service.",
+  "objectives": [
+    "Edit `/workspace/Dockerfile` (nginx-based) to add:",
+    "Build as `healthy-nginx:v1`",
+    "Run a container and confirm it reaches `healthy` status"
+  ],
+  "hints": [
+    "`HEALTHCHECK` is a Dockerfile instruction",
+    "The CMD must return 0 for healthy, 1 for unhealthy",
+    "Wait ~30 seconds after starting for the health status to be `healthy`"
+  ],
+  "validation": [
+    {
+      "type": "image_exists",
+      "params": {
+        "name": "healthy-nginx",
+        "tag": "v1"
+      },
+      "description": "name=healthy-nginx, tag=v1"
+    },
+    {
+      "type": "dockerfile_has_healthcheck",
+      "params": {
+        "path": "/workspace/Dockerfile"
+      },
+      "description": "path=/workspace/Dockerfile"
+    },
+    {
+      "type": "container_health_healthy",
+      "params": {
+        "name": "*healthy-nginx*"
+      },
+      "description": "name=*healthy-nginx*"
+    }
+  ],
+  "initialState": {
+    "summary": "Clean Docker environment",
+    "workspaceFiles": []
+  }
+}

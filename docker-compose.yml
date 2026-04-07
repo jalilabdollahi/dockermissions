@@ -1,0 +1,29 @@
+services:
+  backend:
+    build: ./backend
+    command: npm run dev
+    working_dir: /app
+    volumes:
+      - ./backend:/app
+      - ./modules:/modules:ro
+      - ./tmp:/tmp/dockermissions
+      - /var/run/docker.sock:/var/run/docker.sock
+    ports:
+      - "3000:3000"
+    environment:
+      PORT: 3000
+      FRONTEND_ORIGIN: http://localhost:5173
+      MISSIONS_DIR: /modules
+      MISSION_DATA_DIR: /app/missions/data
+      SESSION_ROOT: /tmp/dockermissions
+
+  frontend:
+    build: ./frontend
+    command: npm run dev -- --host 0.0.0.0
+    working_dir: /app
+    volumes:
+      - ./frontend:/app
+    ports:
+      - "5173:5173"
+    depends_on:
+      - backend

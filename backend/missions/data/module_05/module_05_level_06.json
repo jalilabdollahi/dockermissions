@@ -1,0 +1,41 @@
+{
+  "id": "module_05_level_06",
+  "moduleId": 5,
+  "levelId": 6,
+  "title": "Health Checks and Depends_on",
+  "moduleTitle": "Docker Compose",
+  "difficulty": "hard",
+  "xp": 200,
+  "story": "The `web` service crashes on startup because `db` isn't ready. Use `depends_on` with a health check to make `web` wait for `db` to be healthy before starting.",
+  "objectives": [
+    "Add a `healthcheck` to the `db` service: `pg_isready -U postgres`",
+    "Add `depends_on: db: condition: service_healthy` to the `web` service",
+    "Redeploy and confirm `web` starts only after `db` is healthy"
+  ],
+  "hints": [
+    "`healthcheck` has `test`, `interval`, `timeout`, `retries` keys",
+    "`depends_on` can take a `condition: service_healthy` qualifier",
+    "```yaml"
+  ],
+  "validation": [
+    {
+      "type": "service_has_healthcheck",
+      "params": {
+        "service": "db"
+      },
+      "description": "service=db"
+    },
+    {
+      "type": "depends_on_healthy",
+      "params": {
+        "service": "web",
+        "depends_on": "db"
+      },
+      "description": "service=web, depends_on=db"
+    }
+  ],
+  "initialState": {
+    "summary": "Clean Docker environment",
+    "workspaceFiles": []
+  }
+}

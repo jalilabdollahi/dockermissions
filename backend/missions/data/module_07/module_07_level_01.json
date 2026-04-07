@@ -1,0 +1,32 @@
+{
+  "id": "module_07_level_01",
+  "moduleId": 7,
+  "levelId": 1,
+  "title": "Tag an Image",
+  "moduleTitle": "Registry & Distribution",
+  "difficulty": "easy",
+  "xp": 50,
+  "story": "Before pushing to a registry, images must be tagged with the destination. Tag the local image `myapp:latest` to target the local registry at `localhost:5000/myapp:v1`.",
+  "objectives": [
+    "Tag `myapp:latest` as `localhost:5000/myapp:v1`"
+  ],
+  "hints": [
+    "`docker tag <source> <destination>` creates a new tag pointing to the same image",
+    "`docker tag myapp:latest localhost:5000/myapp:v1`",
+    "`docker tag myapp:latest localhost:5000/myapp:v1`"
+  ],
+  "validation": [
+    {
+      "type": "image_exists",
+      "params": {
+        "name": "localhost:5000/myapp",
+        "tag": "v1"
+      },
+      "description": "name=localhost:5000/myapp, tag=v1"
+    }
+  ],
+  "initialState": {
+    "summary": "`myapp:latest` image pre-built",
+    "workspaceFiles": []
+  }
+}

@@ -1,0 +1,31 @@
+{
+  "id": "module_01_level_01",
+  "moduleId": 1,
+  "levelId": 1,
+  "title": "Hello, Container!",
+  "moduleTitle": "Docker Basics",
+  "difficulty": "easy",
+  "xp": 50,
+  "story": "Welcome, recruit. Your first mission is simple: prove you can launch a container. The docks are quiet, but not for long.",
+  "objectives": [
+    "Run an `nginx` container in the foreground (any name)"
+  ],
+  "hints": [
+    "The command to run a container is `docker run`",
+    "Try `docker run nginx`",
+    "`docker run nginx` — this runs nginx in the foreground"
+  ],
+  "validation": [
+    {
+      "type": "container_running",
+      "params": {
+        "image": "nginx"
+      },
+      "description": "image=nginx"
+    }
+  ],
+  "initialState": {
+    "summary": "Clean Docker environment",
+    "workspaceFiles": []
+  }
+}

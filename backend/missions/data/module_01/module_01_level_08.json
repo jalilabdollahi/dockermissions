@@ -1,0 +1,38 @@
+{
+  "id": "module_01_level_08",
+  "moduleId": 1,
+  "levelId": 8,
+  "title": "Container Logs",
+  "moduleTitle": "Docker Basics",
+  "difficulty": "medium",
+  "xp": 100,
+  "story": "The `log-service` container is misbehaving. Read its logs to find the secret code it printed, then create a file `/tmp/found` inside it to confirm you found it.",
+  "objectives": [
+    "Read the logs of `log-service`",
+    "Create file `/tmp/found` inside `log-service`"
+  ],
+  "hints": [
+    "`docker logs <name>` prints the stdout/stderr of a container",
+    "After reading logs, exec in and create the file",
+    "`docker logs log-service` then `docker exec log-service touch /tmp/found`"
+  ],
+  "validation": [
+    {
+      "type": "command_run",
+      "params": {},
+      "description": "docker logs log-service executed"
+    },
+    {
+      "type": "file_in_container",
+      "params": {
+        "container": "log-service",
+        "path": "/tmp/found"
+      },
+      "description": "container=log-service, path=/tmp/found"
+    }
+  ],
+  "initialState": {
+    "summary": "- Container `log-service` (alpine, running) pre-created, it ran: `echo \"SECRET_CODE=DOCKER42\"` then `sleep 3600`",
+    "workspaceFiles": []
+  }
+}

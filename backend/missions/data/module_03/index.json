@@ -1,0 +1,322 @@
+{
+  "id": 3,
+  "title": "Docker Networking",
+  "theme": "Connecting containers",
+  "totalLevels": 7,
+  "missions": [
+    {
+      "id": "module_03_level_01",
+      "moduleId": 3,
+      "levelId": 1,
+      "title": "Default Bridge Network",
+      "moduleTitle": "Docker Networking",
+      "difficulty": "easy",
+      "xp": 50,
+      "story": "By default, containers join the `bridge` network. Run two alpine containers and observe that they can't resolve each other by name on the default bridge.",
+      "objectives": [
+        "Run container `alpha` from `alpine` (detached, `sleep 3600`)",
+        "Run container `beta` from `alpine` (detached, `sleep 3600`)",
+        "Try to ping `beta` from `alpha` — observe it fails (expected)",
+        "Confirm both containers are on the `bridge` network"
+      ],
+      "hints": [
+        "Default containers use the `bridge` network automatically",
+        "`docker run -d --name alpha alpine sleep 3600`",
+        "DNS-based name resolution only works on user-defined networks"
+      ],
+      "validation": [
+        {
+          "type": "container_running",
+          "params": {
+            "name": "alpha"
+          },
+          "description": "name=alpha"
+        },
+        {
+          "type": "container_running",
+          "params": {
+            "name": "beta"
+          },
+          "description": "name=beta"
+        },
+        {
+          "type": "container_on_network",
+          "params": {
+            "container": "alpha",
+            "network": "bridge"
+          },
+          "description": "container=alpha, network=bridge"
+        },
+        {
+          "type": "container_on_network",
+          "params": {
+            "container": "beta",
+            "network": "bridge"
+          },
+          "description": "container=beta, network=bridge"
+        }
+      ],
+      "initialState": {
+        "summary": "Clean Docker environment",
+        "workspaceFiles": []
+      }
+    },
+    {
+      "id": "module_03_level_02",
+      "moduleId": 3,
+      "levelId": 2,
+      "title": "Create a Custom Network",
+      "moduleTitle": "Docker Networking",
+      "difficulty": "easy",
+      "xp": 50,
+      "story": "User-defined networks give you DNS resolution between containers. Create a network named `mission-net` of type `bridge`.",
+      "objectives": [
+        "Create a Docker network named `mission-net` with driver `bridge`"
+      ],
+      "hints": [
+        "`docker network create <name>` creates a network",
+        "Use `--driver bridge` (bridge is the default anyway)",
+        "`docker network create --driver bridge mission-net`"
+      ],
+      "validation": [
+        {
+          "type": "network_exists",
+          "params": {
+            "name": "mission-net",
+            "driver": "bridge"
+          },
+          "description": "name=mission-net, driver=bridge"
+        }
+      ],
+      "initialState": {
+        "summary": "Clean Docker environment",
+        "workspaceFiles": []
+      }
+    },
+    {
+      "id": "module_03_level_03",
+      "moduleId": 3,
+      "levelId": 3,
+      "title": "Connect Containers by Name",
+      "moduleTitle": "Docker Networking",
+      "difficulty": "easy",
+      "xp": 50,
+      "story": "Now that you have `mission-net`, connect two containers to it. They should be able to ping each other by name.",
+      "objectives": [
+        "Run container `server` from `nginx` (detached) on network `mission-net`",
+        "Run container `client` from `alpine` (detached, `sleep 3600`) on network `mission-net`",
+        "Exec into `client` and ping `server` by name (must succeed)"
+      ],
+      "hints": [
+        "Use `--network <name>` when running containers",
+        "`docker run -d --name server --network mission-net nginx`",
+        "`docker exec client ping -c 1 server` should succeed"
+      ],
+      "validation": [
+        {
+          "type": "container_on_network",
+          "params": {
+            "container": "server",
+            "network": "mission-net"
+          },
+          "description": "container=server, network=mission-net"
+        },
+        {
+          "type": "container_on_network",
+          "params": {
+            "container": "client",
+            "network": "mission-net"
+          },
+          "description": "container=client, network=mission-net"
+        },
+        {
+          "type": "ping_succeeds",
+          "params": {
+            "from": "client",
+            "to": "server"
+          },
+          "description": "from=client, to=server"
+        }
+      ],
+      "initialState": {
+        "summary": "`mission-net` network pre-created",
+        "workspaceFiles": []
+      }
+    },
+    {
+      "id": "module_03_level_04",
+      "moduleId": 3,
+      "levelId": 4,
+      "title": "Expose vs Publish",
+      "moduleTitle": "Docker Networking",
+      "difficulty": "medium",
+      "xp": 100,
+      "story": "`EXPOSE` in a Dockerfile is documentation only — it doesn't publish the port to the host. You must use `-p` to actually publish. Run nginx publishing port 9090 on the host.",
+      "objectives": [
+        "Run `nginx` container named `public-web` with host port `9090` mapped to container port `80`",
+        "Confirm the port is reachable on `localhost:9090`"
+      ],
+      "hints": [
+        "`-p <host>:<container>` publishes a port",
+        "`-p 9090:80`",
+        "`docker run -d --name public-web -p 9090:80 nginx`"
+      ],
+      "validation": [
+        {
+          "type": "container_running",
+          "params": {
+            "name": "public-web"
+          },
+          "description": "name=public-web"
+        },
+        {
+          "type": "port_exposed",
+          "params": {
+            "container": "public-web",
+            "host_port": 9090,
+            "container_port": 80
+          },
+          "description": "container=public-web, host_port=9090, container_port=80"
+        },
+        {
+          "type": "http_responds",
+          "params": {
+            "url": "http://localhost:9090",
+            "status": 200
+          },
+          "description": "url=http://localhost:9090, status=200"
+        }
+      ],
+      "initialState": {
+        "summary": "Clean Docker environment",
+        "workspaceFiles": []
+      }
+    },
+    {
+      "id": "module_03_level_05",
+      "moduleId": 3,
+      "levelId": 5,
+      "title": "Host Network",
+      "moduleTitle": "Docker Networking",
+      "difficulty": "medium",
+      "xp": 100,
+      "story": "For maximum performance (no NAT), some containers run on the host network. Run a container using the `host` network driver and confirm it sees the host's network interfaces.",
+      "objectives": [
+        "Run container `host-mode` from `alpine` using `--network host` running `sleep 3600` (detached)",
+        "Exec into it and run `ip addr` — confirm `eth0` or host interface is visible"
+      ],
+      "hints": [
+        "`--network host` attaches container directly to host network",
+        "No port mapping needed or possible with host mode",
+        "`docker run -d --name host-mode --network host alpine sleep 3600`"
+      ],
+      "validation": [
+        {
+          "type": "container_running",
+          "params": {
+            "name": "host-mode"
+          },
+          "description": "name=host-mode"
+        },
+        {
+          "type": "container_network_mode",
+          "params": {
+            "container": "host-mode",
+            "mode": "host"
+          },
+          "description": "container=host-mode, mode=host"
+        }
+      ],
+      "initialState": {
+        "summary": "Clean Docker environment",
+        "workspaceFiles": []
+      }
+    },
+    {
+      "id": "module_03_level_06",
+      "moduleId": 3,
+      "levelId": 6,
+      "title": "Connect Running Container to Network",
+      "moduleTitle": "Docker Networking",
+      "difficulty": "medium",
+      "xp": 100,
+      "story": "The container `late-joiner` is already running but needs to join `mission-net` without restarting. Connect it dynamically.",
+      "objectives": [
+        "Connect running container `late-joiner` to network `mission-net` without stopping it"
+      ],
+      "hints": [
+        "`docker network connect <network> <container>` attaches a running container",
+        "`docker network connect mission-net late-joiner`",
+        "`docker network connect mission-net late-joiner`"
+      ],
+      "validation": [
+        {
+          "type": "container_running",
+          "params": {
+            "name": "late-joiner"
+          },
+          "description": "name=late-joiner"
+        },
+        {
+          "type": "container_on_network",
+          "params": {
+            "container": "late-joiner",
+            "network": "mission-net"
+          },
+          "description": "container=late-joiner, network=mission-net"
+        }
+      ],
+      "initialState": {
+        "summary": "- Container `late-joiner` (alpine, running, `sleep 3600`) on default bridge - Network `mission-net` exists",
+        "workspaceFiles": []
+      }
+    },
+    {
+      "id": "module_03_level_07",
+      "moduleId": 3,
+      "levelId": 7,
+      "title": "Isolate with None Network",
+      "moduleTitle": "Docker Networking",
+      "difficulty": "hard",
+      "xp": 200,
+      "story": "Some workloads must be completely isolated with no network access. Run a container with no networking at all and confirm it cannot reach the outside world.",
+      "objectives": [
+        "Run container `isolated` from `alpine` with no network (`--network none`) running `sleep 3600`",
+        "Confirm it has no network interfaces except `lo`"
+      ],
+      "hints": [
+        "`--network none` disables all networking",
+        "The container will only have the loopback `lo` interface",
+        "`docker run -d --name isolated --network none alpine sleep 3600`"
+      ],
+      "validation": [
+        {
+          "type": "container_running",
+          "params": {
+            "name": "isolated"
+          },
+          "description": "name=isolated"
+        },
+        {
+          "type": "container_network_mode",
+          "params": {
+            "container": "isolated",
+            "mode": "none"
+          },
+          "description": "container=isolated, mode=none"
+        },
+        {
+          "type": "no_external_network",
+          "params": {
+            "container": "isolated"
+          },
+          "description": "container=isolated"
+        }
+      ],
+      "initialState": {
+        "summary": "Clean Docker environment",
+        "workspaceFiles": []
+      }
+    }
+  ]
+}

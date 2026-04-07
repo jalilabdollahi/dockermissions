@@ -1,0 +1,32 @@
+{
+  "id": "module_01_level_02",
+  "moduleId": 1,
+  "levelId": 2,
+  "title": "Detach and Name",
+  "moduleTitle": "Docker Basics",
+  "difficulty": "easy",
+  "xp": 50,
+  "story": "Running in the foreground blocks your terminal. Real operators run containers in the background. Name your assets so you can find them later.",
+  "objectives": [
+    "Run an `nginx` container named `webserver` in detached mode"
+  ],
+  "hints": [
+    "Use flags to detach and name: `-d` and `--name`",
+    "`docker run -d --name webserver nginx`",
+    "`docker run -d --name webserver nginx`"
+  ],
+  "validation": [
+    {
+      "type": "container_running",
+      "params": {
+        "name": "webserver",
+        "image": "nginx"
+      },
+      "description": "name=webserver, image=nginx"
+    }
+  ],
+  "initialState": {
+    "summary": "Clean Docker environment",
+    "workspaceFiles": []
+  }
+}

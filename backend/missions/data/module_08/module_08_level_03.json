@@ -1,0 +1,39 @@
+{
+  "id": "module_08_level_03",
+  "moduleId": 8,
+  "levelId": 3,
+  "title": "Docker Init",
+  "moduleTitle": "Advanced Docker",
+  "difficulty": "medium",
+  "xp": 100,
+  "story": "PID 1 in a container must properly handle signals and reap zombie processes. Use `--init` to run an init process as PID 1.",
+  "objectives": [
+    "Run container `signal-safe` from `node:18-alpine` with `--init` flag",
+    "Confirm PID 1 is `docker-init` (tini), not the Node process directly"
+  ],
+  "hints": [
+    "`--init` injects a tiny init process (tini) as PID 1",
+    "The actual application becomes a child of PID 1",
+    "`docker run -d --init --name signal-safe node:18-alpine node -e \"setInterval(()=>{}, 1000)\"`"
+  ],
+  "validation": [
+    {
+      "type": "container_running",
+      "params": {
+        "name": "signal-safe"
+      },
+      "description": "name=signal-safe"
+    },
+    {
+      "type": "uses_init",
+      "params": {
+        "container": "signal-safe"
+      },
+      "description": "container=signal-safe"
+    }
+  ],
+  "initialState": {
+    "summary": "Clean Docker environment",
+    "workspaceFiles": []
+  }
+}

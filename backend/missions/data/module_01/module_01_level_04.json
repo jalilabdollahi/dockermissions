@@ -1,0 +1,40 @@
+{
+  "id": "module_01_level_04",
+  "moduleId": 1,
+  "levelId": 4,
+  "title": "Port Mapping",
+  "moduleTitle": "Docker Basics",
+  "difficulty": "easy",
+  "xp": 50,
+  "story": "The web server is running but no one outside can reach it. Map port 8080 on the host to port 80 inside the container.",
+  "objectives": [
+    "Run an `nginx` container named `webserver` mapping host port 8080 to container port 80, in detached mode"
+  ],
+  "hints": [
+    "Use `-p` flag for port mapping: `-p host:container`",
+    "`docker run -d --name webserver -p 8080:80 nginx`",
+    "`docker run -d --name webserver -p 8080:80 nginx`"
+  ],
+  "validation": [
+    {
+      "type": "container_running",
+      "params": {
+        "name": "webserver"
+      },
+      "description": "name=webserver"
+    },
+    {
+      "type": "port_exposed",
+      "params": {
+        "container": "webserver",
+        "host_port": 8080,
+        "container_port": 80
+      },
+      "description": "container=webserver, host_port=8080, container_port=80"
+    }
+  ],
+  "initialState": {
+    "summary": "Clean Docker environment",
+    "workspaceFiles": []
+  }
+}

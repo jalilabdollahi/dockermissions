@@ -1,0 +1,50 @@
+{
+  "id": "module_02_level_06",
+  "moduleId": 2,
+  "levelId": 6,
+  "title": "ENV and WORKDIR",
+  "moduleTitle": "Images & Dockerfile",
+  "difficulty": "medium",
+  "xp": 100,
+  "story": "Well-structured images define their working directory and bake in environment configuration. Build an image with `WORKDIR /app` and `ENV NODE_ENV=production`.",
+  "objectives": [
+    "Write a Dockerfile: `FROM node:18-alpine`, `WORKDIR /app`, `ENV NODE_ENV=production`, `CMD [\"node\", \"-e\", \"console.log(process.env.NODE_ENV)\"]`",
+    "Build as `node-app:v1`"
+  ],
+  "hints": [
+    "`WORKDIR` sets the working directory; `ENV` sets environment variables",
+    "Both are Dockerfile instructions, one per line",
+    "Write the Dockerfile with all four instructions, then build"
+  ],
+  "validation": [
+    {
+      "type": "image_exists",
+      "params": {
+        "name": "node-app",
+        "tag": "v1"
+      },
+      "description": "name=node-app, tag=v1"
+    },
+    {
+      "type": "env_var_in_image",
+      "params": {
+        "image": "node-app:v1",
+        "key": "NODE_ENV",
+        "value": "production"
+      },
+      "description": "image=node-app:v1, key=NODE_ENV, value=production"
+    },
+    {
+      "type": "workdir_in_image",
+      "params": {
+        "image": "node-app:v1",
+        "path": "/app"
+      },
+      "description": "image=node-app:v1, path=/app"
+    }
+  ],
+  "initialState": {
+    "summary": "Clean Docker environment",
+    "workspaceFiles": []
+  }
+}

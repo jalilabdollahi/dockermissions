@@ -1,0 +1,39 @@
+{
+  "id": "module_03_level_06",
+  "moduleId": 3,
+  "levelId": 6,
+  "title": "Connect Running Container to Network",
+  "moduleTitle": "Docker Networking",
+  "difficulty": "medium",
+  "xp": 100,
+  "story": "The container `late-joiner` is already running but needs to join `mission-net` without restarting. Connect it dynamically.",
+  "objectives": [
+    "Connect running container `late-joiner` to network `mission-net` without stopping it"
+  ],
+  "hints": [
+    "`docker network connect <network> <container>` attaches a running container",
+    "`docker network connect mission-net late-joiner`",
+    "`docker network connect mission-net late-joiner`"
+  ],
+  "validation": [
+    {
+      "type": "container_running",
+      "params": {
+        "name": "late-joiner"
+      },
+      "description": "name=late-joiner"
+    },
+    {
+      "type": "container_on_network",
+      "params": {
+        "container": "late-joiner",
+        "network": "mission-net"
+      },
+      "description": "container=late-joiner, network=mission-net"
+    }
+  ],
+  "initialState": {
+    "summary": "- Container `late-joiner` (alpine, running, `sleep 3600`) on default bridge - Network `mission-net` exists",
+    "workspaceFiles": []
+  }
+}

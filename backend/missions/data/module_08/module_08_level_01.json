@@ -1,0 +1,59 @@
+{
+  "id": "module_08_level_01",
+  "moduleId": 8,
+  "levelId": 1,
+  "title": "BuildKit and Build Cache",
+  "moduleTitle": "Advanced Docker",
+  "difficulty": "medium",
+  "xp": 100,
+  "story": "Docker BuildKit dramatically speeds up builds using intelligent caching and parallel execution. Enable BuildKit and rebuild an existing image to see cache hits.",
+  "objectives": [
+    "Set `DOCKER_BUILDKIT=1` environment variable",
+    "Build `cached-app:v1` from `/workspace/Dockerfile`",
+    "Modify only `index.html` (not the Dockerfile) and rebuild as `cached-app:v2`",
+    "Confirm the second build uses cache for unchanged layers"
+  ],
+  "hints": [
+    "`DOCKER_BUILDKIT=1 docker build ...` enables BuildKit",
+    "Or set in Docker daemon config: `\"features\": {\"buildkit\": true}`",
+    "`DOCKER_BUILDKIT=1 docker build -t cached-app:v2 /workspace`"
+  ],
+  "validation": [
+    {
+      "type": "image_exists",
+      "params": {
+        "name": "cached-app",
+        "tag": "v1"
+      },
+      "description": "name=cached-app, tag=v1"
+    },
+    {
+      "type": "image_exists",
+      "params": {
+        "name": "cached-app",
+        "tag": "v2"
+      },
+      "description": "name=cached-app, tag=v2"
+    },
+    {
+      "type": "build_used_cache",
+      "params": {
+        "image": "cached-app:v2"
+      },
+      "description": "image=cached-app:v2"
+    }
+  ],
+  "initialState": {
+    "summary": "`/workspace` with Dockerfile and source files",
+    "workspaceFiles": [
+      {
+        "path": "Dockerfile",
+        "content": "FROM nginx:latest\nCOPY index.html /usr/share/nginx/html/index.html\n"
+      },
+      {
+        "path": "index.html",
+        "content": "<h1>Cache me if you can</h1>\n"
+      }
+    ]
+  }
+}

@@ -1,0 +1,41 @@
+{
+  "id": "module_08_level_04",
+  "moduleId": 8,
+  "levelId": 4,
+  "title": "Docker Context",
+  "moduleTitle": "Advanced Docker",
+  "difficulty": "medium",
+  "xp": 100,
+  "story": "Docker contexts let you switch between different Docker daemons (local, remote, production). Create a context named `production` pointing to a remote Docker socket.",
+  "objectives": [
+    "Create a Docker context named `production` with host `ssh://deploy@10.0.0.100`",
+    "List contexts to confirm it exists",
+    "Switch back to `default` context after inspection"
+  ],
+  "hints": [
+    "`docker context create <name> --docker \"host=<endpoint>\"` creates a context",
+    "`docker context ls` lists all contexts",
+    "`docker context create production --docker \"host=ssh://deploy@10.0.0.100\"`"
+  ],
+  "validation": [
+    {
+      "type": "context_exists",
+      "params": {
+        "name": "production"
+      },
+      "description": "name=production"
+    },
+    {
+      "type": "context_host",
+      "params": {
+        "name": "production",
+        "host": "ssh://deploy@10.0.0.100"
+      },
+      "description": "name=production, host=ssh://deploy@10.0.0.100"
+    }
+  ],
+  "initialState": {
+    "summary": "Clean Docker environment",
+    "workspaceFiles": []
+  }
+}

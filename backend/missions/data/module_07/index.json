@@ -1,0 +1,215 @@
+{
+  "id": 7,
+  "title": "Registry & Distribution",
+  "theme": "Sharing images",
+  "totalLevels": 5,
+  "missions": [
+    {
+      "id": "module_07_level_01",
+      "moduleId": 7,
+      "levelId": 1,
+      "title": "Tag an Image",
+      "moduleTitle": "Registry & Distribution",
+      "difficulty": "easy",
+      "xp": 50,
+      "story": "Before pushing to a registry, images must be tagged with the destination. Tag the local image `myapp:latest` to target the local registry at `localhost:5000/myapp:v1`.",
+      "objectives": [
+        "Tag `myapp:latest` as `localhost:5000/myapp:v1`"
+      ],
+      "hints": [
+        "`docker tag <source> <destination>` creates a new tag pointing to the same image",
+        "`docker tag myapp:latest localhost:5000/myapp:v1`",
+        "`docker tag myapp:latest localhost:5000/myapp:v1`"
+      ],
+      "validation": [
+        {
+          "type": "image_exists",
+          "params": {
+            "name": "localhost:5000/myapp",
+            "tag": "v1"
+          },
+          "description": "name=localhost:5000/myapp, tag=v1"
+        }
+      ],
+      "initialState": {
+        "summary": "`myapp:latest` image pre-built",
+        "workspaceFiles": []
+      }
+    },
+    {
+      "id": "module_07_level_02",
+      "moduleId": 7,
+      "levelId": 2,
+      "title": "Run a Local Registry",
+      "moduleTitle": "Registry & Distribution",
+      "difficulty": "easy",
+      "xp": 50,
+      "story": "You don't always need Docker Hub. Run a local Docker registry on port 5000.",
+      "objectives": [
+        "Run a local registry container named `registry` from `registry:2` on port 5000 (detached)"
+      ],
+      "hints": [
+        "The official `registry:2` image runs a Docker-compatible registry",
+        "`docker run -d --name registry -p 5000:5000 registry:2`",
+        "`docker run -d --name registry -p 5000:5000 registry:2`"
+      ],
+      "validation": [
+        {
+          "type": "container_running",
+          "params": {
+            "name": "registry"
+          },
+          "description": "name=registry"
+        },
+        {
+          "type": "port_exposed",
+          "params": {
+            "container": "registry",
+            "host_port": 5000,
+            "container_port": 5000
+          },
+          "description": "container=registry, host_port=5000, container_port=5000"
+        },
+        {
+          "type": "http_responds",
+          "params": {
+            "url": "http://localhost:5000/v2/",
+            "status": 200
+          },
+          "description": "url=http://localhost:5000/v2/, status=200"
+        }
+      ],
+      "initialState": {
+        "summary": "Clean Docker environment",
+        "workspaceFiles": []
+      }
+    },
+    {
+      "id": "module_07_level_03",
+      "moduleId": 7,
+      "levelId": 3,
+      "title": "Push to Local Registry",
+      "moduleTitle": "Registry & Distribution",
+      "difficulty": "medium",
+      "xp": 100,
+      "story": "Your local registry is running. Push `localhost:5000/myapp:v1` to it.",
+      "objectives": [
+        "Push the image `localhost:5000/myapp:v1` to the local registry"
+      ],
+      "hints": [
+        "`docker push <image>` pushes to the registry encoded in the image name",
+        "`docker push localhost:5000/myapp:v1`",
+        "`docker push localhost:5000/myapp:v1`"
+      ],
+      "validation": [
+        {
+          "type": "image_in_registry",
+          "params": {
+            "registry": "localhost:5000",
+            "name": "myapp",
+            "tag": "v1"
+          },
+          "description": "registry=localhost:5000, name=myapp, tag=v1"
+        }
+      ],
+      "initialState": {
+        "summary": "- Local registry running on port 5000 - `localhost:5000/myapp:v1` image tagged locally",
+        "workspaceFiles": [
+          {
+            "path": "Dockerfile",
+            "content": "FROM ubuntu:22.04\nRUN apt-get update\nRUN apt-get install -y curl\nRUN apt-get install -y wget\nRUN apt-get install -y git\nCMD [\"bash\", \"-lc\", \"echo mission ready\"]\n"
+          }
+        ]
+      }
+    },
+    {
+      "id": "module_07_level_04",
+      "moduleId": 7,
+      "levelId": 4,
+      "title": "Pull from Local Registry",
+      "moduleTitle": "Registry & Distribution",
+      "difficulty": "medium",
+      "xp": 100,
+      "story": "The image was pushed. Now remove the local copy and re-pull it from the registry to prove the registry works.",
+      "objectives": [
+        "Remove local image `localhost:5000/myapp:v1`",
+        "Pull it back from the registry",
+        "Run a container from it to verify"
+      ],
+      "hints": [
+        "`docker rmi` removes local image; `docker pull` re-downloads",
+        "`docker rmi localhost:5000/myapp:v1 && docker pull localhost:5000/myapp:v1`",
+        "Then `docker run --rm localhost:5000/myapp:v1`"
+      ],
+      "validation": [
+        {
+          "type": "image_exists",
+          "params": {
+            "name": "localhost:5000/myapp",
+            "tag": "v1 (after pull)"
+          },
+          "description": "name=localhost:5000/myapp, tag=v1 (after pull)"
+        },
+        {
+          "type": "container_ran",
+          "params": {
+            "image": "localhost:5000/myapp:v1"
+          },
+          "description": "image=localhost:5000/myapp:v1"
+        }
+      ],
+      "initialState": {
+        "summary": "Clean Docker environment",
+        "workspaceFiles": []
+      }
+    },
+    {
+      "id": "module_07_level_05",
+      "moduleId": 7,
+      "levelId": 5,
+      "title": "Image Layers and History",
+      "moduleTitle": "Registry & Distribution",
+      "difficulty": "hard",
+      "xp": 200,
+      "story": "Every Dockerfile instruction adds a layer. Understanding layers helps you optimize images. Inspect the layer history of `myapp:v1` and rebuild with optimized layers (fewer RUN commands merged).",
+      "objectives": [
+        "Run `docker history myapp:v1` to see all layers",
+        "Identify layers that can be merged (multiple consecutive `RUN` commands)",
+        "Edit `/workspace/Dockerfile` to merge the RUN commands",
+        "Build `myapp:v2` and confirm it has fewer layers than `myapp:v1`"
+      ],
+      "hints": [
+        "`docker history <image>` shows all layers and their sizes",
+        "Merge multiple `RUN` commands with `&&` to reduce layer count",
+        "```dockerfile"
+      ],
+      "validation": [
+        {
+          "type": "image_exists",
+          "params": {
+            "name": "myapp",
+            "tag": "v2"
+          },
+          "description": "name=myapp, tag=v2"
+        },
+        {
+          "type": "fewer_layers",
+          "params": {
+            "image_a": "myapp:v2",
+            "image_b": "myapp:v1"
+          },
+          "description": "image_a=myapp:v2, image_b=myapp:v1"
+        }
+      ],
+      "initialState": {
+        "summary": "- `myapp:v1` pre-built with at least 3 separate `RUN apt-get ...` instructions - `/workspace/Dockerfile` editable",
+        "workspaceFiles": [
+          {
+            "path": "Dockerfile",
+            "content": "FROM ubuntu:22.04\nRUN apt-get update\nRUN apt-get install -y curl\nRUN apt-get install -y wget\nRUN apt-get install -y git\nCMD [\"bash\", \"-lc\", \"echo mission ready\"]\n"
+          }
+        ]
+      }
+    }
+  ]
+}

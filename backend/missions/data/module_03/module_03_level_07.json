@@ -1,0 +1,47 @@
+{
+  "id": "module_03_level_07",
+  "moduleId": 3,
+  "levelId": 7,
+  "title": "Isolate with None Network",
+  "moduleTitle": "Docker Networking",
+  "difficulty": "hard",
+  "xp": 200,
+  "story": "Some workloads must be completely isolated with no network access. Run a container with no networking at all and confirm it cannot reach the outside world.",
+  "objectives": [
+    "Run container `isolated` from `alpine` with no network (`--network none`) running `sleep 3600`",
+    "Confirm it has no network interfaces except `lo`"
+  ],
+  "hints": [
+    "`--network none` disables all networking",
+    "The container will only have the loopback `lo` interface",
+    "`docker run -d --name isolated --network none alpine sleep 3600`"
+  ],
+  "validation": [
+    {
+      "type": "container_running",
+      "params": {
+        "name": "isolated"
+      },
+      "description": "name=isolated"
+    },
+    {
+      "type": "container_network_mode",
+      "params": {
+        "container": "isolated",
+        "mode": "none"
+      },
+      "description": "container=isolated, mode=none"
+    },
+    {
+      "type": "no_external_network",
+      "params": {
+        "container": "isolated"
+      },
+      "description": "container=isolated"
+    }
+  ],
+  "initialState": {
+    "summary": "Clean Docker environment",
+    "workspaceFiles": []
+  }
+}

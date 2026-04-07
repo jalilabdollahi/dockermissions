@@ -1,0 +1,35 @@
+{
+  "id": "module_01_level_03",
+  "moduleId": 1,
+  "levelId": 3,
+  "title": "Inspect the Fleet",
+  "moduleTitle": "Docker Basics",
+  "difficulty": "easy",
+  "xp": 50,
+  "story": "A good operator always knows the state of their fleet. List all running containers and identify the one named `mission-agent`.",
+  "objectives": [
+    "Run `docker ps` to see running containers (validation auto-passes after you run `docker ps` once)",
+    "Extra: Find the container ID of `mission-agent` and run `docker inspect mission-agent`"
+  ],
+  "hints": [
+    "`docker ps` lists running containers",
+    "`docker inspect <name>` shows full details",
+    "`docker ps` then `docker inspect mission-agent`"
+  ],
+  "validation": [
+    {
+      "type": "command_run",
+      "params": {},
+      "description": "docker ps executed"
+    },
+    {
+      "type": "command_run",
+      "params": {},
+      "description": "docker inspect mission-agent executed"
+    }
+  ],
+  "initialState": {
+    "summary": "Container `mission-agent` (alpine, running) pre-created",
+    "workspaceFiles": []
+  }
+}

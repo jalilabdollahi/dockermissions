@@ -1,0 +1,50 @@
+{
+  "id": "module_03_level_03",
+  "moduleId": 3,
+  "levelId": 3,
+  "title": "Connect Containers by Name",
+  "moduleTitle": "Docker Networking",
+  "difficulty": "easy",
+  "xp": 50,
+  "story": "Now that you have `mission-net`, connect two containers to it. They should be able to ping each other by name.",
+  "objectives": [
+    "Run container `server` from `nginx` (detached) on network `mission-net`",
+    "Run container `client` from `alpine` (detached, `sleep 3600`) on network `mission-net`",
+    "Exec into `client` and ping `server` by name (must succeed)"
+  ],
+  "hints": [
+    "Use `--network <name>` when running containers",
+    "`docker run -d --name server --network mission-net nginx`",
+    "`docker exec client ping -c 1 server` should succeed"
+  ],
+  "validation": [
+    {
+      "type": "container_on_network",
+      "params": {
+        "container": "server",
+        "network": "mission-net"
+      },
+      "description": "container=server, network=mission-net"
+    },
+    {
+      "type": "container_on_network",
+      "params": {
+        "container": "client",
+        "network": "mission-net"
+      },
+      "description": "container=client, network=mission-net"
+    },
+    {
+      "type": "ping_succeeds",
+      "params": {
+        "from": "client",
+        "to": "server"
+      },
+      "description": "from=client, to=server"
+    }
+  ],
+  "initialState": {
+    "summary": "`mission-net` network pre-created",
+    "workspaceFiles": []
+  }
+}

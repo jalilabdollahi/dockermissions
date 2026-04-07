@@ -1,0 +1,31 @@
+{
+  "id": "module_04_level_01",
+  "moduleId": 4,
+  "levelId": 1,
+  "title": "Named Volume Basics",
+  "moduleTitle": "Volumes & Storage",
+  "difficulty": "easy",
+  "xp": 50,
+  "story": "Containers are ephemeral — when they die, their data dies too. Named volumes live beyond containers. Create a volume named `app-data`.",
+  "objectives": [
+    "Create a Docker named volume called `app-data`"
+  ],
+  "hints": [
+    "`docker volume create <name>` creates a named volume",
+    "`docker volume create app-data`",
+    "`docker volume create app-data`"
+  ],
+  "validation": [
+    {
+      "type": "volume_exists",
+      "params": {
+        "name": "app-data"
+      },
+      "description": "name=app-data"
+    }
+  ],
+  "initialState": {
+    "summary": "Clean Docker environment",
+    "workspaceFiles": []
+  }
+}

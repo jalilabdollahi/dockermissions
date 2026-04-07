@@ -1,0 +1,54 @@
+{
+  "id": "module_02_level_07",
+  "moduleId": 2,
+  "levelId": 7,
+  "title": "Multi-Stage Build",
+  "moduleTitle": "Images & Dockerfile",
+  "difficulty": "hard",
+  "xp": 200,
+  "story": "Bloated images are a security risk and waste bandwidth. Use a multi-stage build to compile a Go binary in one stage and copy only the binary into a minimal `scratch` or `alpine` final image.",
+  "objectives": [
+    "Write a multi-stage Dockerfile:",
+    "Stage 1 (`builder`): `FROM golang:1.21-alpine AS builder`, copy `main.go`, run `go build -o app .`",
+    "Stage 2: `FROM alpine:3.18`, `COPY --from=builder /build/app /app`, `CMD [\"/app\"]`",
+    "Build as `go-app:v1`",
+    "Final image size should be under 20MB"
+  ],
+  "hints": [
+    "Multi-stage builds use multiple `FROM` lines; `COPY --from=<stage>` copies between stages",
+    "The builder stage has all dev tools; the final stage is lean",
+    "See the multi-stage Dockerfile structure in the objectives"
+  ],
+  "validation": [
+    {
+      "type": "image_exists",
+      "params": {
+        "name": "go-app",
+        "tag": "v1"
+      },
+      "description": "name=go-app, tag=v1"
+    },
+    {
+      "type": "image_size_under",
+      "params": {
+        "image": "go-app:v1",
+        "max_mb": 20
+      },
+      "description": "image=go-app:v1, max_mb=20"
+    },
+    {
+      "type": "Container runs successfully",
+      "params": {},
+      "description": "Container runs successfully"
+    }
+  ],
+  "initialState": {
+    "summary": "`/workspace/main.go` pre-created (a simple Hello World Go program)",
+    "workspaceFiles": [
+      {
+        "path": "main.go",
+        "content": "package main\n\nimport \"fmt\"\n\nfunc main() {\n  fmt.Println(\"hello from DockerMissions\")\n}\n"
+      }
+    ]
+  }
+}

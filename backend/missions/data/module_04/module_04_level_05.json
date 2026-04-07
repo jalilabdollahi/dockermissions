@@ -1,0 +1,49 @@
+{
+  "id": "module_04_level_05",
+  "moduleId": 4,
+  "levelId": 5,
+  "title": "tmpfs Mount",
+  "moduleTitle": "Volumes & Storage",
+  "difficulty": "medium",
+  "xp": 100,
+  "story": "Some sensitive data (tokens, secrets) should never touch disk. Use a `tmpfs` mount for in-memory-only storage.",
+  "objectives": [
+    "Run container `secure-app` from `alpine` with a `tmpfs` mount at `/secrets` (detached, `sleep 3600`)",
+    "Write a file `/secrets/token.txt` to it",
+    "Confirm the data is in memory (not on a volume or bind mount)"
+  ],
+  "hints": [
+    "`--tmpfs <path>` mounts an in-memory filesystem",
+    "Data in tmpfs is lost when the container stops",
+    "`docker run -d --name secure-app --tmpfs /secrets alpine sleep 3600`"
+  ],
+  "validation": [
+    {
+      "type": "container_running",
+      "params": {
+        "name": "secure-app"
+      },
+      "description": "name=secure-app"
+    },
+    {
+      "type": "tmpfs_mounted",
+      "params": {
+        "container": "secure-app",
+        "path": "/secrets"
+      },
+      "description": "container=secure-app, path=/secrets"
+    },
+    {
+      "type": "file_in_container",
+      "params": {
+        "container": "secure-app",
+        "path": "/secrets/token.txt"
+      },
+      "description": "container=secure-app, path=/secrets/token.txt"
+    }
+  ],
+  "initialState": {
+    "summary": "Clean Docker environment",
+    "workspaceFiles": []
+  }
+}

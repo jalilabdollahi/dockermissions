@@ -1,0 +1,50 @@
+{
+  "id": "module_06_level_05",
+  "moduleId": 6,
+  "levelId": 5,
+  "title": "Resource Limits",
+  "moduleTitle": "Docker Security",
+  "difficulty": "medium",
+  "xp": 100,
+  "story": "A runaway container can starve the host. Limit container `resource-hog` to 256MB RAM and 0.5 CPU.",
+  "objectives": [
+    "Run container `resource-hog` from `alpine` with:",
+    "Memory limit: `256m`",
+    "CPU limit: `0.5`",
+    "Run `sleep 3600` detached"
+  ],
+  "hints": [
+    "`--memory 256m` sets RAM limit; `--cpus 0.5` sets CPU limit",
+    "These prevent the container from consuming unlimited host resources",
+    "`docker run -d --name resource-hog --memory 256m --cpus 0.5 alpine sleep 3600`"
+  ],
+  "validation": [
+    {
+      "type": "container_running",
+      "params": {
+        "name": "resource-hog"
+      },
+      "description": "name=resource-hog"
+    },
+    {
+      "type": "memory_limit",
+      "params": {
+        "container": "resource-hog",
+        "limit": "268435456 (256MB in bytes)"
+      },
+      "description": "container=resource-hog, limit=268435456 (256MB in bytes)"
+    },
+    {
+      "type": "cpu_limit",
+      "params": {
+        "container": "resource-hog",
+        "cpus": 0.5
+      },
+      "description": "container=resource-hog, cpus=0.5"
+    }
+  ],
+  "initialState": {
+    "summary": "Clean Docker environment",
+    "workspaceFiles": []
+  }
+}

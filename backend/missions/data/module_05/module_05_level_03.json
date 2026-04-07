@@ -1,0 +1,43 @@
+{
+  "id": "module_05_level_03",
+  "moduleId": 5,
+  "levelId": 3,
+  "title": "Port Mapping in Compose",
+  "moduleTitle": "Docker Compose",
+  "difficulty": "easy",
+  "xp": 50,
+  "story": "Expose the nginx service on host port 8080.",
+  "objectives": [
+    "Add `ports: [\"8080:80\"]` to the `web` service",
+    "Restart the stack",
+    "Confirm http://localhost:8080 responds"
+  ],
+  "hints": [
+    "Use `ports:` key under the service",
+    "Format: `\"host:container\"`",
+    "`ports: [\"8080:80\"]`"
+  ],
+  "validation": [
+    {
+      "type": "port_exposed",
+      "params": {
+        "service": "web",
+        "host_port": 8080,
+        "container_port": 80
+      },
+      "description": "service=web, host_port=8080, container_port=80"
+    },
+    {
+      "type": "http_responds",
+      "params": {
+        "url": "http://localhost:8080",
+        "status": 200
+      },
+      "description": "url=http://localhost:8080, status=200"
+    }
+  ],
+  "initialState": {
+    "summary": "Clean Docker environment",
+    "workspaceFiles": []
+  }
+}

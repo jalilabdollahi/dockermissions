@@ -1,0 +1,72 @@
+{
+  "id": "module_05_level_05",
+  "moduleId": 5,
+  "levelId": 5,
+  "title": "Custom Network in Compose",
+  "moduleTitle": "Docker Compose",
+  "difficulty": "medium",
+  "xp": 100,
+  "story": "By default Compose creates one network. Define a custom network `backend` and put the `db` on it. Put `web` on both `backend` and a `frontend` network.",
+  "objectives": [
+    "Define two networks: `frontend` and `backend`",
+    "`web` service on both networks",
+    "`db` service only on `backend` network"
+  ],
+  "hints": [
+    "Define networks at the top level `networks:` and reference under each service",
+    "A service can list multiple networks",
+    "Use `networks:` key both at the top level and under each service"
+  ],
+  "validation": [
+    {
+      "type": "network_exists",
+      "params": {
+        "name": "*frontend*"
+      },
+      "description": "name=*frontend*"
+    },
+    {
+      "type": "network_exists",
+      "params": {
+        "name": "*backend*"
+      },
+      "description": "name=*backend*"
+    },
+    {
+      "type": "service_on_network",
+      "params": {
+        "service": "web",
+        "network": "frontend"
+      },
+      "description": "service=web, network=frontend"
+    },
+    {
+      "type": "service_on_network",
+      "params": {
+        "service": "web",
+        "network": "backend"
+      },
+      "description": "service=web, network=backend"
+    },
+    {
+      "type": "service_on_network",
+      "params": {
+        "service": "db",
+        "network": "backend"
+      },
+      "description": "service=db, network=backend"
+    },
+    {
+      "type": "service_not_on_network",
+      "params": {
+        "service": "db",
+        "network": "frontend"
+      },
+      "description": "service=db, network=frontend"
+    }
+  ],
+  "initialState": {
+    "summary": "Clean Docker environment",
+    "workspaceFiles": []
+  }
+}

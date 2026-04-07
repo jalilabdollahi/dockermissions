@@ -1,0 +1,34 @@
+{
+  "id": "module_05_level_01",
+  "moduleId": 5,
+  "levelId": 1,
+  "title": "Your First Compose File",
+  "moduleTitle": "Docker Compose",
+  "difficulty": "easy",
+  "xp": 50,
+  "story": "Running multi-container apps with `docker run` is painful. Docker Compose lets you define everything in one YAML file. Write a Compose file that runs a single `nginx` service.",
+  "objectives": [
+    "Write `/workspace/docker-compose.yml` with one service: `web` using image `nginx:latest`, no port mapping yet",
+    "Run `docker compose up -d`",
+    "Confirm service `web` is running"
+  ],
+  "hints": [
+    "A Compose file has a `services:` key at the top level",
+    "```yaml",
+    "Write the file, then `docker compose -f /workspace/docker-compose.yml up -d`"
+  ],
+  "validation": [
+    {
+      "type": "compose_service_running",
+      "params": {
+        "service": "web",
+        "project": "workspace"
+      },
+      "description": "service=web, project=workspace"
+    }
+  ],
+  "initialState": {
+    "summary": "`/workspace` is empty",
+    "workspaceFiles": []
+  }
+}

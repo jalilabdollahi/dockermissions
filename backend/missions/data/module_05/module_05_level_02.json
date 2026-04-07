@@ -1,0 +1,49 @@
+{
+  "id": "module_05_level_02",
+  "moduleId": 5,
+  "levelId": 2,
+  "title": "Multiple Services",
+  "moduleTitle": "Docker Compose",
+  "difficulty": "easy",
+  "xp": 50,
+  "story": "Real apps have multiple components. Define a Compose stack with a `web` (nginx) service and a `db` (postgres:15-alpine) service.",
+  "objectives": [
+    "Write a `docker-compose.yml` with services `web` (nginx) and `db` (postgres:15-alpine)",
+    "Set required env var for postgres: `POSTGRES_PASSWORD=secret`",
+    "Run `docker compose up -d`"
+  ],
+  "hints": [
+    "Add multiple entries under `services:`",
+    "Use `environment:` key for env vars",
+    "```yaml"
+  ],
+  "validation": [
+    {
+      "type": "compose_service_running",
+      "params": {
+        "service": "web"
+      },
+      "description": "service=web"
+    },
+    {
+      "type": "compose_service_running",
+      "params": {
+        "service": "db"
+      },
+      "description": "service=db"
+    },
+    {
+      "type": "env_var_set",
+      "params": {
+        "container": "*db*",
+        "key": "POSTGRES_PASSWORD",
+        "value": "secret"
+      },
+      "description": "container=*db*, key=POSTGRES_PASSWORD, value=secret"
+    }
+  ],
+  "initialState": {
+    "summary": "Clean Docker environment",
+    "workspaceFiles": []
+  }
+}

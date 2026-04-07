@@ -1,0 +1,48 @@
+{
+  "id": "module_07_level_02",
+  "moduleId": 7,
+  "levelId": 2,
+  "title": "Run a Local Registry",
+  "moduleTitle": "Registry & Distribution",
+  "difficulty": "easy",
+  "xp": 50,
+  "story": "You don't always need Docker Hub. Run a local Docker registry on port 5000.",
+  "objectives": [
+    "Run a local registry container named `registry` from `registry:2` on port 5000 (detached)"
+  ],
+  "hints": [
+    "The official `registry:2` image runs a Docker-compatible registry",
+    "`docker run -d --name registry -p 5000:5000 registry:2`",
+    "`docker run -d --name registry -p 5000:5000 registry:2`"
+  ],
+  "validation": [
+    {
+      "type": "container_running",
+      "params": {
+        "name": "registry"
+      },
+      "description": "name=registry"
+    },
+    {
+      "type": "port_exposed",
+      "params": {
+        "container": "registry",
+        "host_port": 5000,
+        "container_port": 5000
+      },
+      "description": "container=registry, host_port=5000, container_port=5000"
+    },
+    {
+      "type": "http_responds",
+      "params": {
+        "url": "http://localhost:5000/v2/",
+        "status": 200
+      },
+      "description": "url=http://localhost:5000/v2/, status=200"
+    }
+  ],
+  "initialState": {
+    "summary": "Clean Docker environment",
+    "workspaceFiles": []
+  }
+}

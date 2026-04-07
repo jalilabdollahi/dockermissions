@@ -1,0 +1,42 @@
+{
+  "id": "module_02_level_03",
+  "moduleId": 2,
+  "levelId": 3,
+  "title": "Your First Dockerfile",
+  "moduleTitle": "Images & Dockerfile",
+  "difficulty": "easy",
+  "xp": 50,
+  "story": "It's time to build something. Create a Dockerfile that starts from `alpine:3.18`, sets maintainer label `maintainer=recruit`, and runs `echo \"Mission Ready\"` as the default command.",
+  "objectives": [
+    "Write a `Dockerfile` in `/workspace`",
+    "Build it as image `mission-image:v1`"
+  ],
+  "hints": [
+    "A Dockerfile starts with `FROM`, then `LABEL`, then `CMD`",
+    "```",
+    "Write the Dockerfile above, then `docker build -t mission-image:v1 /workspace`"
+  ],
+  "validation": [
+    {
+      "type": "image_exists",
+      "params": {
+        "name": "mission-image",
+        "tag": "v1"
+      },
+      "description": "name=mission-image, tag=v1"
+    },
+    {
+      "type": "image_label",
+      "params": {
+        "image": "mission-image:v1",
+        "key": "maintainer",
+        "value": "recruit"
+      },
+      "description": "image=mission-image:v1, key=maintainer, value=recruit"
+    }
+  ],
+  "initialState": {
+    "summary": "`/workspace` directory exists and is empty",
+    "workspaceFiles": []
+  }
+}

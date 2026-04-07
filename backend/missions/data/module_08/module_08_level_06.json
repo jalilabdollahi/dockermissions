@@ -1,0 +1,41 @@
+{
+  "id": "module_08_level_06",
+  "moduleId": 8,
+  "levelId": 6,
+  "title": "Docker Swarm Init",
+  "moduleTitle": "Advanced Docker",
+  "difficulty": "hard",
+  "xp": 200,
+  "story": "Docker Swarm turns your Docker host into a cluster manager. Initialize a single-node Swarm.",
+  "objectives": [
+    "Initialize Docker Swarm with `docker swarm init`",
+    "Deploy a service named `web` with 3 replicas using `nginx` image",
+    "Confirm all 3 replicas are running"
+  ],
+  "hints": [
+    "`docker swarm init` initializes the Swarm",
+    "`docker service create --name web --replicas 3 nginx`",
+    "`docker service ls` shows services; `docker service ps web` shows tasks"
+  ],
+  "validation": [
+    {
+      "type": "swarm_active",
+      "params": {
+        "mode": "active"
+      },
+      "description": "mode=active"
+    },
+    {
+      "type": "swarm_service_running",
+      "params": {
+        "name": "web",
+        "replicas": 3
+      },
+      "description": "name=web, replicas=3"
+    }
+  ],
+  "initialState": {
+    "summary": "Clean Docker environment",
+    "workspaceFiles": []
+  }
+}

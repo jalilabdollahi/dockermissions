@@ -1,0 +1,32 @@
+{
+  "id": "module_01_level_06",
+  "moduleId": 1,
+  "levelId": 6,
+  "title": "Stop and Remove",
+  "moduleTitle": "Docker Basics",
+  "difficulty": "easy",
+  "xp": 50,
+  "story": "Containers left running waste resources. Stop and remove the container named `old-service` to clean up the docks.",
+  "objectives": [
+    "Stop the container named `old-service`",
+    "Remove the container named `old-service`"
+  ],
+  "hints": [
+    "`docker stop <name>` stops a container; `docker rm <name>` removes it",
+    "Stop first, then remove: `docker stop old-service && docker rm old-service`",
+    "Or force remove in one step: `docker rm -f old-service`"
+  ],
+  "validation": [
+    {
+      "type": "container_not_exists",
+      "params": {
+        "name": "old-service"
+      },
+      "description": "name=old-service"
+    }
+  ],
+  "initialState": {
+    "summary": "Container `old-service` (nginx, running) pre-created",
+    "workspaceFiles": []
+  }
+}

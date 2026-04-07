@@ -1,0 +1,43 @@
+{
+  "id": "module_04_level_03",
+  "moduleId": 4,
+  "levelId": 3,
+  "title": "Data Survives Container Death",
+  "moduleTitle": "Volumes & Storage",
+  "difficulty": "medium",
+  "xp": 100,
+  "story": "Prove that data in a volume outlives its container. The `writer` container has been removed. Run a new container `reader` on the same volume and confirm the file still exists.",
+  "objectives": [
+    "Run container `reader` from `alpine` mounting `app-data` at `/data`",
+    "Read `/data/record.txt` and confirm content is `mission=complete`"
+  ],
+  "hints": [
+    "Mount the same volume in a new container",
+    "`docker run -d --name reader -v app-data:/data alpine sleep 3600`",
+    "`docker exec reader cat /data/record.txt` should show `mission=complete`"
+  ],
+  "validation": [
+    {
+      "type": "volume_mounted",
+      "params": {
+        "container": "reader",
+        "volume": "app-data",
+        "path": "/data"
+      },
+      "description": "container=reader, volume=app-data, path=/data"
+    },
+    {
+      "type": "file_content",
+      "params": {
+        "container": "reader",
+        "path": "/data/record.txt",
+        "contains": "mission=complete"
+      },
+      "description": "container=reader, path=/data/record.txt, contains=mission=complete"
+    }
+  ],
+  "initialState": {
+    "summary": "- Volume `app-data` exists with `/data/record.txt` containing `mission=complete` - Container `writer` has been removed",
+    "workspaceFiles": []
+  }
+}

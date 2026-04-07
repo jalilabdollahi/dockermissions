@@ -1,0 +1,2399 @@
+{
+  "generatedAt": "2026-04-07T22:06:22.702Z",
+  "moduleCount": 8,
+  "missionCount": 54,
+  "modules": [
+    {
+      "id": 1,
+      "title": "Docker Basics",
+      "theme": "First contact with containers",
+      "totalLevels": 8,
+      "missions": [
+        {
+          "id": "module_01_level_01",
+          "moduleId": 1,
+          "levelId": 1,
+          "title": "Hello, Container!",
+          "moduleTitle": "Docker Basics",
+          "difficulty": "easy",
+          "xp": 50,
+          "story": "Welcome, recruit. Your first mission is simple: prove you can launch a container. The docks are quiet, but not for long.",
+          "objectives": [
+            "Run an `nginx` container in the foreground (any name)"
+          ],
+          "hints": [
+            "The command to run a container is `docker run`",
+            "Try `docker run nginx`",
+            "`docker run nginx` — this runs nginx in the foreground"
+          ],
+          "validation": [
+            {
+              "type": "container_running",
+              "params": {
+                "image": "nginx"
+              },
+              "description": "image=nginx"
+            }
+          ],
+          "initialState": {
+            "summary": "Clean Docker environment",
+            "workspaceFiles": []
+          }
+        },
+        {
+          "id": "module_01_level_02",
+          "moduleId": 1,
+          "levelId": 2,
+          "title": "Detach and Name",
+          "moduleTitle": "Docker Basics",
+          "difficulty": "easy",
+          "xp": 50,
+          "story": "Running in the foreground blocks your terminal. Real operators run containers in the background. Name your assets so you can find them later.",
+          "objectives": [
+            "Run an `nginx` container named `webserver` in detached mode"
+          ],
+          "hints": [
+            "Use flags to detach and name: `-d` and `--name`",
+            "`docker run -d --name webserver nginx`",
+            "`docker run -d --name webserver nginx`"
+          ],
+          "validation": [
+            {
+              "type": "container_running",
+              "params": {
+                "name": "webserver",
+                "image": "nginx"
+              },
+              "description": "name=webserver, image=nginx"
+            }
+          ],
+          "initialState": {
+            "summary": "Clean Docker environment",
+            "workspaceFiles": []
+          }
+        },
+        {
+          "id": "module_01_level_03",
+          "moduleId": 1,
+          "levelId": 3,
+          "title": "Inspect the Fleet",
+          "moduleTitle": "Docker Basics",
+          "difficulty": "easy",
+          "xp": 50,
+          "story": "A good operator always knows the state of their fleet. List all running containers and identify the one named `mission-agent`.",
+          "objectives": [
+            "Run `docker ps` to see running containers (validation auto-passes after you run `docker ps` once)",
+            "Extra: Find the container ID of `mission-agent` and run `docker inspect mission-agent`"
+          ],
+          "hints": [
+            "`docker ps` lists running containers",
+            "`docker inspect <name>` shows full details",
+            "`docker ps` then `docker inspect mission-agent`"
+          ],
+          "validation": [
+            {
+              "type": "command_run",
+              "params": {},
+              "description": "docker ps executed"
+            },
+            {
+              "type": "command_run",
+              "params": {},
+              "description": "docker inspect mission-agent executed"
+            }
+          ],
+          "initialState": {
+            "summary": "Container `mission-agent` (alpine, running) pre-created",
+            "workspaceFiles": []
+          }
+        },
+        {
+          "id": "module_01_level_04",
+          "moduleId": 1,
+          "levelId": 4,
+          "title": "Port Mapping",
+          "moduleTitle": "Docker Basics",
+          "difficulty": "easy",
+          "xp": 50,
+          "story": "The web server is running but no one outside can reach it. Map port 8080 on the host to port 80 inside the container.",
+          "objectives": [
+            "Run an `nginx` container named `webserver` mapping host port 8080 to container port 80, in detached mode"
+          ],
+          "hints": [
+            "Use `-p` flag for port mapping: `-p host:container`",
+            "`docker run -d --name webserver -p 8080:80 nginx`",
+            "`docker run -d --name webserver -p 8080:80 nginx`"
+          ],
+          "validation": [
+            {
+              "type": "container_running",
+              "params": {
+                "name": "webserver"
+              },
+              "description": "name=webserver"
+            },
+            {
+              "type": "port_exposed",
+              "params": {
+                "container": "webserver",
+                "host_port": 8080,
+                "container_port": 80
+              },
+              "description": "container=webserver, host_port=8080, container_port=80"
+            }
+          ],
+          "initialState": {
+            "summary": "Clean Docker environment",
+            "workspaceFiles": []
+          }
+        },
+        {
+          "id": "module_01_level_05",
+          "moduleId": 1,
+          "levelId": 5,
+          "title": "Environment Variables",
+          "moduleTitle": "Docker Basics",
+          "difficulty": "easy",
+          "xp": 50,
+          "story": "Applications need configuration. Pass secrets and settings through environment variables — never hardcode them.",
+          "objectives": [
+            "Run a container from image `alpine` named `env-demo` with env var `APP_ENV=production` and `APP_VERSION=1.0`, keep it running (use `sleep 3600`)"
+          ],
+          "hints": [
+            "Use `-e` flag to set environment variables",
+            "`docker run -d --name env-demo -e APP_ENV=production -e APP_VERSION=1.0 alpine sleep 3600`",
+            "`docker run -d --name env-demo -e APP_ENV=production -e APP_VERSION=1.0 alpine sleep 3600`"
+          ],
+          "validation": [
+            {
+              "type": "container_running",
+              "params": {
+                "name": "env-demo"
+              },
+              "description": "name=env-demo"
+            },
+            {
+              "type": "env_var_set",
+              "params": {
+                "container": "env-demo",
+                "key": "APP_ENV",
+                "value": "production"
+              },
+              "description": "container=env-demo, key=APP_ENV, value=production"
+            },
+            {
+              "type": "env_var_set",
+              "params": {
+                "container": "env-demo",
+                "key": "APP_VERSION",
+                "value": 1
+              },
+              "description": "container=env-demo, key=APP_VERSION, value=1.0"
+            }
+          ],
+          "initialState": {
+            "summary": "Clean Docker environment",
+            "workspaceFiles": []
+          }
+        },
+        {
+          "id": "module_01_level_06",
+          "moduleId": 1,
+          "levelId": 6,
+          "title": "Stop and Remove",
+          "moduleTitle": "Docker Basics",
+          "difficulty": "easy",
+          "xp": 50,
+          "story": "Containers left running waste resources. Stop and remove the container named `old-service` to clean up the docks.",
+          "objectives": [
+            "Stop the container named `old-service`",
+            "Remove the container named `old-service`"
+          ],
+          "hints": [
+            "`docker stop <name>` stops a container; `docker rm <name>` removes it",
+            "Stop first, then remove: `docker stop old-service && docker rm old-service`",
+            "Or force remove in one step: `docker rm -f old-service`"
+          ],
+          "validation": [
+            {
+              "type": "container_not_exists",
+              "params": {
+                "name": "old-service"
+              },
+              "description": "name=old-service"
+            }
+          ],
+          "initialState": {
+            "summary": "Container `old-service` (nginx, running) pre-created",
+            "workspaceFiles": []
+          }
+        },
+        {
+          "id": "module_01_level_07",
+          "moduleId": 1,
+          "levelId": 7,
+          "title": "Exec Into a Container",
+          "moduleTitle": "Docker Basics",
+          "difficulty": "medium",
+          "xp": 100,
+          "story": "Something is wrong inside the `debug-box` container. Get a shell inside it and create a file `/tmp/mission-complete` to signal success.",
+          "objectives": [
+            "Exec into container `debug-box` and create file `/tmp/mission-complete`"
+          ],
+          "hints": [
+            "`docker exec -it <name> <command>` runs a command inside a running container",
+            "Use `docker exec debug-box touch /tmp/mission-complete` or exec a shell",
+            "`docker exec debug-box touch /tmp/mission-complete`"
+          ],
+          "validation": [
+            {
+              "type": "file_in_container",
+              "params": {
+                "container": "debug-box",
+                "path": "/tmp/mission-complete"
+              },
+              "description": "container=debug-box, path=/tmp/mission-complete"
+            }
+          ],
+          "initialState": {
+            "summary": "Container `debug-box` (ubuntu, running with `sleep 3600`) pre-created",
+            "workspaceFiles": []
+          }
+        },
+        {
+          "id": "module_01_level_08",
+          "moduleId": 1,
+          "levelId": 8,
+          "title": "Container Logs",
+          "moduleTitle": "Docker Basics",
+          "difficulty": "medium",
+          "xp": 100,
+          "story": "The `log-service` container is misbehaving. Read its logs to find the secret code it printed, then create a file `/tmp/found` inside it to confirm you found it.",
+          "objectives": [
+            "Read the logs of `log-service`",
+            "Create file `/tmp/found` inside `log-service`"
+          ],
+          "hints": [
+            "`docker logs <name>` prints the stdout/stderr of a container",
+            "After reading logs, exec in and create the file",
+            "`docker logs log-service` then `docker exec log-service touch /tmp/found`"
+          ],
+          "validation": [
+            {
+              "type": "command_run",
+              "params": {},
+              "description": "docker logs log-service executed"
+            },
+            {
+              "type": "file_in_container",
+              "params": {
+                "container": "log-service",
+                "path": "/tmp/found"
+              },
+              "description": "container=log-service, path=/tmp/found"
+            }
+          ],
+          "initialState": {
+            "summary": "- Container `log-service` (alpine, running) pre-created, it ran: `echo \"SECRET_CODE=DOCKER42\"` then `sleep 3600`",
+            "workspaceFiles": []
+          }
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "title": "Images & Dockerfile",
+      "theme": "Building your own images",
+      "totalLevels": 8,
+      "missions": [
+        {
+          "id": "module_02_level_01",
+          "moduleId": 2,
+          "levelId": 1,
+          "title": "Pull an Image",
+          "moduleTitle": "Images & Dockerfile",
+          "difficulty": "easy",
+          "xp": 50,
+          "story": "Before you can deploy, you need the right image. Pull `redis:7-alpine` from Docker Hub — lightweight and battle-tested.",
+          "objectives": [
+            "Pull image `redis:7-alpine` from Docker Hub"
+          ],
+          "hints": [
+            "`docker pull <image>:<tag>` downloads an image",
+            "`docker pull redis:7-alpine`",
+            "`docker pull redis:7-alpine`"
+          ],
+          "validation": [
+            {
+              "type": "image_exists",
+              "params": {
+                "name": "redis",
+                "tag": "7-alpine"
+              },
+              "description": "name=redis, tag=7-alpine"
+            }
+          ],
+          "initialState": {
+            "summary": "Clean Docker environment",
+            "workspaceFiles": []
+          }
+        },
+        {
+          "id": "module_02_level_02",
+          "moduleId": 2,
+          "levelId": 2,
+          "title": "List and Remove Images",
+          "moduleTitle": "Images & Dockerfile",
+          "difficulty": "easy",
+          "xp": 50,
+          "story": "The local image store is cluttered with old images consuming disk space. Remove the image `busybox:latest` to free space.",
+          "objectives": [
+            "Remove image `busybox:latest`"
+          ],
+          "hints": [
+            "`docker images` lists local images; `docker rmi <image>` removes one",
+            "`docker rmi busybox:latest`",
+            "`docker rmi busybox:latest`"
+          ],
+          "validation": [
+            {
+              "type": "image_not_exists",
+              "params": {
+                "name": "busybox",
+                "tag": "latest"
+              },
+              "description": "name=busybox, tag=latest"
+            }
+          ],
+          "initialState": {
+            "summary": "Image `busybox:latest` pre-pulled",
+            "workspaceFiles": []
+          }
+        },
+        {
+          "id": "module_02_level_03",
+          "moduleId": 2,
+          "levelId": 3,
+          "title": "Your First Dockerfile",
+          "moduleTitle": "Images & Dockerfile",
+          "difficulty": "easy",
+          "xp": 50,
+          "story": "It's time to build something. Create a Dockerfile that starts from `alpine:3.18`, sets maintainer label `maintainer=recruit`, and runs `echo \"Mission Ready\"` as the default command.",
+          "objectives": [
+            "Write a `Dockerfile` in `/workspace`",
+            "Build it as image `mission-image:v1`"
+          ],
+          "hints": [
+            "A Dockerfile starts with `FROM`, then `LABEL`, then `CMD`",
+            "```",
+            "Write the Dockerfile above, then `docker build -t mission-image:v1 /workspace`"
+          ],
+          "validation": [
+            {
+              "type": "image_exists",
+              "params": {
+                "name": "mission-image",
+                "tag": "v1"
+              },
+              "description": "name=mission-image, tag=v1"
+            },
+            {
+              "type": "image_label",
+              "params": {
+                "image": "mission-image:v1",
+                "key": "maintainer",
+                "value": "recruit"
+              },
+              "description": "image=mission-image:v1, key=maintainer, value=recruit"
+            }
+          ],
+          "initialState": {
+            "summary": "`/workspace` directory exists and is empty",
+            "workspaceFiles": []
+          }
+        },
+        {
+          "id": "module_02_level_04",
+          "moduleId": 2,
+          "levelId": 4,
+          "title": "ADD vs COPY",
+          "moduleTitle": "Images & Dockerfile",
+          "difficulty": "medium",
+          "xp": 100,
+          "story": "Your app needs its source code inside the image. Use COPY to add `app.py` from the build context into `/app/app.py` in the image.",
+          "objectives": [
+            "Write a Dockerfile using `FROM python:3.11-alpine`, `COPY app.py /app/app.py`, `CMD [\"python\", \"/app/app.py\"]`",
+            "Build as `pyapp:v1`"
+          ],
+          "hints": [
+            "`COPY <src> <dest>` copies files from build context to image",
+            "Dockerfile with FROM, COPY, CMD; build with `docker build -t pyapp:v1 /workspace`",
+            "Write the Dockerfile, then `docker build -t pyapp:v1 /workspace`"
+          ],
+          "validation": [
+            {
+              "type": "image_exists",
+              "params": {
+                "name": "pyapp",
+                "tag": "v1"
+              },
+              "description": "name=pyapp, tag=v1"
+            },
+            {
+              "type": "file_in_image",
+              "params": {
+                "image": "pyapp:v1",
+                "path": "/app/app.py"
+              },
+              "description": "image=pyapp:v1, path=/app/app.py"
+            }
+          ],
+          "initialState": {
+            "summary": "`/workspace/app.py` pre-created with `print(\"hello docker\")`",
+            "workspaceFiles": [
+              {
+                "path": "app.py",
+                "content": "print(\"hello docker\")\n"
+              }
+            ]
+          }
+        },
+        {
+          "id": "module_02_level_05",
+          "moduleId": 2,
+          "levelId": 5,
+          "title": "RUN Commands",
+          "moduleTitle": "Images & Dockerfile",
+          "difficulty": "medium",
+          "xp": 100,
+          "story": "A bare OS image needs software installed. Build an image based on `ubuntu:22.04` that has `curl` installed.",
+          "objectives": [
+            "Write a Dockerfile: `FROM ubuntu:22.04`, `RUN apt-get update && apt-get install -y curl`",
+            "Build as `curl-box:v1`",
+            "Verify: run a container from `curl-box:v1` and confirm `curl --version` works"
+          ],
+          "hints": [
+            "`RUN` executes commands during image build",
+            "Chain commands with `&&` to minimize layers",
+            "`RUN apt-get update && apt-get install -y curl`"
+          ],
+          "validation": [
+            {
+              "type": "image_exists",
+              "params": {
+                "name": "curl-box",
+                "tag": "v1"
+              },
+              "description": "name=curl-box, tag=v1"
+            },
+            {
+              "type": "binary_in_image",
+              "params": {
+                "image": "curl-box:v1",
+                "binary": "curl"
+              },
+              "description": "image=curl-box:v1, binary=curl"
+            }
+          ],
+          "initialState": {
+            "summary": "`/workspace` is empty",
+            "workspaceFiles": []
+          }
+        },
+        {
+          "id": "module_02_level_06",
+          "moduleId": 2,
+          "levelId": 6,
+          "title": "ENV and WORKDIR",
+          "moduleTitle": "Images & Dockerfile",
+          "difficulty": "medium",
+          "xp": 100,
+          "story": "Well-structured images define their working directory and bake in environment configuration. Build an image with `WORKDIR /app` and `ENV NODE_ENV=production`.",
+          "objectives": [
+            "Write a Dockerfile: `FROM node:18-alpine`, `WORKDIR /app`, `ENV NODE_ENV=production`, `CMD [\"node\", \"-e\", \"console.log(process.env.NODE_ENV)\"]`",
+            "Build as `node-app:v1`"
+          ],
+          "hints": [
+            "`WORKDIR` sets the working directory; `ENV` sets environment variables",
+            "Both are Dockerfile instructions, one per line",
+            "Write the Dockerfile with all four instructions, then build"
+          ],
+          "validation": [
+            {
+              "type": "image_exists",
+              "params": {
+                "name": "node-app",
+                "tag": "v1"
+              },
+              "description": "name=node-app, tag=v1"
+            },
+            {
+              "type": "env_var_in_image",
+              "params": {
+                "image": "node-app:v1",
+                "key": "NODE_ENV",
+                "value": "production"
+              },
+              "description": "image=node-app:v1, key=NODE_ENV, value=production"
+            },
+            {
+              "type": "workdir_in_image",
+              "params": {
+                "image": "node-app:v1",
+                "path": "/app"
+              },
+              "description": "image=node-app:v1, path=/app"
+            }
+          ],
+          "initialState": {
+            "summary": "Clean Docker environment",
+            "workspaceFiles": []
+          }
+        },
+        {
+          "id": "module_02_level_07",
+          "moduleId": 2,
+          "levelId": 7,
+          "title": "Multi-Stage Build",
+          "moduleTitle": "Images & Dockerfile",
+          "difficulty": "hard",
+          "xp": 200,
+          "story": "Bloated images are a security risk and waste bandwidth. Use a multi-stage build to compile a Go binary in one stage and copy only the binary into a minimal `scratch` or `alpine` final image.",
+          "objectives": [
+            "Write a multi-stage Dockerfile:",
+            "Stage 1 (`builder`): `FROM golang:1.21-alpine AS builder`, copy `main.go`, run `go build -o app .`",
+            "Stage 2: `FROM alpine:3.18`, `COPY --from=builder /build/app /app`, `CMD [\"/app\"]`",
+            "Build as `go-app:v1`",
+            "Final image size should be under 20MB"
+          ],
+          "hints": [
+            "Multi-stage builds use multiple `FROM` lines; `COPY --from=<stage>` copies between stages",
+            "The builder stage has all dev tools; the final stage is lean",
+            "See the multi-stage Dockerfile structure in the objectives"
+          ],
+          "validation": [
+            {
+              "type": "image_exists",
+              "params": {
+                "name": "go-app",
+                "tag": "v1"
+              },
+              "description": "name=go-app, tag=v1"
+            },
+            {
+              "type": "image_size_under",
+              "params": {
+                "image": "go-app:v1",
+                "max_mb": 20
+              },
+              "description": "image=go-app:v1, max_mb=20"
+            },
+            {
+              "type": "Container runs successfully",
+              "params": {},
+              "description": "Container runs successfully"
+            }
+          ],
+          "initialState": {
+            "summary": "`/workspace/main.go` pre-created (a simple Hello World Go program)",
+            "workspaceFiles": [
+              {
+                "path": "main.go",
+                "content": "package main\n\nimport \"fmt\"\n\nfunc main() {\n  fmt.Println(\"hello from DockerMissions\")\n}\n"
+              }
+            ]
+          }
+        },
+        {
+          "id": "module_02_level_08",
+          "moduleId": 2,
+          "levelId": 8,
+          "title": ".dockerignore",
+          "moduleTitle": "Images & Dockerfile",
+          "difficulty": "medium",
+          "xp": 100,
+          "story": "Your build context is huge because it includes `node_modules` and `.git`. Create a `.dockerignore` file to exclude them and speed up builds.",
+          "objectives": [
+            "Create `/workspace/.dockerignore` that excludes `node_modules` and `.git`",
+            "Build image `clean-build:v1` from the existing Dockerfile in `/workspace`",
+            "Verify the build context sent to daemon is under 1KB"
+          ],
+          "hints": [
+            "`.dockerignore` works like `.gitignore` — list patterns to exclude from build context",
+            "Add `node_modules` and `.git` on separate lines",
+            "Create `.dockerignore` with those two entries, then `docker build -t clean-build:v1 /workspace`"
+          ],
+          "validation": [
+            {
+              "type": "file_exists",
+              "params": {
+                "path": "/workspace/.dockerignore"
+              },
+              "description": "path=/workspace/.dockerignore"
+            },
+            {
+              "type": "dockerignore_excludes",
+              "params": {
+                "entries": "[node_modules, .git]"
+              },
+              "description": "entries=[node_modules, .git]"
+            },
+            {
+              "type": "image_exists",
+              "params": {
+                "name": "clean-build",
+                "tag": "v1"
+              },
+              "description": "name=clean-build, tag=v1"
+            }
+          ],
+          "initialState": {
+            "summary": "`/workspace` contains a Dockerfile, a small `index.js`, large `node_modules/` (fake, 100MB), `.git/`",
+            "workspaceFiles": []
+          }
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "title": "Docker Networking",
+      "theme": "Connecting containers",
+      "totalLevels": 7,
+      "missions": [
+        {
+          "id": "module_03_level_01",
+          "moduleId": 3,
+          "levelId": 1,
+          "title": "Default Bridge Network",
+          "moduleTitle": "Docker Networking",
+          "difficulty": "easy",
+          "xp": 50,
+          "story": "By default, containers join the `bridge` network. Run two alpine containers and observe that they can't resolve each other by name on the default bridge.",
+          "objectives": [
+            "Run container `alpha` from `alpine` (detached, `sleep 3600`)",
+            "Run container `beta` from `alpine` (detached, `sleep 3600`)",
+            "Try to ping `beta` from `alpha` — observe it fails (expected)",
+            "Confirm both containers are on the `bridge` network"
+          ],
+          "hints": [
+            "Default containers use the `bridge` network automatically",
+            "`docker run -d --name alpha alpine sleep 3600`",
+            "DNS-based name resolution only works on user-defined networks"
+          ],
+          "validation": [
+            {
+              "type": "container_running",
+              "params": {
+                "name": "alpha"
+              },
+              "description": "name=alpha"
+            },
+            {
+              "type": "container_running",
+              "params": {
+                "name": "beta"
+              },
+              "description": "name=beta"
+            },
+            {
+              "type": "container_on_network",
+              "params": {
+                "container": "alpha",
+                "network": "bridge"
+              },
+              "description": "container=alpha, network=bridge"
+            },
+            {
+              "type": "container_on_network",
+              "params": {
+                "container": "beta",
+                "network": "bridge"
+              },
+              "description": "container=beta, network=bridge"
+            }
+          ],
+          "initialState": {
+            "summary": "Clean Docker environment",
+            "workspaceFiles": []
+          }
+        },
+        {
+          "id": "module_03_level_02",
+          "moduleId": 3,
+          "levelId": 2,
+          "title": "Create a Custom Network",
+          "moduleTitle": "Docker Networking",
+          "difficulty": "easy",
+          "xp": 50,
+          "story": "User-defined networks give you DNS resolution between containers. Create a network named `mission-net` of type `bridge`.",
+          "objectives": [
+            "Create a Docker network named `mission-net` with driver `bridge`"
+          ],
+          "hints": [
+            "`docker network create <name>` creates a network",
+            "Use `--driver bridge` (bridge is the default anyway)",
+            "`docker network create --driver bridge mission-net`"
+          ],
+          "validation": [
+            {
+              "type": "network_exists",
+              "params": {
+                "name": "mission-net",
+                "driver": "bridge"
+              },
+              "description": "name=mission-net, driver=bridge"
+            }
+          ],
+          "initialState": {
+            "summary": "Clean Docker environment",
+            "workspaceFiles": []
+          }
+        },
+        {
+          "id": "module_03_level_03",
+          "moduleId": 3,
+          "levelId": 3,
+          "title": "Connect Containers by Name",
+          "moduleTitle": "Docker Networking",
+          "difficulty": "easy",
+          "xp": 50,
+          "story": "Now that you have `mission-net`, connect two containers to it. They should be able to ping each other by name.",
+          "objectives": [
+            "Run container `server` from `nginx` (detached) on network `mission-net`",
+            "Run container `client` from `alpine` (detached, `sleep 3600`) on network `mission-net`",
+            "Exec into `client` and ping `server` by name (must succeed)"
+          ],
+          "hints": [
+            "Use `--network <name>` when running containers",
+            "`docker run -d --name server --network mission-net nginx`",
+            "`docker exec client ping -c 1 server` should succeed"
+          ],
+          "validation": [
+            {
+              "type": "container_on_network",
+              "params": {
+                "container": "server",
+                "network": "mission-net"
+              },
+              "description": "container=server, network=mission-net"
+            },
+            {
+              "type": "container_on_network",
+              "params": {
+                "container": "client",
+                "network": "mission-net"
+              },
+              "description": "container=client, network=mission-net"
+            },
+            {
+              "type": "ping_succeeds",
+              "params": {
+                "from": "client",
+                "to": "server"
+              },
+              "description": "from=client, to=server"
+            }
+          ],
+          "initialState": {
+            "summary": "`mission-net` network pre-created",
+            "workspaceFiles": []
+          }
+        },
+        {
+          "id": "module_03_level_04",
+          "moduleId": 3,
+          "levelId": 4,
+          "title": "Expose vs Publish",
+          "moduleTitle": "Docker Networking",
+          "difficulty": "medium",
+          "xp": 100,
+          "story": "`EXPOSE` in a Dockerfile is documentation only — it doesn't publish the port to the host. You must use `-p` to actually publish. Run nginx publishing port 9090 on the host.",
+          "objectives": [
+            "Run `nginx` container named `public-web` with host port `9090` mapped to container port `80`",
+            "Confirm the port is reachable on `localhost:9090`"
+          ],
+          "hints": [
+            "`-p <host>:<container>` publishes a port",
+            "`-p 9090:80`",
+            "`docker run -d --name public-web -p 9090:80 nginx`"
+          ],
+          "validation": [
+            {
+              "type": "container_running",
+              "params": {
+                "name": "public-web"
+              },
+              "description": "name=public-web"
+            },
+            {
+              "type": "port_exposed",
+              "params": {
+                "container": "public-web",
+                "host_port": 9090,
+                "container_port": 80
+              },
+              "description": "container=public-web, host_port=9090, container_port=80"
+            },
+            {
+              "type": "http_responds",
+              "params": {
+                "url": "http://localhost:9090",
+                "status": 200
+              },
+              "description": "url=http://localhost:9090, status=200"
+            }
+          ],
+          "initialState": {
+            "summary": "Clean Docker environment",
+            "workspaceFiles": []
+          }
+        },
+        {
+          "id": "module_03_level_05",
+          "moduleId": 3,
+          "levelId": 5,
+          "title": "Host Network",
+          "moduleTitle": "Docker Networking",
+          "difficulty": "medium",
+          "xp": 100,
+          "story": "For maximum performance (no NAT), some containers run on the host network. Run a container using the `host` network driver and confirm it sees the host's network interfaces.",
+          "objectives": [
+            "Run container `host-mode` from `alpine` using `--network host` running `sleep 3600` (detached)",
+            "Exec into it and run `ip addr` — confirm `eth0` or host interface is visible"
+          ],
+          "hints": [
+            "`--network host` attaches container directly to host network",
+            "No port mapping needed or possible with host mode",
+            "`docker run -d --name host-mode --network host alpine sleep 3600`"
+          ],
+          "validation": [
+            {
+              "type": "container_running",
+              "params": {
+                "name": "host-mode"
+              },
+              "description": "name=host-mode"
+            },
+            {
+              "type": "container_network_mode",
+              "params": {
+                "container": "host-mode",
+                "mode": "host"
+              },
+              "description": "container=host-mode, mode=host"
+            }
+          ],
+          "initialState": {
+            "summary": "Clean Docker environment",
+            "workspaceFiles": []
+          }
+        },
+        {
+          "id": "module_03_level_06",
+          "moduleId": 3,
+          "levelId": 6,
+          "title": "Connect Running Container to Network",
+          "moduleTitle": "Docker Networking",
+          "difficulty": "medium",
+          "xp": 100,
+          "story": "The container `late-joiner` is already running but needs to join `mission-net` without restarting. Connect it dynamically.",
+          "objectives": [
+            "Connect running container `late-joiner` to network `mission-net` without stopping it"
+          ],
+          "hints": [
+            "`docker network connect <network> <container>` attaches a running container",
+            "`docker network connect mission-net late-joiner`",
+            "`docker network connect mission-net late-joiner`"
+          ],
+          "validation": [
+            {
+              "type": "container_running",
+              "params": {
+                "name": "late-joiner"
+              },
+              "description": "name=late-joiner"
+            },
+            {
+              "type": "container_on_network",
+              "params": {
+                "container": "late-joiner",
+                "network": "mission-net"
+              },
+              "description": "container=late-joiner, network=mission-net"
+            }
+          ],
+          "initialState": {
+            "summary": "- Container `late-joiner` (alpine, running, `sleep 3600`) on default bridge - Network `mission-net` exists",
+            "workspaceFiles": []
+          }
+        },
+        {
+          "id": "module_03_level_07",
+          "moduleId": 3,
+          "levelId": 7,
+          "title": "Isolate with None Network",
+          "moduleTitle": "Docker Networking",
+          "difficulty": "hard",
+          "xp": 200,
+          "story": "Some workloads must be completely isolated with no network access. Run a container with no networking at all and confirm it cannot reach the outside world.",
+          "objectives": [
+            "Run container `isolated` from `alpine` with no network (`--network none`) running `sleep 3600`",
+            "Confirm it has no network interfaces except `lo`"
+          ],
+          "hints": [
+            "`--network none` disables all networking",
+            "The container will only have the loopback `lo` interface",
+            "`docker run -d --name isolated --network none alpine sleep 3600`"
+          ],
+          "validation": [
+            {
+              "type": "container_running",
+              "params": {
+                "name": "isolated"
+              },
+              "description": "name=isolated"
+            },
+            {
+              "type": "container_network_mode",
+              "params": {
+                "container": "isolated",
+                "mode": "none"
+              },
+              "description": "container=isolated, mode=none"
+            },
+            {
+              "type": "no_external_network",
+              "params": {
+                "container": "isolated"
+              },
+              "description": "container=isolated"
+            }
+          ],
+          "initialState": {
+            "summary": "Clean Docker environment",
+            "workspaceFiles": []
+          }
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "title": "Volumes & Storage",
+      "theme": "Persisting data",
+      "totalLevels": 6,
+      "missions": [
+        {
+          "id": "module_04_level_01",
+          "moduleId": 4,
+          "levelId": 1,
+          "title": "Named Volume Basics",
+          "moduleTitle": "Volumes & Storage",
+          "difficulty": "easy",
+          "xp": 50,
+          "story": "Containers are ephemeral — when they die, their data dies too. Named volumes live beyond containers. Create a volume named `app-data`.",
+          "objectives": [
+            "Create a Docker named volume called `app-data`"
+          ],
+          "hints": [
+            "`docker volume create <name>` creates a named volume",
+            "`docker volume create app-data`",
+            "`docker volume create app-data`"
+          ],
+          "validation": [
+            {
+              "type": "volume_exists",
+              "params": {
+                "name": "app-data"
+              },
+              "description": "name=app-data"
+            }
+          ],
+          "initialState": {
+            "summary": "Clean Docker environment",
+            "workspaceFiles": []
+          }
+        },
+        {
+          "id": "module_04_level_02",
+          "moduleId": 4,
+          "levelId": 2,
+          "title": "Mount a Volume",
+          "moduleTitle": "Volumes & Storage",
+          "difficulty": "easy",
+          "xp": 50,
+          "story": "A volume is only useful when mounted. Run an `alpine` container named `writer` with volume `app-data` mounted at `/data`, then write a file to it.",
+          "objectives": [
+            "Run container `writer` from `alpine` with `app-data` mounted at `/data` (detached, `sleep 3600`)",
+            "Create file `/data/record.txt` inside the container with content `mission=complete`"
+          ],
+          "hints": [
+            "Use `-v <volume>:<path>` or `--mount` to attach a volume",
+            "`docker run -d --name writer -v app-data:/data alpine sleep 3600`",
+            "Then `docker exec writer sh -c 'echo mission=complete > /data/record.txt'`"
+          ],
+          "validation": [
+            {
+              "type": "volume_mounted",
+              "params": {
+                "container": "writer",
+                "volume": "app-data",
+                "path": "/data"
+              },
+              "description": "container=writer, volume=app-data, path=/data"
+            },
+            {
+              "type": "file_in_container",
+              "params": {
+                "container": "writer",
+                "path": "/data/record.txt"
+              },
+              "description": "container=writer, path=/data/record.txt"
+            }
+          ],
+          "initialState": {
+            "summary": "Volume `app-data` pre-created",
+            "workspaceFiles": []
+          }
+        },
+        {
+          "id": "module_04_level_03",
+          "moduleId": 4,
+          "levelId": 3,
+          "title": "Data Survives Container Death",
+          "moduleTitle": "Volumes & Storage",
+          "difficulty": "medium",
+          "xp": 100,
+          "story": "Prove that data in a volume outlives its container. The `writer` container has been removed. Run a new container `reader` on the same volume and confirm the file still exists.",
+          "objectives": [
+            "Run container `reader` from `alpine` mounting `app-data` at `/data`",
+            "Read `/data/record.txt` and confirm content is `mission=complete`"
+          ],
+          "hints": [
+            "Mount the same volume in a new container",
+            "`docker run -d --name reader -v app-data:/data alpine sleep 3600`",
+            "`docker exec reader cat /data/record.txt` should show `mission=complete`"
+          ],
+          "validation": [
+            {
+              "type": "volume_mounted",
+              "params": {
+                "container": "reader",
+                "volume": "app-data",
+                "path": "/data"
+              },
+              "description": "container=reader, volume=app-data, path=/data"
+            },
+            {
+              "type": "file_content",
+              "params": {
+                "container": "reader",
+                "path": "/data/record.txt",
+                "contains": "mission=complete"
+              },
+              "description": "container=reader, path=/data/record.txt, contains=mission=complete"
+            }
+          ],
+          "initialState": {
+            "summary": "- Volume `app-data` exists with `/data/record.txt` containing `mission=complete` - Container `writer` has been removed",
+            "workspaceFiles": []
+          }
+        },
+        {
+          "id": "module_04_level_04",
+          "moduleId": 4,
+          "levelId": 4,
+          "title": "Bind Mounts",
+          "moduleTitle": "Volumes & Storage",
+          "difficulty": "medium",
+          "xp": 100,
+          "story": "Bind mounts link a host directory directly into a container — perfect for development. Mount the host directory `/workspace/html` into an nginx container at `/usr/share/nginx/html`.",
+          "objectives": [
+            "Run `nginx` container named `dev-web` with host path `/workspace/html` bind-mounted at `/usr/share/nginx/html`, publishing port 8080"
+          ],
+          "hints": [
+            "Use `-v /host/path:/container/path` for bind mounts",
+            "Bind mounts use absolute host paths",
+            "`docker run -d --name dev-web -v /workspace/html:/usr/share/nginx/html -p 8080:80 nginx`"
+          ],
+          "validation": [
+            {
+              "type": "container_running",
+              "params": {
+                "name": "dev-web"
+              },
+              "description": "name=dev-web"
+            },
+            {
+              "type": "bind_mount",
+              "params": {
+                "container": "dev-web",
+                "host_path": "/workspace/html",
+                "container_path": "/usr/share/nginx/html"
+              },
+              "description": "container=dev-web, host_path=/workspace/html, container_path=/usr/share/nginx/html"
+            },
+            {
+              "type": "http_responds",
+              "params": {
+                "url": "http://localhost:8080",
+                "body_contains": "DockerMissions"
+              },
+              "description": "url=http://localhost:8080, body_contains=DockerMissions"
+            }
+          ],
+          "initialState": {
+            "summary": "`/workspace/html/index.html` pre-created with `<h1>DockerMissions</h1>`",
+            "workspaceFiles": [
+              {
+                "path": "html/index.html",
+                "content": "<h1>DockerMissions</h1>\n"
+              }
+            ]
+          }
+        },
+        {
+          "id": "module_04_level_05",
+          "moduleId": 4,
+          "levelId": 5,
+          "title": "tmpfs Mount",
+          "moduleTitle": "Volumes & Storage",
+          "difficulty": "medium",
+          "xp": 100,
+          "story": "Some sensitive data (tokens, secrets) should never touch disk. Use a `tmpfs` mount for in-memory-only storage.",
+          "objectives": [
+            "Run container `secure-app` from `alpine` with a `tmpfs` mount at `/secrets` (detached, `sleep 3600`)",
+            "Write a file `/secrets/token.txt` to it",
+            "Confirm the data is in memory (not on a volume or bind mount)"
+          ],
+          "hints": [
+            "`--tmpfs <path>` mounts an in-memory filesystem",
+            "Data in tmpfs is lost when the container stops",
+            "`docker run -d --name secure-app --tmpfs /secrets alpine sleep 3600`"
+          ],
+          "validation": [
+            {
+              "type": "container_running",
+              "params": {
+                "name": "secure-app"
+              },
+              "description": "name=secure-app"
+            },
+            {
+              "type": "tmpfs_mounted",
+              "params": {
+                "container": "secure-app",
+                "path": "/secrets"
+              },
+              "description": "container=secure-app, path=/secrets"
+            },
+            {
+              "type": "file_in_container",
+              "params": {
+                "container": "secure-app",
+                "path": "/secrets/token.txt"
+              },
+              "description": "container=secure-app, path=/secrets/token.txt"
+            }
+          ],
+          "initialState": {
+            "summary": "Clean Docker environment",
+            "workspaceFiles": []
+          }
+        },
+        {
+          "id": "module_04_level_06",
+          "moduleId": 4,
+          "levelId": 6,
+          "title": "Volume Backup",
+          "moduleTitle": "Volumes & Storage",
+          "difficulty": "hard",
+          "xp": 200,
+          "story": "Volumes must be backed up. Use a temporary container to tar the contents of `app-data` volume to `/backup/app-data.tar.gz` on the host.",
+          "objectives": [
+            "Run a temporary container that mounts `app-data` at `/data` and `/backup` as a bind mount",
+            "Compress `/data` contents into `/backup/app-data.tar.gz`",
+            "Container should stop after completing the backup"
+          ],
+          "hints": [
+            "Use `docker run --rm` for throwaway containers",
+            "Mount both the volume and the backup directory",
+            "`docker run --rm -v app-data:/data -v /backup:/backup alpine tar czf /backup/app-data.tar.gz -C /data .`"
+          ],
+          "validation": [
+            {
+              "type": "file_exists_on_host",
+              "params": {
+                "path": "/backup/app-data.tar.gz"
+              },
+              "description": "path=/backup/app-data.tar.gz"
+            },
+            {
+              "type": "tar_valid",
+              "params": {
+                "path": "/backup/app-data.tar.gz"
+              },
+              "description": "path=/backup/app-data.tar.gz"
+            }
+          ],
+          "initialState": {
+            "summary": "- Volume `app-data` with files pre-created - Host directory `/backup` exists and is writable",
+            "workspaceFiles": []
+          }
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "title": "Docker Compose",
+      "theme": "Multi-container applications",
+      "totalLevels": 7,
+      "missions": [
+        {
+          "id": "module_05_level_01",
+          "moduleId": 5,
+          "levelId": 1,
+          "title": "Your First Compose File",
+          "moduleTitle": "Docker Compose",
+          "difficulty": "easy",
+          "xp": 50,
+          "story": "Running multi-container apps with `docker run` is painful. Docker Compose lets you define everything in one YAML file. Write a Compose file that runs a single `nginx` service.",
+          "objectives": [
+            "Write `/workspace/docker-compose.yml` with one service: `web` using image `nginx:latest`, no port mapping yet",
+            "Run `docker compose up -d`",
+            "Confirm service `web` is running"
+          ],
+          "hints": [
+            "A Compose file has a `services:` key at the top level",
+            "```yaml",
+            "Write the file, then `docker compose -f /workspace/docker-compose.yml up -d`"
+          ],
+          "validation": [
+            {
+              "type": "compose_service_running",
+              "params": {
+                "service": "web",
+                "project": "workspace"
+              },
+              "description": "service=web, project=workspace"
+            }
+          ],
+          "initialState": {
+            "summary": "`/workspace` is empty",
+            "workspaceFiles": []
+          }
+        },
+        {
+          "id": "module_05_level_02",
+          "moduleId": 5,
+          "levelId": 2,
+          "title": "Multiple Services",
+          "moduleTitle": "Docker Compose",
+          "difficulty": "easy",
+          "xp": 50,
+          "story": "Real apps have multiple components. Define a Compose stack with a `web` (nginx) service and a `db` (postgres:15-alpine) service.",
+          "objectives": [
+            "Write a `docker-compose.yml` with services `web` (nginx) and `db` (postgres:15-alpine)",
+            "Set required env var for postgres: `POSTGRES_PASSWORD=secret`",
+            "Run `docker compose up -d`"
+          ],
+          "hints": [
+            "Add multiple entries under `services:`",
+            "Use `environment:` key for env vars",
+            "```yaml"
+          ],
+          "validation": [
+            {
+              "type": "compose_service_running",
+              "params": {
+                "service": "web"
+              },
+              "description": "service=web"
+            },
+            {
+              "type": "compose_service_running",
+              "params": {
+                "service": "db"
+              },
+              "description": "service=db"
+            },
+            {
+              "type": "env_var_set",
+              "params": {
+                "container": "*db*",
+                "key": "POSTGRES_PASSWORD",
+                "value": "secret"
+              },
+              "description": "container=*db*, key=POSTGRES_PASSWORD, value=secret"
+            }
+          ],
+          "initialState": {
+            "summary": "Clean Docker environment",
+            "workspaceFiles": []
+          }
+        },
+        {
+          "id": "module_05_level_03",
+          "moduleId": 5,
+          "levelId": 3,
+          "title": "Port Mapping in Compose",
+          "moduleTitle": "Docker Compose",
+          "difficulty": "easy",
+          "xp": 50,
+          "story": "Expose the nginx service on host port 8080.",
+          "objectives": [
+            "Add `ports: [\"8080:80\"]` to the `web` service",
+            "Restart the stack",
+            "Confirm http://localhost:8080 responds"
+          ],
+          "hints": [
+            "Use `ports:` key under the service",
+            "Format: `\"host:container\"`",
+            "`ports: [\"8080:80\"]`"
+          ],
+          "validation": [
+            {
+              "type": "port_exposed",
+              "params": {
+                "service": "web",
+                "host_port": 8080,
+                "container_port": 80
+              },
+              "description": "service=web, host_port=8080, container_port=80"
+            },
+            {
+              "type": "http_responds",
+              "params": {
+                "url": "http://localhost:8080",
+                "status": 200
+              },
+              "description": "url=http://localhost:8080, status=200"
+            }
+          ],
+          "initialState": {
+            "summary": "Clean Docker environment",
+            "workspaceFiles": []
+          }
+        },
+        {
+          "id": "module_05_level_04",
+          "moduleId": 5,
+          "levelId": 4,
+          "title": "Named Volumes in Compose",
+          "moduleTitle": "Docker Compose",
+          "difficulty": "medium",
+          "xp": 100,
+          "story": "Your Postgres data disappears on every `docker compose down`. Add a named volume `db-data` to persist it.",
+          "objectives": [
+            "Add a named volume `db-data` to the Compose file",
+            "Mount it in the `db` service at `/var/lib/postgresql/data`",
+            "Re-deploy the stack"
+          ],
+          "hints": [
+            "Define volumes at the top level `volumes:` and reference them in services",
+            "```yaml",
+            "db-data:/var/lib/postgresql/data",
+            "Add both the top-level `volumes:` block and the service-level mount"
+          ],
+          "validation": [
+            {
+              "type": "volume_exists",
+              "params": {
+                "name": "*db-data*"
+              },
+              "description": "name=*db-data*"
+            },
+            {
+              "type": "volume_mounted",
+              "params": {
+                "service": "db",
+                "volume": "*db-data*",
+                "path": "/var/lib/postgresql/data"
+              },
+              "description": "service=db, volume=*db-data*, path=/var/lib/postgresql/data"
+            }
+          ],
+          "initialState": {
+            "summary": "Clean Docker environment",
+            "workspaceFiles": []
+          }
+        },
+        {
+          "id": "module_05_level_05",
+          "moduleId": 5,
+          "levelId": 5,
+          "title": "Custom Network in Compose",
+          "moduleTitle": "Docker Compose",
+          "difficulty": "medium",
+          "xp": 100,
+          "story": "By default Compose creates one network. Define a custom network `backend` and put the `db` on it. Put `web` on both `backend` and a `frontend` network.",
+          "objectives": [
+            "Define two networks: `frontend` and `backend`",
+            "`web` service on both networks",
+            "`db` service only on `backend` network"
+          ],
+          "hints": [
+            "Define networks at the top level `networks:` and reference under each service",
+            "A service can list multiple networks",
+            "Use `networks:` key both at the top level and under each service"
+          ],
+          "validation": [
+            {
+              "type": "network_exists",
+              "params": {
+                "name": "*frontend*"
+              },
+              "description": "name=*frontend*"
+            },
+            {
+              "type": "network_exists",
+              "params": {
+                "name": "*backend*"
+              },
+              "description": "name=*backend*"
+            },
+            {
+              "type": "service_on_network",
+              "params": {
+                "service": "web",
+                "network": "frontend"
+              },
+              "description": "service=web, network=frontend"
+            },
+            {
+              "type": "service_on_network",
+              "params": {
+                "service": "web",
+                "network": "backend"
+              },
+              "description": "service=web, network=backend"
+            },
+            {
+              "type": "service_on_network",
+              "params": {
+                "service": "db",
+                "network": "backend"
+              },
+              "description": "service=db, network=backend"
+            },
+            {
+              "type": "service_not_on_network",
+              "params": {
+                "service": "db",
+                "network": "frontend"
+              },
+              "description": "service=db, network=frontend"
+            }
+          ],
+          "initialState": {
+            "summary": "Clean Docker environment",
+            "workspaceFiles": []
+          }
+        },
+        {
+          "id": "module_05_level_06",
+          "moduleId": 5,
+          "levelId": 6,
+          "title": "Health Checks and Depends_on",
+          "moduleTitle": "Docker Compose",
+          "difficulty": "hard",
+          "xp": 200,
+          "story": "The `web` service crashes on startup because `db` isn't ready. Use `depends_on` with a health check to make `web` wait for `db` to be healthy before starting.",
+          "objectives": [
+            "Add a `healthcheck` to the `db` service: `pg_isready -U postgres`",
+            "Add `depends_on: db: condition: service_healthy` to the `web` service",
+            "Redeploy and confirm `web` starts only after `db` is healthy"
+          ],
+          "hints": [
+            "`healthcheck` has `test`, `interval`, `timeout`, `retries` keys",
+            "`depends_on` can take a `condition: service_healthy` qualifier",
+            "```yaml"
+          ],
+          "validation": [
+            {
+              "type": "service_has_healthcheck",
+              "params": {
+                "service": "db"
+              },
+              "description": "service=db"
+            },
+            {
+              "type": "depends_on_healthy",
+              "params": {
+                "service": "web",
+                "depends_on": "db"
+              },
+              "description": "service=web, depends_on=db"
+            }
+          ],
+          "initialState": {
+            "summary": "Clean Docker environment",
+            "workspaceFiles": []
+          }
+        },
+        {
+          "id": "module_05_level_07",
+          "moduleId": 5,
+          "levelId": 7,
+          "title": "Scale a Service",
+          "moduleTitle": "Docker Compose",
+          "difficulty": "hard",
+          "xp": 200,
+          "story": "Traffic is spiking. Scale the `web` service to 3 replicas using Docker Compose.",
+          "objectives": [
+            "Scale the `web` service to 3 replicas",
+            "Confirm 3 containers for the `web` service are running"
+          ],
+          "hints": [
+            "`docker compose up --scale web=3 -d` scales a service",
+            "Or add `deploy.replicas: 3` in the Compose file (requires Swarm or Compose v3 with deploy)",
+            "`docker compose up --scale web=3 -d`"
+          ],
+          "validation": [
+            {
+              "type": "service_replicas",
+              "params": {
+                "service": "web",
+                "count": 3
+              },
+              "description": "service=web, count=3"
+            }
+          ],
+          "initialState": {
+            "summary": "Clean Docker environment",
+            "workspaceFiles": []
+          }
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "title": "Docker Security",
+      "theme": "Hardening containers",
+      "totalLevels": 6,
+      "missions": [
+        {
+          "id": "module_06_level_01",
+          "moduleId": 6,
+          "levelId": 1,
+          "title": "Run as Non-Root",
+          "moduleTitle": "Docker Security",
+          "difficulty": "easy",
+          "xp": 50,
+          "story": "Containers running as root are dangerous. If they escape, they own your host. Run an alpine container as user ID `1000` instead of root.",
+          "objectives": [
+            "Run container `safe-app` from `alpine` as user `1000` (`sleep 3600`, detached)",
+            "Confirm the container process does NOT run as root"
+          ],
+          "hints": [
+            "Use `--user <uid>` to set the container user",
+            "`--user 1000`",
+            "`docker run -d --name safe-app --user 1000 alpine sleep 3600`"
+          ],
+          "validation": [
+            {
+              "type": "container_running",
+              "params": {
+                "name": "safe-app"
+              },
+              "description": "name=safe-app"
+            },
+            {
+              "type": "no_root",
+              "params": {
+                "container": "safe-app"
+              },
+              "description": "container=safe-app"
+            }
+          ],
+          "initialState": {
+            "summary": "Clean Docker environment",
+            "workspaceFiles": []
+          }
+        },
+        {
+          "id": "module_06_level_02",
+          "moduleId": 6,
+          "levelId": 2,
+          "title": "Read-Only Filesystem",
+          "moduleTitle": "Docker Security",
+          "difficulty": "easy",
+          "xp": 50,
+          "story": "A container that can't write to its own filesystem is significantly harder to compromise. Run nginx in read-only mode.",
+          "objectives": [
+            "Run `nginx` container named `readonly-web` with a read-only filesystem (`--read-only`)",
+            "Nginx needs a writable tmpfs at `/tmp` and `/var/run` to start — add those",
+            "Publish port 8080"
+          ],
+          "hints": [
+            "`--read-only` makes the root filesystem read-only",
+            "Combine with `--tmpfs` for directories that must be writable",
+            "`docker run -d --name readonly-web --read-only --tmpfs /tmp --tmpfs /var/run -p 8080:80 nginx`"
+          ],
+          "validation": [
+            {
+              "type": "container_running",
+              "params": {
+                "name": "readonly-web"
+              },
+              "description": "name=readonly-web"
+            },
+            {
+              "type": "readonly_rootfs",
+              "params": {
+                "container": "readonly-web"
+              },
+              "description": "container=readonly-web"
+            },
+            {
+              "type": "http_responds",
+              "params": {
+                "url": "http://localhost:8080",
+                "status": 200
+              },
+              "description": "url=http://localhost:8080, status=200"
+            }
+          ],
+          "initialState": {
+            "summary": "Clean Docker environment",
+            "workspaceFiles": []
+          }
+        },
+        {
+          "id": "module_06_level_03",
+          "moduleId": 6,
+          "levelId": 3,
+          "title": "Drop Linux Capabilities",
+          "moduleTitle": "Docker Security",
+          "difficulty": "medium",
+          "xp": 100,
+          "story": "Containers inherit too many Linux capabilities by default. Drop ALL capabilities from a container and add back only what's needed.",
+          "objectives": [
+            "Run container `minimal-caps` from `alpine` dropping ALL capabilities with `--cap-drop=ALL`",
+            "Add back only `NET_BIND_SERVICE` with `--cap-add`",
+            "Run `sleep 3600` detached"
+          ],
+          "hints": [
+            "`--cap-drop=ALL` drops every Linux capability",
+            "`--cap-add=<CAP>` adds individual capabilities back",
+            "`docker run -d --name minimal-caps --cap-drop=ALL --cap-add=NET_BIND_SERVICE alpine sleep 3600`"
+          ],
+          "validation": [
+            {
+              "type": "container_running",
+              "params": {
+                "name": "minimal-caps"
+              },
+              "description": "name=minimal-caps"
+            },
+            {
+              "type": "cap_dropped_all",
+              "params": {
+                "container": "minimal-caps"
+              },
+              "description": "container=minimal-caps"
+            },
+            {
+              "type": "cap_added",
+              "params": {
+                "container": "minimal-caps",
+                "cap": "NET_BIND_SERVICE"
+              },
+              "description": "container=minimal-caps, cap=NET_BIND_SERVICE"
+            }
+          ],
+          "initialState": {
+            "summary": "Clean Docker environment",
+            "workspaceFiles": []
+          }
+        },
+        {
+          "id": "module_06_level_04",
+          "moduleId": 6,
+          "levelId": 4,
+          "title": "Seccomp Profile",
+          "moduleTitle": "Docker Security",
+          "difficulty": "medium",
+          "xp": 100,
+          "story": "Seccomp filters which system calls a container can make. Apply the default Docker seccomp profile explicitly to lock down `syscall-test` container.",
+          "objectives": [
+            "Run container `syscall-test` from `alpine` with the default seccomp profile applied explicitly",
+            "Run `sleep 3600` detached"
+          ],
+          "hints": [
+            "`--security-opt seccomp=<path>` applies a seccomp profile",
+            "The profile is JSON file defining allowed syscalls",
+            "`docker run -d --name syscall-test --security-opt seccomp=/workspace/default-seccomp.json alpine sleep 3600`"
+          ],
+          "validation": [
+            {
+              "type": "container_running",
+              "params": {
+                "name": "syscall-test"
+              },
+              "description": "name=syscall-test"
+            },
+            {
+              "type": "seccomp_applied",
+              "params": {
+                "container": "syscall-test"
+              },
+              "description": "container=syscall-test"
+            }
+          ],
+          "initialState": {
+            "summary": "`/workspace/default-seccomp.json` contains Docker's default seccomp profile",
+            "workspaceFiles": [
+              {
+                "path": "default-seccomp.json",
+                "content": "{ \"defaultAction\": \"SCMP_ACT_ERRNO\", \"architectures\": [], \"syscalls\": [] }\n"
+              }
+            ]
+          }
+        },
+        {
+          "id": "module_06_level_05",
+          "moduleId": 6,
+          "levelId": 5,
+          "title": "Resource Limits",
+          "moduleTitle": "Docker Security",
+          "difficulty": "medium",
+          "xp": 100,
+          "story": "A runaway container can starve the host. Limit container `resource-hog` to 256MB RAM and 0.5 CPU.",
+          "objectives": [
+            "Run container `resource-hog` from `alpine` with:",
+            "Memory limit: `256m`",
+            "CPU limit: `0.5`",
+            "Run `sleep 3600` detached"
+          ],
+          "hints": [
+            "`--memory 256m` sets RAM limit; `--cpus 0.5` sets CPU limit",
+            "These prevent the container from consuming unlimited host resources",
+            "`docker run -d --name resource-hog --memory 256m --cpus 0.5 alpine sleep 3600`"
+          ],
+          "validation": [
+            {
+              "type": "container_running",
+              "params": {
+                "name": "resource-hog"
+              },
+              "description": "name=resource-hog"
+            },
+            {
+              "type": "memory_limit",
+              "params": {
+                "container": "resource-hog",
+                "limit": "268435456 (256MB in bytes)"
+              },
+              "description": "container=resource-hog, limit=268435456 (256MB in bytes)"
+            },
+            {
+              "type": "cpu_limit",
+              "params": {
+                "container": "resource-hog",
+                "cpus": 0.5
+              },
+              "description": "container=resource-hog, cpus=0.5"
+            }
+          ],
+          "initialState": {
+            "summary": "Clean Docker environment",
+            "workspaceFiles": []
+          }
+        },
+        {
+          "id": "module_06_level_06",
+          "moduleId": 6,
+          "levelId": 6,
+          "title": "Scan an Image for Vulnerabilities",
+          "moduleTitle": "Docker Security",
+          "difficulty": "hard",
+          "xp": 350,
+          "story": "You've built an image `legacy-app:v1`. Use Docker Scout or Trivy to scan it for critical CVEs, then rebuild using an updated base image to eliminate the critical vulnerabilities.",
+          "objectives": [
+            "Scan `legacy-app:v1` (pre-built with old ubuntu base) and identify critical vulnerabilities",
+            "Rebuild with updated base image `ubuntu:22.04` as `legacy-app:v2`",
+            "Scan `legacy-app:v2` and confirm zero critical CVEs"
+          ],
+          "hints": [
+            "`docker scout cves legacy-app:v1` or `trivy image legacy-app:v1`",
+            "Change `FROM ubuntu:18.04` to `FROM ubuntu:22.04` in the Dockerfile",
+            "Rebuild: `docker build -t legacy-app:v2 /workspace`"
+          ],
+          "validation": [
+            {
+              "type": "image_exists",
+              "params": {
+                "name": "legacy-app",
+                "tag": "v2"
+              },
+              "description": "name=legacy-app, tag=v2"
+            },
+            {
+              "type": "scan_critical_cves_zero",
+              "params": {
+                "image": "legacy-app:v2"
+              },
+              "description": "image=legacy-app:v2"
+            }
+          ],
+          "initialState": {
+            "summary": "- `legacy-app:v1` pre-built using `ubuntu:18.04` (has known CVEs) - `/workspace/Dockerfile` available for editing",
+            "workspaceFiles": [
+              {
+                "path": "Dockerfile",
+                "content": "FROM ubuntu:18.04\nRUN apt-get update\nRUN apt-get install -y curl\nRUN apt-get install -y wget\nCMD [\"bash\", \"-lc\", \"sleep 3600\"]\n"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": 7,
+      "title": "Registry & Distribution",
+      "theme": "Sharing images",
+      "totalLevels": 5,
+      "missions": [
+        {
+          "id": "module_07_level_01",
+          "moduleId": 7,
+          "levelId": 1,
+          "title": "Tag an Image",
+          "moduleTitle": "Registry & Distribution",
+          "difficulty": "easy",
+          "xp": 50,
+          "story": "Before pushing to a registry, images must be tagged with the destination. Tag the local image `myapp:latest` to target the local registry at `localhost:5000/myapp:v1`.",
+          "objectives": [
+            "Tag `myapp:latest` as `localhost:5000/myapp:v1`"
+          ],
+          "hints": [
+            "`docker tag <source> <destination>` creates a new tag pointing to the same image",
+            "`docker tag myapp:latest localhost:5000/myapp:v1`",
+            "`docker tag myapp:latest localhost:5000/myapp:v1`"
+          ],
+          "validation": [
+            {
+              "type": "image_exists",
+              "params": {
+                "name": "localhost:5000/myapp",
+                "tag": "v1"
+              },
+              "description": "name=localhost:5000/myapp, tag=v1"
+            }
+          ],
+          "initialState": {
+            "summary": "`myapp:latest` image pre-built",
+            "workspaceFiles": []
+          }
+        },
+        {
+          "id": "module_07_level_02",
+          "moduleId": 7,
+          "levelId": 2,
+          "title": "Run a Local Registry",
+          "moduleTitle": "Registry & Distribution",
+          "difficulty": "easy",
+          "xp": 50,
+          "story": "You don't always need Docker Hub. Run a local Docker registry on port 5000.",
+          "objectives": [
+            "Run a local registry container named `registry` from `registry:2` on port 5000 (detached)"
+          ],
+          "hints": [
+            "The official `registry:2` image runs a Docker-compatible registry",
+            "`docker run -d --name registry -p 5000:5000 registry:2`",
+            "`docker run -d --name registry -p 5000:5000 registry:2`"
+          ],
+          "validation": [
+            {
+              "type": "container_running",
+              "params": {
+                "name": "registry"
+              },
+              "description": "name=registry"
+            },
+            {
+              "type": "port_exposed",
+              "params": {
+                "container": "registry",
+                "host_port": 5000,
+                "container_port": 5000
+              },
+              "description": "container=registry, host_port=5000, container_port=5000"
+            },
+            {
+              "type": "http_responds",
+              "params": {
+                "url": "http://localhost:5000/v2/",
+                "status": 200
+              },
+              "description": "url=http://localhost:5000/v2/, status=200"
+            }
+          ],
+          "initialState": {
+            "summary": "Clean Docker environment",
+            "workspaceFiles": []
+          }
+        },
+        {
+          "id": "module_07_level_03",
+          "moduleId": 7,
+          "levelId": 3,
+          "title": "Push to Local Registry",
+          "moduleTitle": "Registry & Distribution",
+          "difficulty": "medium",
+          "xp": 100,
+          "story": "Your local registry is running. Push `localhost:5000/myapp:v1` to it.",
+          "objectives": [
+            "Push the image `localhost:5000/myapp:v1` to the local registry"
+          ],
+          "hints": [
+            "`docker push <image>` pushes to the registry encoded in the image name",
+            "`docker push localhost:5000/myapp:v1`",
+            "`docker push localhost:5000/myapp:v1`"
+          ],
+          "validation": [
+            {
+              "type": "image_in_registry",
+              "params": {
+                "registry": "localhost:5000",
+                "name": "myapp",
+                "tag": "v1"
+              },
+              "description": "registry=localhost:5000, name=myapp, tag=v1"
+            }
+          ],
+          "initialState": {
+            "summary": "- Local registry running on port 5000 - `localhost:5000/myapp:v1` image tagged locally",
+            "workspaceFiles": [
+              {
+                "path": "Dockerfile",
+                "content": "FROM ubuntu:22.04\nRUN apt-get update\nRUN apt-get install -y curl\nRUN apt-get install -y wget\nRUN apt-get install -y git\nCMD [\"bash\", \"-lc\", \"echo mission ready\"]\n"
+              }
+            ]
+          }
+        },
+        {
+          "id": "module_07_level_04",
+          "moduleId": 7,
+          "levelId": 4,
+          "title": "Pull from Local Registry",
+          "moduleTitle": "Registry & Distribution",
+          "difficulty": "medium",
+          "xp": 100,
+          "story": "The image was pushed. Now remove the local copy and re-pull it from the registry to prove the registry works.",
+          "objectives": [
+            "Remove local image `localhost:5000/myapp:v1`",
+            "Pull it back from the registry",
+            "Run a container from it to verify"
+          ],
+          "hints": [
+            "`docker rmi` removes local image; `docker pull` re-downloads",
+            "`docker rmi localhost:5000/myapp:v1 && docker pull localhost:5000/myapp:v1`",
+            "Then `docker run --rm localhost:5000/myapp:v1`"
+          ],
+          "validation": [
+            {
+              "type": "image_exists",
+              "params": {
+                "name": "localhost:5000/myapp",
+                "tag": "v1 (after pull)"
+              },
+              "description": "name=localhost:5000/myapp, tag=v1 (after pull)"
+            },
+            {
+              "type": "container_ran",
+              "params": {
+                "image": "localhost:5000/myapp:v1"
+              },
+              "description": "image=localhost:5000/myapp:v1"
+            }
+          ],
+          "initialState": {
+            "summary": "Clean Docker environment",
+            "workspaceFiles": []
+          }
+        },
+        {
+          "id": "module_07_level_05",
+          "moduleId": 7,
+          "levelId": 5,
+          "title": "Image Layers and History",
+          "moduleTitle": "Registry & Distribution",
+          "difficulty": "hard",
+          "xp": 200,
+          "story": "Every Dockerfile instruction adds a layer. Understanding layers helps you optimize images. Inspect the layer history of `myapp:v1` and rebuild with optimized layers (fewer RUN commands merged).",
+          "objectives": [
+            "Run `docker history myapp:v1` to see all layers",
+            "Identify layers that can be merged (multiple consecutive `RUN` commands)",
+            "Edit `/workspace/Dockerfile` to merge the RUN commands",
+            "Build `myapp:v2` and confirm it has fewer layers than `myapp:v1`"
+          ],
+          "hints": [
+            "`docker history <image>` shows all layers and their sizes",
+            "Merge multiple `RUN` commands with `&&` to reduce layer count",
+            "```dockerfile"
+          ],
+          "validation": [
+            {
+              "type": "image_exists",
+              "params": {
+                "name": "myapp",
+                "tag": "v2"
+              },
+              "description": "name=myapp, tag=v2"
+            },
+            {
+              "type": "fewer_layers",
+              "params": {
+                "image_a": "myapp:v2",
+                "image_b": "myapp:v1"
+              },
+              "description": "image_a=myapp:v2, image_b=myapp:v1"
+            }
+          ],
+          "initialState": {
+            "summary": "- `myapp:v1` pre-built with at least 3 separate `RUN apt-get ...` instructions - `/workspace/Dockerfile` editable",
+            "workspaceFiles": [
+              {
+                "path": "Dockerfile",
+                "content": "FROM ubuntu:22.04\nRUN apt-get update\nRUN apt-get install -y curl\nRUN apt-get install -y wget\nRUN apt-get install -y git\nCMD [\"bash\", \"-lc\", \"echo mission ready\"]\n"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": 8,
+      "title": "Advanced Docker",
+      "theme": "Optimization & production patterns",
+      "totalLevels": 7,
+      "missions": [
+        {
+          "id": "module_08_level_01",
+          "moduleId": 8,
+          "levelId": 1,
+          "title": "BuildKit and Build Cache",
+          "moduleTitle": "Advanced Docker",
+          "difficulty": "medium",
+          "xp": 100,
+          "story": "Docker BuildKit dramatically speeds up builds using intelligent caching and parallel execution. Enable BuildKit and rebuild an existing image to see cache hits.",
+          "objectives": [
+            "Set `DOCKER_BUILDKIT=1` environment variable",
+            "Build `cached-app:v1` from `/workspace/Dockerfile`",
+            "Modify only `index.html` (not the Dockerfile) and rebuild as `cached-app:v2`",
+            "Confirm the second build uses cache for unchanged layers"
+          ],
+          "hints": [
+            "`DOCKER_BUILDKIT=1 docker build ...` enables BuildKit",
+            "Or set in Docker daemon config: `\"features\": {\"buildkit\": true}`",
+            "`DOCKER_BUILDKIT=1 docker build -t cached-app:v2 /workspace`"
+          ],
+          "validation": [
+            {
+              "type": "image_exists",
+              "params": {
+                "name": "cached-app",
+                "tag": "v1"
+              },
+              "description": "name=cached-app, tag=v1"
+            },
+            {
+              "type": "image_exists",
+              "params": {
+                "name": "cached-app",
+                "tag": "v2"
+              },
+              "description": "name=cached-app, tag=v2"
+            },
+            {
+              "type": "build_used_cache",
+              "params": {
+                "image": "cached-app:v2"
+              },
+              "description": "image=cached-app:v2"
+            }
+          ],
+          "initialState": {
+            "summary": "`/workspace` with Dockerfile and source files",
+            "workspaceFiles": [
+              {
+                "path": "Dockerfile",
+                "content": "FROM nginx:latest\nCOPY index.html /usr/share/nginx/html/index.html\n"
+              },
+              {
+                "path": "index.html",
+                "content": "<h1>Cache me if you can</h1>\n"
+              }
+            ]
+          }
+        },
+        {
+          "id": "module_08_level_02",
+          "moduleId": 8,
+          "levelId": 2,
+          "title": "Cache Mount in BuildKit",
+          "moduleTitle": "Advanced Docker",
+          "difficulty": "hard",
+          "xp": 200,
+          "story": "Package manager downloads are slow and happen on every build. Use BuildKit's `--mount=type=cache` to cache `apt` downloads across builds.",
+          "objectives": [
+            "Edit `/workspace/Dockerfile` to use `RUN --mount=type=cache,target=/var/cache/apt apt-get install ...`",
+            "Build `cache-mount:v1` and then `cache-mount:v2` (same Dockerfile, second build should be faster)"
+          ],
+          "hints": [
+            "`RUN --mount=type=cache,target=/var/cache/apt` caches the apt directory",
+            "This is a BuildKit-only feature",
+            "```dockerfile"
+          ],
+          "validation": [
+            {
+              "type": "image_exists",
+              "params": {
+                "name": "cache-mount",
+                "tag": "v1"
+              },
+              "description": "name=cache-mount, tag=v1"
+            },
+            {
+              "type": "image_exists",
+              "params": {
+                "name": "cache-mount",
+                "tag": "v2"
+              },
+              "description": "name=cache-mount, tag=v2"
+            },
+            {
+              "type": "dockerfile_uses_cache_mount",
+              "params": {
+                "path": "/workspace/Dockerfile"
+              },
+              "description": "path=/workspace/Dockerfile"
+            }
+          ],
+          "initialState": {
+            "summary": "`/workspace/Dockerfile` with plain `RUN apt-get install` instructions",
+            "workspaceFiles": [
+              {
+                "path": "Dockerfile",
+                "content": "FROM ubuntu:22.04\nRUN apt-get update && apt-get install -y curl\n"
+              }
+            ]
+          }
+        },
+        {
+          "id": "module_08_level_03",
+          "moduleId": 8,
+          "levelId": 3,
+          "title": "Docker Init",
+          "moduleTitle": "Advanced Docker",
+          "difficulty": "medium",
+          "xp": 100,
+          "story": "PID 1 in a container must properly handle signals and reap zombie processes. Use `--init` to run an init process as PID 1.",
+          "objectives": [
+            "Run container `signal-safe` from `node:18-alpine` with `--init` flag",
+            "Confirm PID 1 is `docker-init` (tini), not the Node process directly"
+          ],
+          "hints": [
+            "`--init` injects a tiny init process (tini) as PID 1",
+            "The actual application becomes a child of PID 1",
+            "`docker run -d --init --name signal-safe node:18-alpine node -e \"setInterval(()=>{}, 1000)\"`"
+          ],
+          "validation": [
+            {
+              "type": "container_running",
+              "params": {
+                "name": "signal-safe"
+              },
+              "description": "name=signal-safe"
+            },
+            {
+              "type": "uses_init",
+              "params": {
+                "container": "signal-safe"
+              },
+              "description": "container=signal-safe"
+            }
+          ],
+          "initialState": {
+            "summary": "Clean Docker environment",
+            "workspaceFiles": []
+          }
+        },
+        {
+          "id": "module_08_level_04",
+          "moduleId": 8,
+          "levelId": 4,
+          "title": "Docker Context",
+          "moduleTitle": "Advanced Docker",
+          "difficulty": "medium",
+          "xp": 100,
+          "story": "Docker contexts let you switch between different Docker daemons (local, remote, production). Create a context named `production` pointing to a remote Docker socket.",
+          "objectives": [
+            "Create a Docker context named `production` with host `ssh://deploy@10.0.0.100`",
+            "List contexts to confirm it exists",
+            "Switch back to `default` context after inspection"
+          ],
+          "hints": [
+            "`docker context create <name> --docker \"host=<endpoint>\"` creates a context",
+            "`docker context ls` lists all contexts",
+            "`docker context create production --docker \"host=ssh://deploy@10.0.0.100\"`"
+          ],
+          "validation": [
+            {
+              "type": "context_exists",
+              "params": {
+                "name": "production"
+              },
+              "description": "name=production"
+            },
+            {
+              "type": "context_host",
+              "params": {
+                "name": "production",
+                "host": "ssh://deploy@10.0.0.100"
+              },
+              "description": "name=production, host=ssh://deploy@10.0.0.100"
+            }
+          ],
+          "initialState": {
+            "summary": "Clean Docker environment",
+            "workspaceFiles": []
+          }
+        },
+        {
+          "id": "module_08_level_05",
+          "moduleId": 8,
+          "levelId": 5,
+          "title": "Healthcheck in Dockerfile",
+          "moduleTitle": "Advanced Docker",
+          "difficulty": "medium",
+          "xp": 100,
+          "story": "Docker can monitor your container's health and restart it if it becomes unhealthy. Add a HEALTHCHECK to a Dockerfile for an HTTP service.",
+          "objectives": [
+            "Edit `/workspace/Dockerfile` (nginx-based) to add:",
+            "Build as `healthy-nginx:v1`",
+            "Run a container and confirm it reaches `healthy` status"
+          ],
+          "hints": [
+            "`HEALTHCHECK` is a Dockerfile instruction",
+            "The CMD must return 0 for healthy, 1 for unhealthy",
+            "Wait ~30 seconds after starting for the health status to be `healthy`"
+          ],
+          "validation": [
+            {
+              "type": "image_exists",
+              "params": {
+                "name": "healthy-nginx",
+                "tag": "v1"
+              },
+              "description": "name=healthy-nginx, tag=v1"
+            },
+            {
+              "type": "dockerfile_has_healthcheck",
+              "params": {
+                "path": "/workspace/Dockerfile"
+              },
+              "description": "path=/workspace/Dockerfile"
+            },
+            {
+              "type": "container_health_healthy",
+              "params": {
+                "name": "*healthy-nginx*"
+              },
+              "description": "name=*healthy-nginx*"
+            }
+          ],
+          "initialState": {
+            "summary": "Clean Docker environment",
+            "workspaceFiles": []
+          }
+        },
+        {
+          "id": "module_08_level_06",
+          "moduleId": 8,
+          "levelId": 6,
+          "title": "Docker Swarm Init",
+          "moduleTitle": "Advanced Docker",
+          "difficulty": "hard",
+          "xp": 200,
+          "story": "Docker Swarm turns your Docker host into a cluster manager. Initialize a single-node Swarm.",
+          "objectives": [
+            "Initialize Docker Swarm with `docker swarm init`",
+            "Deploy a service named `web` with 3 replicas using `nginx` image",
+            "Confirm all 3 replicas are running"
+          ],
+          "hints": [
+            "`docker swarm init` initializes the Swarm",
+            "`docker service create --name web --replicas 3 nginx`",
+            "`docker service ls` shows services; `docker service ps web` shows tasks"
+          ],
+          "validation": [
+            {
+              "type": "swarm_active",
+              "params": {
+                "mode": "active"
+              },
+              "description": "mode=active"
+            },
+            {
+              "type": "swarm_service_running",
+              "params": {
+                "name": "web",
+                "replicas": 3
+              },
+              "description": "name=web, replicas=3"
+            }
+          ],
+          "initialState": {
+            "summary": "Clean Docker environment",
+            "workspaceFiles": []
+          }
+        },
+        {
+          "id": "module_08_level_07",
+          "moduleId": 8,
+          "levelId": 7,
+          "title": "Prune Everything",
+          "moduleTitle": "Advanced Docker",
+          "difficulty": "easy",
+          "xp": 200,
+          "story": "Your Docker host is running out of disk space. Clean up all stopped containers, unused images, unused networks, and dangling volumes in one sweep.",
+          "objectives": [
+            "Remove all stopped containers",
+            "Remove all unused images (not just dangling)",
+            "Remove all unused networks",
+            "Remove all unused volumes",
+            "Confirm disk space is recovered"
+          ],
+          "hints": [
+            "`docker system prune -a --volumes` cleans everything at once (with `-a` for all images)",
+            "Or run individually: `docker container prune`, `docker image prune -a`, `docker volume prune`, `docker network prune`",
+            "`docker system prune -a --volumes -f`"
+          ],
+          "validation": [
+            {
+              "type": "no_stopped_containers",
+              "params": {},
+              "description": "true"
+            },
+            {
+              "type": "no_dangling_images",
+              "params": {},
+              "description": "true"
+            },
+            {
+              "type": "no_unused_volumes",
+              "params": {},
+              "description": "true"
+            }
+          ],
+          "initialState": {
+            "summary": "Many stopped containers, unused images, and dangling volumes pre-created",
+            "workspaceFiles": []
+          }
+        }
+      ]
+    }
+  ]
+}

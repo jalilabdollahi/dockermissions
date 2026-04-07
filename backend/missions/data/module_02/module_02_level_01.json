@@ -1,0 +1,32 @@
+{
+  "id": "module_02_level_01",
+  "moduleId": 2,
+  "levelId": 1,
+  "title": "Pull an Image",
+  "moduleTitle": "Images & Dockerfile",
+  "difficulty": "easy",
+  "xp": 50,
+  "story": "Before you can deploy, you need the right image. Pull `redis:7-alpine` from Docker Hub — lightweight and battle-tested.",
+  "objectives": [
+    "Pull image `redis:7-alpine` from Docker Hub"
+  ],
+  "hints": [
+    "`docker pull <image>:<tag>` downloads an image",
+    "`docker pull redis:7-alpine`",
+    "`docker pull redis:7-alpine`"
+  ],
+  "validation": [
+    {
+      "type": "image_exists",
+      "params": {
+        "name": "redis",
+        "tag": "7-alpine"
+      },
+      "description": "name=redis, tag=7-alpine"
+    }
+  ],
+  "initialState": {
+    "summary": "Clean Docker environment",
+    "workspaceFiles": []
+  }
+}
