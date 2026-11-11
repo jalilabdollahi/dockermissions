@@ -2,40 +2,74 @@
   "id": "module_08_level_04",
   "moduleId": 8,
   "levelId": 4,
-  "title": "Docker Context",
-  "moduleTitle": "Advanced Docker",
+  "title": "The Other Station",
+  "moduleTitle": "Polar Night",
   "difficulty": "medium",
   "xp": 100,
-  "story": "Docker contexts let you switch between different Docker daemons (local, remote, production). Create a context named `production` pointing to a remote Docker socket.",
+  "concepts": [
+    "docker context",
+    "context create",
+    "context use"
+  ],
+  "story": "Ingrid, on the handheld radio, voice thin against the wind:\n\n\"Engineer, the hut at Skua Ridge keeps a second Docker engine as our fallback. When we need it, it will be midnight and somebody will be typing endpoints from memory. I don't want that. Give the hut a name the CLI understands, and prove the name works by starting a probe container there. The cable isn't laid yet, so for now point it at the endpoint in `/workspace/hut-endpoint.txt`. Over.\"",
   "objectives": [
-    "Create a Docker context named `production` with host `ssh://deploy@10.0.0.100`",
-    "List contexts to confirm it exists",
-    "Switch back to `default` context after inspection"
+    "Create a context named `backup-station` for the endpoint in `/workspace/hut-endpoint.txt`, with the description `Backup hut engine`",
+    "Make `backup-station` the active context with `docker context use`",
+    "Through that context, run a detached `hut-probe` container from `alpine:3.20` that sleeps (`sleep infinity`)"
   ],
+  "startingState": "Only the `default` context exists. The file `/workspace/hut-endpoint.txt` holds the endpoint to use.",
   "hints": [
-    "`docker context create <name> --docker \"host=<endpoint>\"` creates a context",
-    "`docker context ls` lists all contexts",
-    "`docker context create production --docker \"host=ssh://deploy@10.0.0.100\"`"
+    "The Docker CLI can talk to several engines. A context bundles an endpoint with a name, so switching engines is one short command instead of environment variables or long flags.",
+    "Create it with `docker context create NAME --docker host=ENDPOINT --description TEXT`, then switch to it with `docker context use NAME`. `docker context ls` marks the active one with an asterisk.",
+    "```bash\ndocker context create backup-station \\\n  --docker host=$(cat hut-endpoint.txt) \\\n  --description \"Backup hut engine\"\ndocker context use backup-station\ndocker context show\ndocker run -d --name hut-probe alpine:3.20 sleep infinity\n```"
   ],
+  "setup": {
+    "files": [
+      {
+        "path": "hut-endpoint.txt",
+        "content": "unix:///var/run/docker.sock\n"
+      }
+    ],
+    "commands": []
+  },
   "validation": [
     {
-      "type": "context_exists",
+      "type": "shell",
       "params": {
-        "name": "production"
+        "command": "docker context inspect backup-station --format '{{.Endpoints.docker.Host}}'",
+        "output_contains": "unix:///var/run/docker.sock"
       },
-      "description": "name=production"
+      "description": "A context `backup-station` exists and points at `unix:///var/run/docker.sock`"
     },
     {
-      "type": "context_host",
+      "type": "shell",
       "params": {
-        "name": "production",
-        "host": "ssh://deploy@10.0.0.100"
+        "command": "docker context inspect backup-station | jq -r '.[0].Metadata.Description'",
+        "output_equals": "Backup hut engine"
       },
-      "description": "name=production, host=ssh://deploy@10.0.0.100"
+      "description": "The context `backup-station` has the description `Backup hut engine`"
+    },
+    {
+      "type": "shell",
+      "params": {
+        "command": "docker context show",
+        "output_equals": "backup-station"
+      },
+      "description": "`backup-station` is the active context (`docker context use backup-station`)"
+    },
+    {
+      "type": "container_running",
+      "params": {
+        "name": "hut-probe",
+        "image": "alpine:3.20"
+      },
+      "description": "Container `hut-probe` is running from `alpine:3.20`"
     }
   ],
-  "initialState": {
-    "summary": "Clean Docker environment",
-    "workspaceFiles": []
-  }
+  "solution": [
+    "docker context create backup-station --docker host=unix:///var/run/docker.sock --description 'Backup hut engine'",
+    "docker context use backup-station",
+    "docker run -d --name hut-probe alpine:3.20 sleep infinity"
+  ],
+  "debrief": "Switching engines is now one word instead of a remembered socket path: the context bundles endpoint and description under a name. Pro tip: `docker --context NAME ps` runs a single command elsewhere without changing the active context."
 }

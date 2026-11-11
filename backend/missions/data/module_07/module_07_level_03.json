@@ -2,37 +2,78 @@
   "id": "module_07_level_03",
   "moduleId": 7,
   "levelId": 3,
-  "title": "Push to Local Registry",
-  "moduleTitle": "Registry & Distribution",
+  "title": "Round Trip",
+  "moduleTitle": "The Satellite Link",
   "difficulty": "medium",
   "xp": 100,
-  "story": "Your local registry is running. Push `localhost:5000/myapp:v1` to it.",
+  "concepts": [
+    "docker pull",
+    "image digest",
+    "verification"
+  ],
+  "story": "Station chat, 06:40.\n\n**Tomasz:** The core-index image went up to the depot last night, and then Amara wiped the build machine. Before I stake the winter's index on that copy I need to know it is intact.\n\n**Tomasz:** Pull it back from the depot. Then write its digest into `/workspace/digest.txt`, the sha256 exactly as the registry reports it, so I can compare it against my logbook. Precision, please.",
   "objectives": [
-    "Push the image `localhost:5000/myapp:v1` to the local registry"
+    "Pull `localhost:5000/kestrel/core-index:1.0` from the depot",
+    "Write the image's `sha256:...` digest into `/workspace/digest.txt`, matching what the depot reports"
   ],
+  "startingState": "The depot holds `kestrel/core-index:1.0`, but no copy of it is on this machine any more.",
   "hints": [
-    "`docker push <image>` pushes to the registry encoded in the image name",
-    "`docker push localhost:5000/myapp:v1`",
-    "`docker push localhost:5000/myapp:v1`"
+    "An image you have pushed lives on in the registry even when your local copy is gone. Pulling brings it back, and a digest is the content hash that proves it is the same bytes.",
+    "Pull with the full registry name. Afterwards `docker images --digests` shows the digest column, and `docker inspect --format '{{index .RepoDigests 0}}'` prints `name@sha256:...`. Only the part starting at `sha256:` belongs in the file.",
+    "```bash\ndocker pull localhost:5000/kestrel/core-index:1.0\ndocker inspect --format '{{index .RepoDigests 0}}' \\\n  localhost:5000/kestrel/core-index:1.0 | cut -d@ -f2 > digest.txt\ncat digest.txt\n```"
   ],
+  "setup": {
+    "files": [
+      {
+        "path": "core-index/Dockerfile",
+        "content": "FROM alpine:3.20\nLABEL station=kestrel role=core-index\nCMD [\"echo\", \"CORE INDEX 1.0 READY\"]\n"
+      }
+    ],
+    "commands": [
+      "docker run -d --name depot -p 5000:5000 registry:2",
+      "sleep 2",
+      "docker build -q -t localhost:5000/kestrel/core-index:1.0 core-index",
+      "docker push localhost:5000/kestrel/core-index:1.0",
+      "docker rmi localhost:5000/kestrel/core-index:1.0"
+    ]
+  },
   "validation": [
     {
-      "type": "image_in_registry",
+      "type": "image_exists",
       "params": {
-        "registry": "localhost:5000",
-        "name": "myapp",
-        "tag": "v1"
+        "ref": "localhost:5000/kestrel/core-index:1.0"
       },
-      "description": "registry=localhost:5000, name=myapp, tag=v1"
+      "description": "The image `localhost:5000/kestrel/core-index:1.0` is present locally again"
+    },
+    {
+      "type": "image_inspect",
+      "params": {
+        "ref": "localhost:5000/kestrel/core-index:1.0",
+        "path": "Config.Labels.role",
+        "equals": "core-index"
+      },
+      "description": "The local image is the `core-index` image from the depot (label `role=core-index`)"
+    },
+    {
+      "type": "workspace_file",
+      "params": {
+        "path": "digest.txt",
+        "matches": "sha256:[0-9a-f]{64}"
+      },
+      "description": "`/workspace/digest.txt` contains a `sha256:` digest"
+    },
+    {
+      "type": "shell",
+      "params": {
+        "command": "d=$(tr -d ' \\r\\n' < /workspace/digest.txt); r=$(curl -sI -H 'Accept: application/vnd.oci.image.index.v1+json, application/vnd.oci.image.manifest.v1+json, application/vnd.docker.distribution.manifest.v2+json' http://localhost:5000/v2/kestrel/core-index/manifests/1.0 | tr -d '\\r' | awk -F': ' 'tolower($1)==\"docker-content-digest\"{print $2}'); [ -n \"$r\" ] && echo \"$d\" | grep -qF \"$r\" && echo digest-matches",
+        "output_contains": "digest-matches"
+      },
+      "description": "The digest in `digest.txt` equals the manifest digest the depot reports for `kestrel/core-index:1.0`"
     }
   ],
-  "initialState": {
-    "summary": "- Local registry running on port 5000 - `localhost:5000/myapp:v1` image tagged locally",
-    "workspaceFiles": [
-      {
-        "path": "Dockerfile",
-        "content": "FROM ubuntu:22.04\nRUN apt-get update\nRUN apt-get install -y curl\nRUN apt-get install -y wget\nRUN apt-get install -y git\nCMD [\"bash\", \"-lc\", \"echo mission ready\"]\n"
-      }
-    ]
-  }
+  "solution": [
+    "docker pull localhost:5000/kestrel/core-index:1.0",
+    "docker inspect --format '{{index .RepoDigests 0}}' localhost:5000/kestrel/core-index:1.0 | cut -d@ -f2 > digest.txt"
+  ],
+  "debrief": "Tags can move, but a digest names exactly one set of bytes, so recording it is how you prove a transfer was faithful. Pro tip: pull or run `name@sha256:...` to pin an image to that exact digest, whatever the tag does later."
 }

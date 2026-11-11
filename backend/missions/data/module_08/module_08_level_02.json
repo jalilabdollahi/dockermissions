@@ -2,52 +2,87 @@
   "id": "module_08_level_02",
   "moduleId": 8,
   "levelId": 2,
-  "title": "Cache Mount in BuildKit",
-  "moduleTitle": "Advanced Docker",
+  "title": "Whisper to the Builder",
+  "moduleTitle": "Polar Night",
   "difficulty": "hard",
-  "xp": 200,
-  "story": "Package manager downloads are slow and happen on every build. Use BuildKit's `--mount=type=cache` to cache `apt` downloads across builds.",
+  "xp": 175,
+  "concepts": [
+    "BuildKit secrets",
+    "RUN --mount=type=secret",
+    "docker history"
+  ],
+  "story": "Excerpt from the mainland's image-scan report on `kestrel/uplink:0.9`:\n\n`FINDING HIGH  layer 2  ARG MAINLAND_TOKEN=KP-4e9b... is readable with docker history`\n\nThe uplink build has to prove it can authenticate, so it really does need the mainland token while it builds. But the token must not survive in any layer, environment variable or history line. The token file is `/workspace/secrets/mainland.token`.\n\nRewrite the Dockerfile so BuildKit hands the token over as a secret, and build `kestrel/uplink:1.0`.",
   "objectives": [
-    "Edit `/workspace/Dockerfile` to use `RUN --mount=type=cache,target=/var/cache/apt apt-get install ...`",
-    "Build `cache-mount:v1` and then `cache-mount:v2` (same Dockerfile, second build should be faster)"
+    "Rewrite `/workspace/Dockerfile` to read the token through `RUN --mount=type=secret,id=mainland_token` and drop the `ARG`",
+    "Build `kestrel/uplink:1.0` passing `secrets/mainland.token` as the secret `mainland_token`",
+    "The build still wrote `token-ok` to `/opt/uplink-status`, but the token appears nowhere in the image or its history"
   ],
+  "startingState": "`/workspace/Dockerfile` is the leaky version that takes the token as `ARG MAINLAND_TOKEN`; `/workspace/secrets/mainland.token` holds the token. No image has been built.",
   "hints": [
-    "`RUN --mount=type=cache,target=/var/cache/apt` caches the apt directory",
-    "This is a BuildKit-only feature",
-    "```dockerfile"
+    "Build arguments and environment variables are recorded in image metadata forever. BuildKit has a different channel: a secret is mounted for a single `RUN` step as a temporary file and leaves no trace.",
+    "In the Dockerfile, add `--mount=type=secret,id=NAME` to the `RUN` that needs it; the value appears as the file `/run/secrets/NAME`. At build time supply it with `docker build --secret id=NAME,src=FILE`.",
+    "```dockerfile\nFROM alpine:3.20\nRUN --mount=type=secret,id=mainland_token \\\n    grep -q '^KP-' /run/secrets/mainland_token \\\n    && echo token-ok > /opt/uplink-status\nCMD [\"cat\", \"/opt/uplink-status\"]\n```\n```bash\ndocker build -t kestrel/uplink:1.0 \\\n  --secret id=mainland_token,src=secrets/mainland.token .\n```"
   ],
-  "validation": [
-    {
-      "type": "image_exists",
-      "params": {
-        "name": "cache-mount",
-        "tag": "v1"
-      },
-      "description": "name=cache-mount, tag=v1"
-    },
-    {
-      "type": "image_exists",
-      "params": {
-        "name": "cache-mount",
-        "tag": "v2"
-      },
-      "description": "name=cache-mount, tag=v2"
-    },
-    {
-      "type": "dockerfile_uses_cache_mount",
-      "params": {
-        "path": "/workspace/Dockerfile"
-      },
-      "description": "path=/workspace/Dockerfile"
-    }
-  ],
-  "initialState": {
-    "summary": "`/workspace/Dockerfile` with plain `RUN apt-get install` instructions",
-    "workspaceFiles": [
+  "setup": {
+    "files": [
       {
         "path": "Dockerfile",
-        "content": "FROM ubuntu:22.04\nRUN apt-get update && apt-get install -y curl\n"
+        "content": "FROM alpine:3.20\nARG MAINLAND_TOKEN\nRUN echo \"$MAINLAND_TOKEN\" | grep -q '^KP-' && echo token-ok > /opt/uplink-status\nCMD [\"cat\", \"/opt/uplink-status\"]\n"
+      },
+      {
+        "path": "secrets/mainland.token",
+        "content": "KP-4e9b27d1-polar-7781\n"
       }
-    ]
-  }
+    ],
+    "commands": []
+  },
+  "validation": [
+    {
+      "type": "workspace_file",
+      "params": {
+        "path": "Dockerfile",
+        "matches": "--mount=type=secret[^\\n]*id=mainland_token|--mount=[^\\n]*id=mainland_token[^\\n]*type=secret",
+        "not_contains": "ARG MAINLAND_TOKEN"
+      },
+      "description": "The Dockerfile uses `--mount=type=secret,id=mainland_token` and no longer declares `ARG MAINLAND_TOKEN`"
+    },
+    {
+      "type": "image_exists",
+      "params": {
+        "ref": "kestrel/uplink:1.0"
+      },
+      "description": "The image `kestrel/uplink:1.0` exists"
+    },
+    {
+      "type": "image_run",
+      "params": {
+        "ref": "kestrel/uplink:1.0",
+        "entrypoint": "cat",
+        "args": "/opt/uplink-status",
+        "output_contains": "token-ok"
+      },
+      "description": "The build consumed the token: `/opt/uplink-status` in the image contains `token-ok`"
+    },
+    {
+      "type": "image_history",
+      "params": {
+        "ref": "kestrel/uplink:1.0",
+        "not_contains": "KP-4e9b27d1-"
+      },
+      "description": "The token does not appear in `docker history --no-trunc kestrel/uplink:1.0`"
+    },
+    {
+      "type": "shell",
+      "params": {
+        "command": "if docker image inspect kestrel/uplink:1.0 | grep -q KP-4e9b27d1- || docker run --rm --entrypoint sh kestrel/uplink:1.0 -c 'grep -rsq KP-4e9b27d1- /etc /opt /root /home /tmp /var /usr /app'; then echo LEAK; else echo CLEAN; fi",
+        "output_contains": "CLEAN"
+      },
+      "description": "The token is not stored in the image metadata (env, labels) or anywhere in its filesystem"
+    }
+  ],
+  "solution": [
+    "cat > Dockerfile <<'EOF'\nFROM alpine:3.20\nRUN --mount=type=secret,id=mainland_token \\\n    grep -q '^KP-' /run/secrets/mainland_token \\\n    && echo token-ok > /opt/uplink-status\nCMD [\"cat\", \"/opt/uplink-status\"]\nEOF",
+    "docker build -t kestrel/uplink:1.0 --secret id=mainland_token,src=secrets/mainland.token ."
+  ],
+  "debrief": "A `--build-arg` or `ENV` is written into the image for everyone who can pull it, while a secret mount exists only for the one `RUN` step that asks for it. Pro tip: `--secret id=x,env=VAR` reads the secret from an environment variable instead of a file."
 }

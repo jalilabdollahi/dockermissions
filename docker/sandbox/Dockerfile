@@ -8,8 +8,8 @@ RUN apk add --no-cache \
       findutils grep sed procps iproute2 bind-tools openssl \
  && mkdir -p /sessions /workspace /etc/dockermissions
 
+# No DOCKER_HOST here: it would override `docker context use` (the socket is the default anyway).
 ENV DOCKER_TLS_CERTDIR="" \
-    DOCKER_HOST="unix:///var/run/docker.sock" \
     TERM=xterm-256color
 
 COPY bashrc /etc/dockermissions/bashrc

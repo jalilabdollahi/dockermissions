@@ -67,5 +67,5 @@
     "mkdir -p backups",
     "docker run --rm -v seismo-data:/data -v /workspace/backups:/backup alpine:3.20 tar czf /backup/seismo.tar.gz -C /data ."
   ],
-  "debrief": "A volume is backed up by letting a helper container see both the volume and a host folder, then archiving from one to the other. Pro tip: use `-C /data .` so the archive stores relative paths and restores cleanly anywhere."
+  "debrief": "Volumes have no export button; the trick is a throwaway helper container that mounts both the volume and a host folder and archives one into the other. Pro tip: `tar -C /data .` stores relative paths, so the archive restores cleanly anywhere."
 }

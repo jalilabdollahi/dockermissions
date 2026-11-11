@@ -61,5 +61,5 @@
     "docker start gen-bravo",
     "docker rm gen-charlie"
   ],
-  "debrief": "A container's life has three separate stages: running, stopped (still on disk) and removed (gone). Pro tip: `docker container prune` removes every stopped container at once, so use it only when you are sure nothing there matters."
+  "debrief": "Stopping is not deleting: a stopped container keeps its filesystem and logs until `docker rm` takes it away for good. Pro tip: `docker container prune` sweeps every stopped container at once, so run it only when nothing in `docker ps -a` still matters."
 }

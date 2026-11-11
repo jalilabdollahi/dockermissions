@@ -60,5 +60,5 @@
   "solution": [
     "docker run -d --name archive-v2 --network legacy-net --network-alias archive nginx:alpine"
   ],
-  "debrief": "A network alias lets a new service inherit an old hostname without touching any client, and one container can answer to several names. Pro tip: aliases are per network, so the same container can use different names on different networks."
+  "debrief": "Old scripts keep working because the new container answers to the old hostname, and nobody had to touch a single client. Pro tip: aliases belong to one network, so the same container can go by different names on different networks."
 }

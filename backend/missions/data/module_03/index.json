@@ -1,322 +1,590 @@
 {
   "id": 3,
-  "title": "Docker Networking",
-  "theme": "Connecting containers",
+  "title": "Station Network",
+  "theme": "Wire the station's services together, safely",
   "totalLevels": 7,
   "missions": [
     {
       "id": "module_03_level_01",
       "moduleId": 3,
       "levelId": 1,
-      "title": "Default Bridge Network",
-      "moduleTitle": "Docker Networking",
+      "title": "Names on the Wire",
+      "moduleTitle": "Station Network",
       "difficulty": "easy",
-      "xp": 50,
-      "story": "By default, containers join the `bridge` network. Run two alpine containers and observe that they can't resolve each other by name on the default bridge.",
+      "xp": 75,
+      "concepts": [
+        "user-defined bridge network",
+        "container DNS"
+      ],
+      "story": "NORA: WEATHER-CACHE UNREACHABLE. FORECASTER LOOKUP FAILED: HOST NOT FOUND.\nNORA: RETRY 41 OF 41. GIVING UP.\n\nAmara Okafor left a note under the alert. The forecaster hard-codes the cache's IP address, and that address changes every time the cache restarts. \"Give them a network where names just work,\" the note says. \"The default bridge will not.\"\n\nBuild the wire: a network called `station-net`, a Redis cache named `weather-cache`, and a `forecaster` container that can reach the cache by its name.",
       "objectives": [
-        "Run container `alpha` from `alpine` (detached, `sleep 3600`)",
-        "Run container `beta` from `alpine` (detached, `sleep 3600`)",
-        "Try to ping `beta` from `alpha` — observe it fails (expected)",
-        "Confirm both containers are on the `bridge` network"
+        "Create a user-defined bridge network named `station-net`",
+        "Run `weather-cache` from `redis:7-alpine` on `station-net`",
+        "Run `forecaster` from `alpine:3.20` (kept alive with `sleep infinity`) on `station-net`",
+        "From inside `forecaster`, `ping weather-cache` must succeed"
       ],
+      "startingState": "A clean engine: no custom networks and no containers. The forecaster's config still says the cache host is `weather-cache`.",
       "hints": [
-        "Default containers use the `bridge` network automatically",
-        "`docker run -d --name alpha alpine sleep 3600`",
-        "DNS-based name resolution only works on user-defined networks"
+        "Containers on the default bridge cannot resolve each other by name. A network you create yourself has built-in DNS. Look at the `docker network` command family.",
+        "Create the network with `docker network create <name>`, then attach each container at start time with `docker run --network <name> ...`. The container name is the DNS name.",
+        "```bash\ndocker network create station-net\ndocker run -d --name weather-cache --network station-net redis:7-alpine\ndocker run -d --name forecaster --network station-net alpine:3.20 sleep infinity\ndocker exec forecaster ping -c 1 weather-cache\n```"
       ],
+      "setup": {
+        "files": [
+          {
+            "path": "forecaster/config.env",
+            "content": "CACHE_HOST=weather-cache\nCACHE_PORT=6379\n"
+          }
+        ],
+        "commands": []
+      },
       "validation": [
         {
-          "type": "container_running",
+          "type": "network_exists",
           "params": {
-            "name": "alpha"
+            "name": "station-net",
+            "driver": "bridge"
           },
-          "description": "name=alpha"
+          "description": "Network `station-net` exists and uses the bridge driver"
         },
         {
           "type": "container_running",
           "params": {
-            "name": "beta"
+            "name": "weather-cache",
+            "image": "redis:7-alpine"
           },
-          "description": "name=beta"
+          "description": "Container `weather-cache` is running from `redis:7-alpine`"
         },
         {
           "type": "container_on_network",
           "params": {
-            "container": "alpha",
-            "network": "bridge"
+            "name": "weather-cache",
+            "network": "station-net"
           },
-          "description": "container=alpha, network=bridge"
+          "description": "`weather-cache` is attached to `station-net`"
         },
         {
           "type": "container_on_network",
           "params": {
-            "container": "beta",
-            "network": "bridge"
+            "name": "forecaster",
+            "network": "station-net"
           },
-          "description": "container=beta, network=bridge"
+          "description": "`forecaster` is attached to `station-net`"
+        },
+        {
+          "type": "container_exec",
+          "params": {
+            "name": "forecaster",
+            "command": "ping -c 1 -W 2 weather-cache"
+          },
+          "description": "Inside `forecaster`, the name `weather-cache` resolves and answers a ping"
         }
       ],
-      "initialState": {
-        "summary": "Clean Docker environment",
-        "workspaceFiles": []
-      }
+      "solution": [
+        "docker network create station-net",
+        "docker run -d --name weather-cache --network station-net redis:7-alpine",
+        "docker run -d --name forecaster --network station-net alpine:3.20 sleep infinity"
+      ],
+      "debrief": "On a user-defined network Docker runs an embedded DNS server, so every container is reachable by its name and IPs stop mattering. Pro tip: put each group of cooperating services on its own network instead of sharing the default bridge."
     },
     {
       "id": "module_03_level_02",
       "moduleId": 3,
       "levelId": 2,
-      "title": "Create a Custom Network",
-      "moduleTitle": "Docker Networking",
+      "title": "Answer to an Old Name",
+      "moduleTitle": "Station Network",
       "difficulty": "easy",
-      "xp": 50,
-      "story": "User-defined networks give you DNS resolution between containers. Create a network named `mission-net` of type `bridge`.",
+      "xp": 75,
+      "concepts": [
+        "network alias",
+        "--network-alias"
+      ],
+      "story": "From: Tomasz Wierzba\nSubject: The archive has moved, the scripts have not\n\nEvery 2019 field script fetches `http://archive/`. That machine no longer exists. Amara's replacement is called `archive-v2`, and I will not edit forty scripts by hand: one typo and a season of readings lands in the wrong place.\n\nThe network `legacy-net` already exists and `old-script` is running on it, still asking for the old name. Start `archive-v2` on that network so that the name `archive` reaches it. Confirm before the evening shift. I would like to sleep.",
       "objectives": [
-        "Create a Docker network named `mission-net` with driver `bridge`"
+        "Run `archive-v2` from `nginx:alpine` on the network `legacy-net`",
+        "Give `archive-v2` the network alias `archive` on `legacy-net`",
+        "From inside `old-script`, `http://archive/` must return the archive's web page"
       ],
+      "startingState": "Network `legacy-net` exists and container `old-script` (alpine) is running on it. Nothing answers to `archive` yet.",
       "hints": [
-        "`docker network create <name>` creates a network",
-        "Use `--driver bridge` (bridge is the default anyway)",
-        "`docker network create --driver bridge mission-net`"
+        "A container can carry extra DNS names on a network besides its own name. Check the options of `docker run` that mention the network.",
+        "Use `--network legacy-net` together with `--network-alias <name>`. The alias only exists on the network it was given for.",
+        "```bash\ndocker run -d --name archive-v2 \\\n  --network legacy-net --network-alias archive \\\n  nginx:alpine\ndocker exec old-script wget -qO- http://archive/\n```"
       ],
+      "setup": {
+        "files": [],
+        "commands": [
+          "docker network create legacy-net",
+          "docker run -d --name old-script --network legacy-net alpine:3.20 sleep infinity"
+        ]
+      },
       "validation": [
         {
-          "type": "network_exists",
+          "type": "container_running",
           "params": {
-            "name": "mission-net",
-            "driver": "bridge"
+            "name": "archive-v2",
+            "image": "nginx:alpine"
           },
-          "description": "name=mission-net, driver=bridge"
+          "description": "Container `archive-v2` is running from `nginx:alpine`"
+        },
+        {
+          "type": "container_on_network",
+          "params": {
+            "name": "archive-v2",
+            "network": "legacy-net",
+            "alias": "archive"
+          },
+          "description": "`archive-v2` is on `legacy-net` with the alias `archive`"
+        },
+        {
+          "type": "http",
+          "params": {
+            "url": "http://archive/",
+            "from": "old-script",
+            "body_contains": "Welcome to nginx"
+          },
+          "description": "`old-script` can fetch `http://archive/` and gets the nginx page"
         }
       ],
-      "initialState": {
-        "summary": "Clean Docker environment",
-        "workspaceFiles": []
-      }
+      "solution": [
+        "docker run -d --name archive-v2 --network legacy-net --network-alias archive nginx:alpine"
+      ],
+      "debrief": "Old scripts keep working because the new container answers to the old hostname, and nobody had to touch a single client. Pro tip: aliases belong to one network, so the same container can go by different names on different networks."
     },
     {
       "id": "module_03_level_03",
       "moduleId": 3,
       "levelId": 3,
-      "title": "Connect Containers by Name",
-      "moduleTitle": "Docker Networking",
-      "difficulty": "easy",
-      "xp": 50,
-      "story": "Now that you have `mission-net`, connect two containers to it. They should be able to ping each other by name.",
+      "title": "Moving Day for the Printer",
+      "moduleTitle": "Station Network",
+      "difficulty": "medium",
+      "xp": 100,
+      "concepts": [
+        "docker network connect",
+        "docker network disconnect",
+        "live network changes"
+      ],
+      "story": "A sticky note on the lab printer, in marker: \"DO NOT UNPLUG. Halfway through printing the whole winter duty roster, 212 pages. Kip.\"\n\nUnderneath, in Ingrid Halvorsen's handwriting: \"The printer is the container `lab-printer`, and it still sits on the default bridge where nobody can find it by name. The lab machines live on `lab-net`. Move it. If the container restarts, the job restarts at page 1 and we lose the evening.\"\n\nPut `lab-printer` on `lab-net` and take it off the default bridge, without restarting it.",
       "objectives": [
-        "Run container `server` from `nginx` (detached) on network `mission-net`",
-        "Run container `client` from `alpine` (detached, `sleep 3600`) on network `mission-net`",
-        "Exec into `client` and ping `server` by name (must succeed)"
+        "`lab-printer` is attached to `lab-net`",
+        "`lab-printer` is no longer attached to the default `bridge` network",
+        "`lab-desk` can ping `lab-printer` by name",
+        "The print job survives: `/spool/job-started` inside `lab-printer` must still exist (no restart)"
       ],
+      "startingState": "Container `lab-printer` runs on the default bridge with a print job in its RAM spool. `lab-net` exists with `lab-desk` on it.",
       "hints": [
-        "Use `--network <name>` when running containers",
-        "`docker run -d --name server --network mission-net nginx`",
-        "`docker exec client ping -c 1 server` should succeed"
+        "A running container can be attached to and detached from networks without stopping it. Both actions live under `docker network`.",
+        "`docker network connect <network> <container>` adds a network, `docker network disconnect <network> <container>` removes one. The default network is literally named `bridge`.",
+        "```bash\ndocker network connect lab-net lab-printer\ndocker network disconnect bridge lab-printer\ndocker inspect -f '{{json .NetworkSettings.Networks}}' lab-printer\n```"
       ],
+      "setup": {
+        "files": [],
+        "commands": [
+          "docker network create lab-net",
+          "docker run -d --name lab-desk --network lab-net alpine:3.20 sleep infinity",
+          "docker run -d --name lab-printer --tmpfs /spool alpine:3.20 sh -c 'date +%s > /spool/job-started; sleep infinity'"
+        ]
+      },
       "validation": [
         {
-          "type": "container_on_network",
+          "type": "container_running",
           "params": {
-            "container": "server",
-            "network": "mission-net"
+            "name": "lab-printer"
           },
-          "description": "container=server, network=mission-net"
+          "description": "Container `lab-printer` is still running"
         },
         {
           "type": "container_on_network",
           "params": {
-            "container": "client",
-            "network": "mission-net"
+            "name": "lab-printer",
+            "network": "lab-net"
           },
-          "description": "container=client, network=mission-net"
+          "description": "`lab-printer` is attached to `lab-net`"
         },
         {
-          "type": "ping_succeeds",
+          "type": "container_not_on_network",
           "params": {
-            "from": "client",
-            "to": "server"
+            "name": "lab-printer",
+            "network": "bridge"
           },
-          "description": "from=client, to=server"
+          "description": "`lab-printer` is no longer on the default `bridge` network"
+        },
+        {
+          "type": "container_exec",
+          "params": {
+            "name": "lab-desk",
+            "command": "ping -c 1 -W 2 lab-printer"
+          },
+          "description": "`lab-desk` can reach `lab-printer` by name"
+        },
+        {
+          "type": "container_exec",
+          "params": {
+            "name": "lab-printer",
+            "command": "test -s /spool/job-started"
+          },
+          "description": "The print job is intact: `/spool/job-started` still exists, so the container was never restarted"
         }
       ],
-      "initialState": {
-        "summary": "`mission-net` network pre-created",
-        "workspaceFiles": []
-      }
+      "solution": [
+        "docker network connect lab-net lab-printer",
+        "docker network disconnect bridge lab-printer"
+      ],
+      "debrief": "Networks can be attached and detached while a container keeps running, so topology changes do not need downtime. Pro tip: connect to the new network before disconnecting from the old one so there is never a moment without a route."
     },
     {
       "id": "module_03_level_04",
       "moduleId": 3,
       "levelId": 4,
-      "title": "Expose vs Publish",
-      "moduleTitle": "Docker Networking",
+      "title": "The Sealed Vault",
+      "moduleTitle": "Station Network",
       "difficulty": "medium",
-      "xp": 100,
-      "story": "`EXPOSE` in a Dockerfile is documentation only — it doesn't publish the port to the host. You must use `-p` to actually publish. Run nginx publishing port 9090 on the host.",
+      "xp": 125,
+      "concepts": [
+        "internal network",
+        "--internal",
+        "network isolation"
+      ],
+      "story": "SEED VAULT COMMISSIONING CHECKLIST (Ingrid Halvorsen)\n[x] Service image chosen: nginx:alpine\n[x] Freezer room power confirmed\n[ ] Network: sealed. No route to the mainland, the satellite link or the crew wifi. If anything inside is ever compromised, it must not be able to call home.\n[ ] Service running as `seed-vault`\n\nTwo boxes are still open, and the vault holds the only copy of the station's seed collection. Create an internal network called `vault-net`, then run `seed-vault` on it and nowhere else. Prove it cannot reach the internet.",
       "objectives": [
-        "Run `nginx` container named `public-web` with host port `9090` mapped to container port `80`",
-        "Confirm the port is reachable on `localhost:9090`"
+        "Create the network `vault-net` as an internal network",
+        "Run `seed-vault` from `nginx:alpine` on `vault-net`",
+        "`seed-vault` must not be attached to the default `bridge` network",
+        "An outbound request from inside `seed-vault` to `1.1.1.1` must fail"
       ],
+      "startingState": "A clean engine. Nothing has been created for the vault yet.",
       "hints": [
-        "`-p <host>:<container>` publishes a port",
-        "`-p 9090:80`",
-        "`docker run -d --name public-web -p 9090:80 nginx`"
+        "Networks can be created with no gateway to the outside world. Look for a flag on `docker network create` that says the network is internal.",
+        "Create the network with `--internal`, then start the container with `--network vault-net` only. Attaching a second, normal network would give it a route out again.",
+        "```bash\ndocker network create --internal vault-net\ndocker run -d --name seed-vault --network vault-net nginx:alpine\ndocker exec seed-vault wget -T 3 -qO- http://1.1.1.1\n```"
       ],
+      "setup": {
+        "files": [],
+        "commands": []
+      },
       "validation": [
+        {
+          "type": "network_exists",
+          "params": {
+            "name": "vault-net",
+            "internal": true
+          },
+          "description": "Network `vault-net` exists and is internal"
+        },
         {
           "type": "container_running",
           "params": {
-            "name": "public-web"
+            "name": "seed-vault",
+            "image": "nginx:alpine"
           },
-          "description": "name=public-web"
+          "description": "Container `seed-vault` is running from `nginx:alpine`"
         },
         {
-          "type": "port_exposed",
+          "type": "container_on_network",
           "params": {
-            "container": "public-web",
-            "host_port": 9090,
-            "container_port": 80
+            "name": "seed-vault",
+            "network": "vault-net"
           },
-          "description": "container=public-web, host_port=9090, container_port=80"
+          "description": "`seed-vault` is attached to `vault-net`"
         },
         {
-          "type": "http_responds",
+          "type": "container_not_on_network",
           "params": {
-            "url": "http://localhost:9090",
-            "status": 200
+            "name": "seed-vault",
+            "network": "bridge"
           },
-          "description": "url=http://localhost:9090, status=200"
+          "description": "`seed-vault` is not attached to the default `bridge` network"
+        },
+        {
+          "type": "container_exec",
+          "params": {
+            "name": "seed-vault",
+            "command": "! wget -q -T 3 -O- http://1.1.1.1"
+          },
+          "description": "A request from `seed-vault` to `http://1.1.1.1` fails (no route out)"
         }
       ],
-      "initialState": {
-        "summary": "Clean Docker environment",
-        "workspaceFiles": []
-      }
+      "solution": [
+        "docker network create --internal vault-net",
+        "docker run -d --name seed-vault --network vault-net nginx:alpine"
+      ],
+      "debrief": "An internal network lets containers talk to each other but removes the gateway, so nothing on it can reach outside. Pro tip: a container attached to both an internal and a normal network is still exposed, so check `docker inspect` for stray attachments."
     },
     {
       "id": "module_03_level_05",
       "moduleId": 3,
       "levelId": 5,
-      "title": "Host Network",
-      "moduleTitle": "Docker Networking",
+      "title": "Admin Eyes Only",
+      "moduleTitle": "Station Network",
       "difficulty": "medium",
       "xp": 100,
-      "story": "For maximum performance (no NAT), some containers run on the host network. Run a container using the `host` network driver and confirm it sees the host's network interfaces.",
+      "concepts": [
+        "published ports",
+        "loopback binding",
+        "-p 127.0.0.1"
+      ],
+      "story": "[RADIO] Kestrel Control, this is Halvorsen. Kip ran a port scan from the crew wifi and found the admin panel on port 9090, wide open to anybody on the station network. It has the door controls and the generator schedule on it. Kip says it \"looked like a printer\".\n\nThe panel is the container `admin-panel`, started last week with a plain `-p 9090:80`. Only a shell on the control machine itself should reach it. Recreate it with the same page and the same read-only mount, but with port 9090 listening on loopback only. Confirm from your side. Halvorsen out.",
       "objectives": [
-        "Run container `host-mode` from `alpine` using `--network host` running `sleep 3600` (detached)",
-        "Exec into it and run `ip addr` — confirm `eth0` or host interface is visible"
+        "Run `admin-panel` from `nginx:alpine` with `/workspace/panel` mounted read-only at `/usr/share/nginx/html`",
+        "Publish container port 80 on `127.0.0.1:9090` only (not on `0.0.0.0`)",
+        "`http://127.0.0.1:9090/` from the control machine still serves the admin console page"
       ],
+      "startingState": "`admin-panel` is already running but published on every interface (`0.0.0.0:9090`). Its page is in `/workspace/panel`.",
       "hints": [
-        "`--network host` attaches container directly to host network",
-        "No port mapping needed or possible with host mode",
-        "`docker run -d --name host-mode --network host alpine sleep 3600`"
+        "A published port can be tied to one host address. The address goes in front of the port numbers in the publish option. A running container's ports cannot be edited, so you will recreate it.",
+        "The `-p` syntax is `[host-ip:]host-port:container-port`. Remove the old container first, then start a new one with the same name, the same bind mount and a loopback host-ip.",
+        "```bash\ndocker rm -f admin-panel\ndocker run -d --name admin-panel \\\n  -p 127.0.0.1:9090:80 \\\n  -v /workspace/panel:/usr/share/nginx/html:ro \\\n  nginx:alpine\ndocker port admin-panel\n```"
       ],
+      "setup": {
+        "files": [
+          {
+            "path": "panel/index.html",
+            "content": "<!doctype html>\n<title>Kestrel Admin</title>\n<h1>KESTREL ADMIN CONSOLE</h1>\n<p>Doors, generators, heating.</p>\n"
+          }
+        ],
+        "commands": [
+          "docker run -d --name admin-panel -p 9090:80 -v /workspace/panel:/usr/share/nginx/html:ro nginx:alpine"
+        ]
+      },
       "validation": [
         {
           "type": "container_running",
           "params": {
-            "name": "host-mode"
+            "name": "admin-panel",
+            "image": "nginx:alpine"
           },
-          "description": "name=host-mode"
+          "description": "Container `admin-panel` is running from `nginx:alpine`"
         },
         {
-          "type": "container_network_mode",
+          "type": "shell",
           "params": {
-            "container": "host-mode",
-            "mode": "host"
+            "command": "docker port admin-panel 80/tcp",
+            "output_contains": "127.0.0.1:9090"
           },
-          "description": "container=host-mode, mode=host"
+          "description": "Port 9090 is published on `127.0.0.1`"
+        },
+        {
+          "type": "shell",
+          "params": {
+            "command": "docker port admin-panel 80/tcp",
+            "output_not_contains": "0.0.0.0"
+          },
+          "description": "Port 9090 is NOT published on `0.0.0.0`"
+        },
+        {
+          "type": "mount",
+          "params": {
+            "name": "admin-panel",
+            "destination": "/usr/share/nginx/html",
+            "type": "bind",
+            "source": "/workspace/panel",
+            "rw": false
+          },
+          "description": "`/workspace/panel` is bind-mounted read-only at `/usr/share/nginx/html`"
+        },
+        {
+          "type": "http",
+          "params": {
+            "url": "http://127.0.0.1:9090/",
+            "body_contains": "KESTREL ADMIN CONSOLE"
+          },
+          "description": "`http://127.0.0.1:9090/` serves the admin console"
         }
       ],
-      "initialState": {
-        "summary": "Clean Docker environment",
-        "workspaceFiles": []
-      }
+      "solution": [
+        "docker rm -f admin-panel",
+        "docker run -d --name admin-panel -p 127.0.0.1:9090:80 -v /workspace/panel:/usr/share/nginx/html:ro nginx:alpine"
+      ],
+      "debrief": "Publishing with `-p 9090:80` means every interface; adding a host IP such as `127.0.0.1` narrows who can connect. Pro tip: `docker port <name>` shows the real bindings, which is the quickest way to audit exposure."
     },
     {
       "id": "module_03_level_06",
       "moduleId": 3,
       "levelId": 6,
-      "title": "Connect Running Container to Network",
-      "moduleTitle": "Docker Networking",
+      "title": "Isolation Chamber",
+      "moduleTitle": "Station Network",
       "difficulty": "medium",
-      "xp": 100,
-      "story": "The container `late-joiner` is already running but needs to join `mission-net` without restarting. Connect it dynamically.",
+      "xp": 125,
+      "concepts": [
+        "network modes",
+        "--network none",
+        "--network host"
+      ],
+      "story": "03:12:07 NORA  CALIBRATOR: NET LINK UP (eth0 172.17.0.3)\n03:12:09 NORA  CALIBRATOR: CONTACTING telemetry.example.org\n03:12:09 NORA  WARNING: SENSOR BASELINE MAY BE CONTAMINATED\n03:12:44 NORA  BENCH-MONITOR: CANNOT SEE docker0 OR ANY STATION NIC\n\nAmara Okafor's calibration run must happen with no network at all: every packet it sends spoils the baseline. The new `bench-monitor` has the opposite job. It watches the station's real network cards, so it needs to see the engine host's network stack, not a private one.\n\nReplace `calibrator` with a fully offline container, and start `bench-monitor` sharing the host's network.",
       "objectives": [
-        "Connect running container `late-joiner` to network `mission-net` without stopping it"
+        "`calibrator` (`alpine:3.20`) is running with the network mode `none` (no `eth0`)",
+        "`bench-monitor` (`alpine:3.20`) is running with the network mode `host`",
+        "Inside `bench-monitor` the host interface `docker0` is visible"
       ],
+      "startingState": "A `calibrator` container is running on the default bridge, so it still has network access. `bench-monitor` does not exist.",
       "hints": [
-        "`docker network connect <network> <container>` attaches a running container",
-        "`docker network connect mission-net late-joiner`",
-        "`docker network connect mission-net late-joiner`"
+        "Besides user-defined networks, a container can run with no networking at all or share the host's stack. Both are chosen with the same `docker run` option. The mode of an existing container cannot be changed.",
+        "Use `--network none` for the offline container and `--network host` for the one that must see the host's interfaces. Remove the old `calibrator` first, since its name is taken.",
+        "```bash\ndocker rm -f calibrator\ndocker run -d --name calibrator --network none alpine:3.20 sleep infinity\ndocker run -d --name bench-monitor --network host alpine:3.20 sleep infinity\ndocker exec calibrator ls /sys/class/net\ndocker exec bench-monitor ls /sys/class/net\n```"
       ],
+      "setup": {
+        "files": [],
+        "commands": [
+          "docker run -d --name calibrator alpine:3.20 sleep infinity"
+        ]
+      },
       "validation": [
         {
           "type": "container_running",
           "params": {
-            "name": "late-joiner"
+            "name": "calibrator",
+            "image": "alpine:3.20"
           },
-          "description": "name=late-joiner"
+          "description": "Container `calibrator` is running from `alpine:3.20`"
         },
         {
-          "type": "container_on_network",
+          "type": "container_inspect",
           "params": {
-            "container": "late-joiner",
-            "network": "mission-net"
+            "name": "calibrator",
+            "path": "HostConfig.NetworkMode",
+            "equals": "none"
           },
-          "description": "container=late-joiner, network=mission-net"
+          "description": "`calibrator` uses the network mode `none`"
+        },
+        {
+          "type": "container_exec",
+          "params": {
+            "name": "calibrator",
+            "command": "! test -e /sys/class/net/eth0"
+          },
+          "description": "`calibrator` has no `eth0` interface"
+        },
+        {
+          "type": "container_running",
+          "params": {
+            "name": "bench-monitor",
+            "image": "alpine:3.20"
+          },
+          "description": "Container `bench-monitor` is running from `alpine:3.20`"
+        },
+        {
+          "type": "container_inspect",
+          "params": {
+            "name": "bench-monitor",
+            "path": "HostConfig.NetworkMode",
+            "equals": "host"
+          },
+          "description": "`bench-monitor` uses the network mode `host`"
+        },
+        {
+          "type": "container_exec",
+          "params": {
+            "name": "bench-monitor",
+            "command": "test -e /sys/class/net/docker0"
+          },
+          "description": "`bench-monitor` can see the host interface `docker0`"
         }
       ],
-      "initialState": {
-        "summary": "- Container `late-joiner` (alpine, running, `sleep 3600`) on default bridge - Network `mission-net` exists",
-        "workspaceFiles": []
-      }
+      "solution": [
+        "docker rm -f calibrator",
+        "docker run -d --name calibrator --network none alpine:3.20 sleep infinity",
+        "docker run -d --name bench-monitor --network host alpine:3.20 sleep infinity"
+      ],
+      "debrief": "`--network none` leaves only a loopback interface, while `--network host` removes network isolation completely. Pro tip: host mode skips port publishing, so anything it listens on is directly exposed on the host."
     },
     {
       "id": "module_03_level_07",
       "moduleId": 3,
       "levelId": 7,
-      "title": "Isolate with None Network",
-      "moduleTitle": "Docker Networking",
+      "title": "Fixed Addresses",
+      "moduleTitle": "Station Network",
       "difficulty": "hard",
-      "xp": 200,
-      "story": "Some workloads must be completely isolated with no network access. Run a container with no networking at all and confirm it cannot reach the outside world.",
+      "xp": 175,
+      "concepts": [
+        "custom subnet",
+        "--subnet",
+        "--ip",
+        "static addressing"
+      ],
+      "story": "#kestrel-ops\nAmara: the 2011 sensor firmware has the collector's addresses burned in. no DNS, no config, just numbers\nKip: so can we just change the numbers?\nAmara: it is flashed on 31 sensors, on a glacier, Kip.\n\nThe addresses the emulated sensors must answer on are in `legacy/sensors.conf`. Build a network called `sensor-grid` on the subnet from that file and start the three sensors (nginx stand-ins) so each sits on its burned-in address. A `collector` container must be able to fetch each sensor's page by IP.",
       "objectives": [
-        "Run container `isolated` from `alpine` with no network (`--network none`) running `sleep 3600`",
-        "Confirm it has no network interfaces except `lo`"
+        "Create the network `sensor-grid` with the subnet listed in `/workspace/legacy/sensors.conf`",
+        "Run `sensor-07`, `sensor-12` and `sensor-31` from `nginx:alpine` on `sensor-grid` with the IPs from that file",
+        "Run `collector` from `alpine:3.20` on `sensor-grid`",
+        "From inside `collector`, `http://172.28.0.31/` must answer"
       ],
+      "startingState": "`/workspace/legacy/sensors.conf` lists the subnet and the three addresses. No networks or containers exist yet.",
       "hints": [
-        "`--network none` disables all networking",
-        "The container will only have the loopback `lo` interface",
-        "`docker run -d --name isolated --network none alpine sleep 3600`"
+        "Docker normally picks addresses for you. To control them you need to define the network's address range yourself and then ask for a specific address when you start each container. Read the config file first.",
+        "`docker network create --subnet <cidr> <name>` fixes the range; `docker run --network <name> --ip <addr>` requests an address inside it. `--ip` only works on user-defined networks that have a subnet.",
+        "```bash\ncat legacy/sensors.conf\ndocker network create --subnet 172.28.0.0/24 sensor-grid\ndocker run -d --name sensor-07 --network sensor-grid --ip 172.28.0.7 nginx:alpine\n# ...repeat for sensor-12 and sensor-31, then:\ndocker run -d --name collector --network sensor-grid alpine:3.20 sleep infinity\ndocker exec collector wget -qO- http://172.28.0.7/\n```"
       ],
+      "setup": {
+        "files": [
+          {
+            "path": "legacy/sensors.conf",
+            "content": "# Burned into the 2011 sensor firmware. Do not change.\nSUBNET=172.28.0.0/24\nsensor-07=172.28.0.7\nsensor-12=172.28.0.12\nsensor-31=172.28.0.31\n"
+          }
+        ],
+        "commands": []
+      },
       "validation": [
+        {
+          "type": "network_exists",
+          "params": {
+            "name": "sensor-grid",
+            "subnet": "172.28.0.0/24"
+          },
+          "description": "Network `sensor-grid` exists with subnet `172.28.0.0/24`"
+        },
+        {
+          "type": "container_on_network",
+          "params": {
+            "name": "sensor-07",
+            "network": "sensor-grid",
+            "ip": "172.28.0.7"
+          },
+          "description": "`sensor-07` has IP `172.28.0.7` on `sensor-grid`"
+        },
+        {
+          "type": "container_on_network",
+          "params": {
+            "name": "sensor-12",
+            "network": "sensor-grid",
+            "ip": "172.28.0.12"
+          },
+          "description": "`sensor-12` has IP `172.28.0.12` on `sensor-grid`"
+        },
+        {
+          "type": "container_on_network",
+          "params": {
+            "name": "sensor-31",
+            "network": "sensor-grid",
+            "ip": "172.28.0.31"
+          },
+          "description": "`sensor-31` has IP `172.28.0.31` on `sensor-grid`"
+        },
         {
           "type": "container_running",
           "params": {
-            "name": "isolated"
+            "name": "sensor-31",
+            "image": "nginx:alpine"
           },
-          "description": "name=isolated"
+          "description": "`sensor-31` is running from `nginx:alpine`"
         },
         {
-          "type": "container_network_mode",
+          "type": "http",
           "params": {
-            "container": "isolated",
-            "mode": "none"
+            "url": "http://172.28.0.31/",
+            "from": "collector",
+            "body_contains": "nginx"
           },
-          "description": "container=isolated, mode=none"
-        },
-        {
-          "type": "no_external_network",
-          "params": {
-            "container": "isolated"
-          },
-          "description": "container=isolated"
+          "description": "`collector` can fetch `http://172.28.0.31/` from the sensor"
         }
       ],
-      "initialState": {
-        "summary": "Clean Docker environment",
-        "workspaceFiles": []
-      }
+      "solution": [
+        "docker network create --subnet 172.28.0.0/24 sensor-grid",
+        "docker run -d --name sensor-07 --network sensor-grid --ip 172.28.0.7 nginx:alpine",
+        "docker run -d --name sensor-12 --network sensor-grid --ip 172.28.0.12 nginx:alpine",
+        "docker run -d --name sensor-31 --network sensor-grid --ip 172.28.0.31 nginx:alpine",
+        "docker run -d --name collector --network sensor-grid alpine:3.20 sleep infinity"
+      ],
+      "debrief": "Static addressing needs a network you control: define the subnet first, then pin containers to addresses inside it. Pro tip: keep fixed addresses out of the range Docker hands out automatically (`--ip-range`) so a random container never grabs one first."
     }
   ]
 }

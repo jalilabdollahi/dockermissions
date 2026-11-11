@@ -1,297 +1,509 @@
 {
   "id": 1,
-  "title": "Docker Basics",
-  "theme": "First contact with containers",
+  "title": "Arrival",
+  "theme": "First day on the ice: get the first services running in containers",
   "totalLevels": 8,
   "missions": [
     {
       "id": "module_01_level_01",
       "moduleId": 1,
       "levelId": 1,
-      "title": "Hello, Container!",
-      "moduleTitle": "Docker Basics",
+      "title": "First Light",
+      "moduleTitle": "Arrival",
       "difficulty": "easy",
       "xp": 50,
-      "story": "Welcome, recruit. Your first mission is simple: prove you can launch a container. The docks are quiet, but not for long.",
+      "concepts": [
+        "docker run",
+        "exit codes",
+        "docker ps -a"
+      ],
+      "story": "RADIO, 06:42. Ingrid Halvorsen on the handset, static in the background.\n\n\"Engineer, you made it off the ferry. Good. The old server coughed twice overnight and I no longer trust anything it tells me. Tomasz installed a fresh Docker engine on the new machine, but nobody has run a single thing on it yet.\"\n\n\"Before I move one instrument over, I want proof that it works. Run a throwaway container from `alpine:3.20`, name it `first-light`, and have it print KESTREL POINT ONLINE. Then let it finish by itself. Show me it ended cleanly.\"",
       "objectives": [
-        "Run an `nginx` container in the foreground (any name)"
+        "Run a container named `first-light` from `alpine:3.20` that prints `KESTREL POINT ONLINE`",
+        "The container must have finished on its own with exit code 0 (it will show as Exited in `docker ps -a`)"
       ],
+      "startingState": "A freshly installed Docker engine with no containers yet. The shell opens in an empty /workspace.",
       "hints": [
-        "The command to run a container is `docker run`",
-        "Try `docker run nginx`",
-        "`docker run nginx` — this runs nginx in the foreground"
+        "`docker run` creates a container and starts it, running one command inside. A command that ends quickly leaves a stopped container behind, and `docker ps -a` is the way to see stopped ones.",
+        "The shape is `docker run --name <name> <image> <command>`. Use `echo` as the command to print text; a command that succeeds exits with code 0.",
+        "```bash\ndocker run --name first-light alpine:3.20 echo \"KESTREL POINT ONLINE\"\ndocker ps -a --filter name=first-light\n```"
       ],
+      "setup": {
+        "files": [],
+        "commands": []
+      },
       "validation": [
         {
-          "type": "container_running",
+          "type": "container_exited",
           "params": {
-            "image": "nginx"
+            "name": "first-light",
+            "exit_code": 0
           },
-          "description": "image=nginx"
+          "description": "Container `first-light` has stopped with exit code 0"
+        },
+        {
+          "type": "container_logs",
+          "params": {
+            "name": "first-light",
+            "contains": "KESTREL POINT ONLINE"
+          },
+          "description": "The output of `first-light` contains `KESTREL POINT ONLINE`"
+        },
+        {
+          "type": "container_inspect",
+          "params": {
+            "name": "first-light",
+            "path": "Config.Image",
+            "equals": "alpine:3.20"
+          },
+          "description": "Container `first-light` was created from `alpine:3.20`"
         }
       ],
-      "initialState": {
-        "summary": "Clean Docker environment",
-        "workspaceFiles": []
-      }
+      "solution": [
+        "docker run --name first-light alpine:3.20 echo \"KESTREL POINT ONLINE\""
+      ],
+      "debrief": "A container lives exactly as long as its main process: `echo` finished, so the container stopped, yet it stays on disk until you remove it. Pro tip: add `--rm` to throwaway runs so they clean up after themselves."
     },
     {
       "id": "module_01_level_02",
       "moduleId": 1,
       "levelId": 2,
-      "title": "Detach and Name",
-      "moduleTitle": "Docker Basics",
+      "title": "Keep the Beacon Lit",
+      "moduleTitle": "Arrival",
       "difficulty": "easy",
       "xp": 50,
-      "story": "Running in the foreground blocks your terminal. Real operators run containers in the background. Name your assets so you can find them later.",
+      "concepts": [
+        "detached mode",
+        "-d",
+        "--name"
+      ],
+      "story": "NORA // 03:15 // ALERT. STATUS PAGE: DOWN. LAST HOST: OLD-SERVER. UPTIME RECORD: BROKEN.\n\nThe monitoring bot has been serving the station's status page from a server that now reboots every few hours. Each time it drops, the crew loses sight of the generators and the greenhouse heaters.\n\nGive the page a new home. Start `nginx:alpine` as a container called `beacon`, and run it in the background. Ingrid wants the terminal back for the next job, and the beacon has to keep burning while you work.",
       "objectives": [
-        "Run an `nginx` container named `webserver` in detached mode"
+        "Run `nginx:alpine` as a container named `beacon`",
+        "The container must be running in the background (detached), not holding your terminal"
       ],
+      "startingState": "Docker is installed and no containers exist. The `nginx:alpine` image is already downloaded.",
       "hints": [
-        "Use flags to detach and name: `-d` and `--name`",
-        "`docker run -d --name webserver nginx`",
-        "`docker run -d --name webserver nginx`"
+        "A container started normally is attached to your terminal and stops being useful the moment you press Ctrl+C. Docker can detach a container so it runs in the background.",
+        "Combine the detach flag `-d` with `--name` before the image: `docker run -d --name <name> <image>`. Check the result with `docker ps`.",
+        "```bash\ndocker run -d --name beacon nginx:alpine\ndocker ps\n```"
       ],
+      "setup": {
+        "files": [],
+        "commands": []
+      },
       "validation": [
         {
           "type": "container_running",
           "params": {
-            "name": "webserver",
-            "image": "nginx"
+            "name": "beacon",
+            "image": "nginx:alpine"
           },
-          "description": "name=webserver, image=nginx"
+          "description": "Container `beacon` is running from `nginx:alpine`"
+        },
+        {
+          "type": "container_exec",
+          "params": {
+            "name": "beacon",
+            "command": "wget -qO- http://localhost/",
+            "output_contains": "nginx"
+          },
+          "description": "The web server inside `beacon` answers on its own port 80"
         }
       ],
-      "initialState": {
-        "summary": "Clean Docker environment",
-        "workspaceFiles": []
-      }
+      "solution": [
+        "docker run -d --name beacon nginx:alpine"
+      ],
+      "debrief": "Detached mode (`-d`) starts the container's main process in the background and prints the container ID. Pro tip: `docker logs -f beacon` lets you watch a detached container without attaching to it."
     },
     {
       "id": "module_01_level_03",
       "moduleId": 1,
       "levelId": 3,
-      "title": "Inspect the Fleet",
-      "moduleTitle": "Docker Basics",
+      "title": "The Noticeboard",
+      "moduleTitle": "Arrival",
       "difficulty": "easy",
-      "xp": 50,
-      "story": "A good operator always knows the state of their fleet. List all running containers and identify the one named `mission-agent`.",
+      "xp": 60,
+      "concepts": [
+        "publishing ports",
+        "-p",
+        "host and container ports"
+      ],
+      "story": "Taped to the side of the rack, in Kip's round handwriting:\n\n\"The noticeboard lived on port 8081 of the old server and now it is just gone?? Everybody's bookmarks point at :8081. Sauna rota, ferry dates, who stole the last of the good coffee. It's the Apache one (`httpd:2.4-alpine`). Please bring it back!! - Kip\"\n\nBelow it, in Ingrid's neat hand: \"Same port as before. The container is called `noticeboard`.\"",
       "objectives": [
-        "Run `docker ps` to see running containers (validation auto-passes after you run `docker ps` once)",
-        "Extra: Find the container ID of `mission-agent` and run `docker inspect mission-agent`"
+        "Run `httpd:2.4-alpine` detached as a container named `noticeboard`",
+        "Publish it so that `http://localhost:8081` reaches the web server (container port 80)"
       ],
+      "startingState": "No containers exist. The `httpd:2.4-alpine` image is already downloaded.",
       "hints": [
-        "`docker ps` lists running containers",
-        "`docker inspect <name>` shows full details",
-        "`docker ps` then `docker inspect mission-agent`"
+        "A container has its own private network. To reach a service inside it from the outside, you publish one of its ports on the host.",
+        "The publish flag is `-p HOST_PORT:CONTAINER_PORT`. The Apache image listens on port 80 inside the container, and the crew expects 8081 on the outside.",
+        "```bash\ndocker run -d --name noticeboard -p 8081:80 httpd:2.4-alpine\ncurl http://localhost:8081\n```"
       ],
+      "setup": {
+        "files": [],
+        "commands": []
+      },
       "validation": [
         {
-          "type": "command_run",
-          "params": {},
-          "description": "docker ps executed"
+          "type": "container_running",
+          "params": {
+            "name": "noticeboard",
+            "image": "httpd:2.4-alpine"
+          },
+          "description": "Container `noticeboard` is running from `httpd:2.4-alpine`"
         },
         {
-          "type": "command_run",
-          "params": {},
-          "description": "docker inspect mission-agent executed"
+          "type": "http",
+          "params": {
+            "url": "http://localhost:8081",
+            "status": 200,
+            "body_contains": "It works"
+          },
+          "description": "`http://localhost:8081` answers with the Apache page"
         }
       ],
-      "initialState": {
-        "summary": "Container `mission-agent` (alpine, running) pre-created",
-        "workspaceFiles": []
-      }
+      "solution": [
+        "docker run -d --name noticeboard -p 8081:80 httpd:2.4-alpine"
+      ],
+      "debrief": "`-p 8081:80` maps host port 8081 to container port 80, so the left number is what clients use and the right one is what the app listens on. Pro tip: `docker port noticeboard` prints the active mappings."
     },
     {
       "id": "module_01_level_04",
       "moduleId": 1,
       "levelId": 4,
-      "title": "Port Mapping",
-      "moduleTitle": "Docker Basics",
+      "title": "Calibrate the Sensor",
+      "moduleTitle": "Arrival",
       "difficulty": "easy",
-      "xp": 50,
-      "story": "The web server is running but no one outside can reach it. Map port 8080 on the host to port 80 inside the container.",
+      "xp": 60,
+      "concepts": [
+        "environment variables",
+        "-e",
+        "container configuration"
+      ],
+      "story": "From: Amara Okafor\nSubject: sensor-sim needs real settings\n\nThe simulator reads its configuration from environment variables instead of a config file, because that is faster to tweak. It wants STATION, UNITS and INTERVAL. Without them it falls back to defaults and reports temperatures in furlongs. (Don't ask.)\n\nStart a container named `sensor-sim` in the background with STATION=kestrel, UNITS=metric and INTERVAL=30. Until my real image is done, use `alpine:3.20` and this stand-in command, which echoes the settings it sees: `sh -c 'echo calibrated $STATION/$UNITS/$INTERVAL; sleep infinity'`",
       "objectives": [
-        "Run an `nginx` container named `webserver` mapping host port 8080 to container port 80, in detached mode"
+        "Run `sensor-sim` detached from `alpine:3.20` with `STATION=kestrel`, `UNITS=metric` and `INTERVAL=30` set",
+        "Use the stand-in command `sh -c 'echo calibrated $STATION/$UNITS/$INTERVAL; sleep infinity'` so the log shows `calibrated kestrel/metric/30`"
       ],
+      "startingState": "No containers exist. Nothing is configured yet.",
       "hints": [
-        "Use `-p` flag for port mapping: `-p host:container`",
-        "`docker run -d --name webserver -p 8080:80 nginx`",
-        "`docker run -d --name webserver -p 8080:80 nginx`"
+        "Containers receive configuration through environment variables. You pass each one at `docker run` time, and the program inside sees it exactly as if it had been exported in a shell.",
+        "Use one `-e NAME=value` per variable, placed before the image name. Wrap the stand-in command in single quotes so your own shell does not expand `$STATION` first.",
+        "```bash\ndocker run -d --name sensor-sim \\\n  -e STATION=kestrel -e UNITS=metric -e INTERVAL=30 \\\n  alpine:3.20 sh -c 'echo calibrated $STATION/$UNITS/$INTERVAL; sleep infinity'\ndocker logs sensor-sim\n```"
       ],
+      "setup": {
+        "files": [],
+        "commands": []
+      },
       "validation": [
         {
           "type": "container_running",
           "params": {
-            "name": "webserver"
+            "name": "sensor-sim",
+            "image": "alpine:3.20"
           },
-          "description": "name=webserver"
+          "description": "Container `sensor-sim` is running from `alpine:3.20`"
         },
         {
-          "type": "port_exposed",
+          "type": "container_inspect",
           "params": {
-            "container": "webserver",
-            "host_port": 8080,
-            "container_port": 80
+            "name": "sensor-sim",
+            "path": "Config.Env",
+            "contains": "STATION=kestrel"
           },
-          "description": "container=webserver, host_port=8080, container_port=80"
+          "description": "`STATION=kestrel` is set in the container"
+        },
+        {
+          "type": "container_inspect",
+          "params": {
+            "name": "sensor-sim",
+            "path": "Config.Env",
+            "contains": "UNITS=metric"
+          },
+          "description": "`UNITS=metric` is set in the container"
+        },
+        {
+          "type": "container_inspect",
+          "params": {
+            "name": "sensor-sim",
+            "path": "Config.Env",
+            "contains": "INTERVAL=30"
+          },
+          "description": "`INTERVAL=30` is set in the container"
+        },
+        {
+          "type": "container_logs",
+          "params": {
+            "name": "sensor-sim",
+            "contains": "calibrated kestrel/metric/30"
+          },
+          "description": "The log of `sensor-sim` shows `calibrated kestrel/metric/30`"
         }
       ],
-      "initialState": {
-        "summary": "Clean Docker environment",
-        "workspaceFiles": []
-      }
+      "solution": [
+        "docker run -d --name sensor-sim -e STATION=kestrel -e UNITS=metric -e INTERVAL=30 alpine:3.20 sh -c 'echo calibrated $STATION/$UNITS/$INTERVAL; sleep infinity'"
+      ],
+      "debrief": "Environment variables let one image behave differently per deployment without rebuilding it. Pro tip: `docker inspect -f '{{.Config.Env}}' sensor-sim` shows exactly what a container was started with."
     },
     {
       "id": "module_01_level_05",
       "moduleId": 1,
       "levelId": 5,
-      "title": "Environment Variables",
-      "moduleTitle": "Docker Basics",
+      "title": "Static on the Radio",
+      "moduleTitle": "Arrival",
       "difficulty": "easy",
-      "xp": 50,
-      "story": "Applications need configuration. Pass secrets and settings through environment variables — never hardcode them.",
+      "xp": 70,
+      "concepts": [
+        "docker logs",
+        "grep",
+        "stdout and stderr"
+      ],
+      "story": "LOG EXCERPT, radio-bridge: \"sweep 1: carrier lost, static on all bands ... sweep 2: carrier lost, static on all bands ... sweep 3 ...\" and about 600 lines more like it.\n\nThe radio bridge runs as a container called `radio-static`, and it has logged every crackle for the past hour. Somewhere in that noise it printed, exactly once, the code of the mainland relay. Rafael needs that code before the *Petrel* can sail.\n\nTomasz scrolled for ten minutes and gave up. The line you want contains the word LOCK. Find it in the container's logs and write only the code itself into `/workspace/frequency.txt`.",
       "objectives": [
-        "Run a container from image `alpine` named `env-demo` with env var `APP_ENV=production` and `APP_VERSION=1.0`, keep it running (use `sleep 3600`)"
+        "Find the line containing `LOCK` in the logs of the running container `radio-static`",
+        "Write just the relay code (nothing else) into `/workspace/frequency.txt`"
       ],
+      "startingState": "A container named `radio-static` is running and has already produced several hundred log lines.",
       "hints": [
-        "Use `-e` flag to set environment variables",
-        "`docker run -d --name env-demo -e APP_ENV=production -e APP_VERSION=1.0 alpine sleep 3600`",
-        "`docker run -d --name env-demo -e APP_ENV=production -e APP_VERSION=1.0 alpine sleep 3600`"
+        "Everything a container writes to its output is captured by Docker. The command family is `docker logs`, and you can pipe it into the usual text tools.",
+        "Filter with `grep LOCK`. Careful: the bridge reports its important lines on stderr, and a plain pipe only carries stdout, so redirect with `2>&1` before the pipe.",
+        "```bash\ndocker logs radio-static 2>&1 | grep LOCK\n# copy the code= value, then:\necho \"THE-CODE\" > /workspace/frequency.txt\n```"
       ],
+      "setup": {
+        "files": [],
+        "commands": [
+          "docker run -d --name radio-static alpine:3.20 sh -c 'i=1; while [ $i -le 600 ]; do echo \"[radio-bridge] sweep $i: carrier lost, static on all bands\"; if [ $i -eq 301 ]; then echo \"[radio-bridge] RELAY-LOCK mainland relay acquired, code=KP-4417-ICE\" >&2; fi; i=$((i+1)); done; sleep infinity'",
+          "sleep 2"
+        ]
+      },
       "validation": [
         {
           "type": "container_running",
           "params": {
-            "name": "env-demo"
+            "name": "radio-static"
           },
-          "description": "name=env-demo"
+          "description": "Container `radio-static` is still running"
         },
         {
-          "type": "env_var_set",
+          "type": "workspace_file",
           "params": {
-            "container": "env-demo",
-            "key": "APP_ENV",
-            "value": "production"
+            "path": "frequency.txt",
+            "matches": "^\\s*KP-4417-ICE\\s*$"
           },
-          "description": "container=env-demo, key=APP_ENV, value=production"
+          "description": "`/workspace/frequency.txt` contains only the relay code"
         },
         {
-          "type": "env_var_set",
+          "type": "workspace_file",
           "params": {
-            "container": "env-demo",
-            "key": "APP_VERSION",
-            "value": 1
+            "path": "frequency.txt",
+            "not_contains": "sweep"
           },
-          "description": "container=env-demo, key=APP_VERSION, value=1.0"
+          "description": "`/workspace/frequency.txt` does not contain pasted log noise"
         }
       ],
-      "initialState": {
-        "summary": "Clean Docker environment",
-        "workspaceFiles": []
-      }
+      "solution": [
+        "docker logs radio-static 2>&1 | grep LOCK | sed 's/.*code=//' > /workspace/frequency.txt"
+      ],
+      "debrief": "`docker logs` replays a container's stdout and stderr, and the output pipes like any other command. Pro tip: `--tail 20` and `--since 10m` trim a noisy log before you even reach for grep."
     },
     {
       "id": "module_01_level_06",
       "moduleId": 1,
       "levelId": 6,
-      "title": "Stop and Remove",
-      "moduleTitle": "Docker Basics",
+      "title": "Inside the Thermostat",
+      "moduleTitle": "Arrival",
       "difficulty": "easy",
-      "xp": 50,
-      "story": "Containers left running waste resources. Stop and remove the container named `old-service` to clean up the docks.",
+      "xp": 70,
+      "concepts": [
+        "docker exec",
+        "running container",
+        "in-place change"
+      ],
+      "story": "Tomasz: The cold-room thermostat reads setpoint 25. It must be 18. Core samples cannot sit above 20.\n\nYou: Can I restart the container with new settings?\n\nTomasz: No. It has been recording since this morning, and its calibration log lives in the container's own temp files. A restart-and-recreate would erase the day's curve. Change the value inside the running container. The file is `/etc/thermostat/thermostat.conf` in the container `thermostat`; `setpoint=25` has to become `setpoint=18`.",
       "objectives": [
-        "Stop the container named `old-service`",
-        "Remove the container named `old-service`"
+        "Change `setpoint=25` to `setpoint=18` in `/etc/thermostat/thermostat.conf` inside the container `thermostat`",
+        "Keep the same container running: do not remove or recreate it"
       ],
+      "startingState": "A container named `thermostat` is running with `setpoint=25` in its config and a calibration log at `/tmp/calibration.log`.",
       "hints": [
-        "`docker stop <name>` stops a container; `docker rm <name>` removes it",
-        "Stop first, then remove: `docker stop old-service && docker rm old-service`",
-        "Or force remove in one step: `docker rm -f old-service`"
+        "You can run an extra command inside a container that is already running without touching its main process. That command family is `docker exec`.",
+        "The shape is `docker exec <container> <command>`. A one-line `sed -i 's/old/new/' file` edits a file without opening an editor; `cat` lets you verify the result.",
+        "```bash\ndocker exec thermostat cat /etc/thermostat/thermostat.conf\ndocker exec thermostat sed -i 's/setpoint=25/setpoint=18/' /etc/thermostat/thermostat.conf\ndocker exec thermostat cat /etc/thermostat/thermostat.conf\n```"
       ],
+      "setup": {
+        "files": [],
+        "commands": [
+          "docker run -d --name thermostat alpine:3.20 sh -c 'mkdir -p /etc/thermostat; echo setpoint=25 > /etc/thermostat/thermostat.conf; echo \"day curve: 22 23 25\" > /tmp/calibration.log; sleep infinity'",
+          "sleep 1"
+        ]
+      },
       "validation": [
         {
-          "type": "container_not_exists",
+          "type": "container_running",
           "params": {
-            "name": "old-service"
+            "name": "thermostat"
           },
-          "description": "name=old-service"
+          "description": "Container `thermostat` is still running"
+        },
+        {
+          "type": "container_exec",
+          "params": {
+            "name": "thermostat",
+            "command": "cat /etc/thermostat/thermostat.conf",
+            "output_contains": "setpoint=18",
+            "output_not_contains": "setpoint=25"
+          },
+          "description": "`/etc/thermostat/thermostat.conf` says `setpoint=18` and no longer `setpoint=25`"
+        },
+        {
+          "type": "container_exec",
+          "params": {
+            "name": "thermostat",
+            "command": "test -f /tmp/calibration.log"
+          },
+          "description": "The original container survived: `/tmp/calibration.log` still exists"
         }
       ],
-      "initialState": {
-        "summary": "Container `old-service` (nginx, running) pre-created",
-        "workspaceFiles": []
-      }
+      "solution": [
+        "docker exec thermostat sed -i 's/setpoint=25/setpoint=18/' /etc/thermostat/thermostat.conf"
+      ],
+      "debrief": "`docker exec` starts a second process inside the same container, so it can inspect or repair a live service. Pro tip: changes made this way vanish if the container is recreated, so also fix the source of the config afterwards."
     },
     {
       "id": "module_01_level_07",
       "moduleId": 1,
       "levelId": 7,
-      "title": "Exec Into a Container",
-      "moduleTitle": "Docker Basics",
-      "difficulty": "medium",
-      "xp": 100,
-      "story": "Something is wrong inside the `debug-box` container. Get a shell inside it and create a file `/tmp/mission-complete` to signal success.",
+      "title": "Generator Rotation",
+      "moduleTitle": "Arrival",
+      "difficulty": "easy",
+      "xp": 75,
+      "concepts": [
+        "docker stop",
+        "docker start",
+        "docker rm",
+        "docker ps -a"
+      ],
+      "story": "SHIFT HANDOVER SHEET, GENERATOR ROOM, initialled I.H.\n[ ] gen-alpha: 400 hours without a break, stand it down\n[ ] gen-bravo: rested and ready, bring it online\n[ ] gen-charlie: crashed overnight, clear out the wreckage\n\nThe three generator services were moved into containers last night. Ingrid went to bed after signing the sheet, so the list is yours. Work through it top to bottom. `docker ps -a` shows every container, running or not, and you will need it to see which one is which.",
       "objectives": [
-        "Exec into container `debug-box` and create file `/tmp/mission-complete`"
+        "Stop `gen-alpha` (it must still exist, just not running)",
+        "Start `gen-bravo` so that it is running",
+        "Remove `gen-charlie` completely"
       ],
+      "startingState": "`gen-alpha` is running, `gen-bravo` is stopped, and `gen-charlie` has crashed and exited with an error.",
       "hints": [
-        "`docker exec -it <name> <command>` runs a command inside a running container",
-        "Use `docker exec debug-box touch /tmp/mission-complete` or exec a shell",
-        "`docker exec debug-box touch /tmp/mission-complete`"
+        "Containers move between states: running, stopped, and removed. Each transition has its own command, and a stopped container still shows up in `docker ps -a`.",
+        "Three separate verbs do the work: `docker stop`, `docker start` and `docker rm`, each followed by the container name. Removing is not the same thing as stopping.",
+        "```bash\ndocker ps -a\ndocker stop gen-alpha\ndocker start gen-bravo\ndocker rm gen-charlie\ndocker ps -a\n```"
       ],
+      "setup": {
+        "files": [],
+        "commands": [
+          "docker run -d --name gen-alpha alpine:3.20 sh -c 'trap \"exit 0\" TERM; while :; do sleep 1; done'",
+          "docker run -d --name gen-bravo alpine:3.20 sh -c 'trap \"exit 0\" TERM; while :; do sleep 1; done'",
+          "docker stop gen-bravo",
+          "docker run --name gen-charlie alpine:3.20 sh -c 'exit 3' || true"
+        ]
+      },
       "validation": [
         {
-          "type": "file_in_container",
+          "type": "container_exited",
           "params": {
-            "container": "debug-box",
-            "path": "/tmp/mission-complete"
+            "name": "gen-alpha"
           },
-          "description": "container=debug-box, path=/tmp/mission-complete"
+          "description": "`gen-alpha` exists but is stopped"
+        },
+        {
+          "type": "container_running",
+          "params": {
+            "name": "gen-bravo"
+          },
+          "description": "`gen-bravo` is running"
+        },
+        {
+          "type": "container_absent",
+          "params": {
+            "name": "gen-charlie"
+          },
+          "description": "`gen-charlie` has been removed"
         }
       ],
-      "initialState": {
-        "summary": "Container `debug-box` (ubuntu, running with `sleep 3600`) pre-created",
-        "workspaceFiles": []
-      }
+      "solution": [
+        "docker stop gen-alpha",
+        "docker start gen-bravo",
+        "docker rm gen-charlie"
+      ],
+      "debrief": "Stopping is not deleting: a stopped container keeps its filesystem and logs until `docker rm` takes it away for good. Pro tip: `docker container prune` sweeps every stopped container at once, so run it only when nothing in `docker ps -a` still matters."
     },
     {
       "id": "module_01_level_08",
       "moduleId": 1,
       "levelId": 8,
-      "title": "Container Logs",
-      "moduleTitle": "Docker Basics",
-      "difficulty": "medium",
-      "xp": 100,
-      "story": "The `log-service` container is misbehaving. Read its logs to find the secret code it printed, then create a file `/tmp/found` inside it to confirm you found it.",
+      "title": "Weather the Storm",
+      "moduleTitle": "Arrival",
+      "difficulty": "easy",
+      "xp": 75,
+      "concepts": [
+        "restart policy",
+        "docker update",
+        "docker rename"
+      ],
+      "story": "INCIDENT REPORT #031, filed by Ingrid Halvorsen.\n\nWhat happened: a wind gust cut grid power for four seconds at 02:10. The server rebooted and every container stayed down until someone logged in. We lost three hours of anemometer readings.\n\nWhat must change: the wind logger, currently running as `wlog-tmp` (Kip's \"temporary\" name from last week), has to come back by itself after a reboot, unless someone stopped it on purpose. The dashboards also expect the name `wind-logger`. Do not recreate it: its buffer file holds readings that have not been sent yet.",
       "objectives": [
-        "Read the logs of `log-service`",
-        "Create file `/tmp/found` inside `log-service`"
+        "Make the running container restart automatically with the `unless-stopped` policy",
+        "Rename `wlog-tmp` to `wind-logger` (it must keep running, and the old name must be gone)"
       ],
+      "startingState": "A container named `wlog-tmp` is running with no restart policy and holds an unsent-readings buffer at `/tmp/readings.buf`.",
       "hints": [
-        "`docker logs <name>` prints the stdout/stderr of a container",
-        "After reading logs, exec in and create the file",
-        "`docker logs log-service` then `docker exec log-service touch /tmp/found`"
+        "Both changes can be made to a container that already exists, so there is no need to remove it. Look for `docker update` for settings and `docker rename` for names.",
+        "The restart behaviour is set with `docker update --restart <policy> <container>`. The policy you want keeps the container alive across reboots but respects a manual stop. Rename takes the old name, then the new one.",
+        "```bash\ndocker update --restart unless-stopped wlog-tmp\ndocker rename wlog-tmp wind-logger\ndocker inspect -f '{{.HostConfig.RestartPolicy.Name}}' wind-logger\n```"
       ],
+      "setup": {
+        "files": [],
+        "commands": [
+          "docker run -d --name wlog-tmp alpine:3.20 sh -c 'echo 12.4kn > /tmp/readings.buf; sleep infinity'",
+          "sleep 1"
+        ]
+      },
       "validation": [
         {
-          "type": "command_run",
-          "params": {},
-          "description": "docker logs log-service executed"
+          "type": "container_running",
+          "params": {
+            "name": "wind-logger"
+          },
+          "description": "Container `wind-logger` is running"
         },
         {
-          "type": "file_in_container",
+          "type": "container_inspect",
           "params": {
-            "container": "log-service",
-            "path": "/tmp/found"
+            "name": "wind-logger",
+            "path": "HostConfig.RestartPolicy.Name",
+            "equals": "unless-stopped"
           },
-          "description": "container=log-service, path=/tmp/found"
+          "description": "`wind-logger` has the restart policy `unless-stopped`"
+        },
+        {
+          "type": "container_absent",
+          "params": {
+            "name": "wlog-tmp"
+          },
+          "description": "The old name `wlog-tmp` no longer exists"
+        },
+        {
+          "type": "container_exec",
+          "params": {
+            "name": "wind-logger",
+            "command": "test -f /tmp/readings.buf"
+          },
+          "description": "It is the original container: `/tmp/readings.buf` is still there"
         }
       ],
-      "initialState": {
-        "summary": "- Container `log-service` (alpine, running) pre-created, it ran: `echo \"SECRET_CODE=DOCKER42\"` then `sleep 3600`",
-        "workspaceFiles": []
-      }
+      "solution": [
+        "docker update --restart unless-stopped wlog-tmp",
+        "docker rename wlog-tmp wind-logger"
+      ],
+      "debrief": "`docker update` changes restart policy and resource limits on a live container, and `docker rename` changes its name without a restart. Pro tip: `unless-stopped` beats `always` for most services because a deliberate `docker stop` survives a daemon restart."
     }
   ]
 }

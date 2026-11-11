@@ -2,38 +2,92 @@
   "id": "module_08_level_03",
   "moduleId": 8,
   "levelId": 3,
-  "title": "Docker Init",
-  "moduleTitle": "Advanced Docker",
+  "title": "A Graceful Goodbye",
+  "moduleTitle": "Polar Night",
   "difficulty": "medium",
-  "xp": 100,
-  "story": "PID 1 in a container must properly handle signals and reap zombie processes. Use `--init` to run an init process as PID 1.",
+  "xp": 150,
+  "concepts": [
+    "--init",
+    "--stop-signal",
+    "--stop-timeout"
+  ],
+  "story": "NORA: `TIDE-LOGGER STOP TOOK 10.0 S. EXIT CODE 137. LAST FLUSH: NEVER. ORPHANED PROCESSES: 41.`\n\nThe tide logger keeps its readings in memory and only writes them out when it receives SIGINT. Docker's default stop sends SIGTERM, which the logger ignores, so after ten seconds the engine kills it and a night of readings is lost. It also leaves defunct child processes behind, because nothing reaps them.\n\nReplace the running `tide-logger` container: give it a proper init process, SIGINT as its stop signal, and a 20-second grace period.",
   "objectives": [
-    "Run container `signal-safe` from `node:18-alpine` with `--init` flag",
-    "Confirm PID 1 is `docker-init` (tini), not the Node process directly"
+    "Remove the old `tide-logger` container and run a new detached `tide-logger` from `kestrel/tide-logger:1.0`",
+    "Run it with Docker's built-in init process (`--init`)",
+    "Stop signal `SIGINT`, grace period of `20` seconds before the kill"
   ],
+  "startingState": "The image `kestrel/tide-logger:1.0` is built and a naive container `tide-logger` is running from it with default settings.",
   "hints": [
-    "`--init` injects a tiny init process (tini) as PID 1",
-    "The actual application becomes a child of PID 1",
-    "`docker run -d --init --name signal-safe node:18-alpine node -e \"setInterval(()=>{}, 1000)\"`"
+    "Two separate problems: the process at PID 1 does not forward or reap anything, and `docker stop` sends a signal the application does not handle. Both are fixed with options on the container, no code changes.",
+    "`--init` puts a tiny init program at PID 1. `--stop-signal SIGINT` changes the signal `docker stop` sends, and `--stop-timeout SECONDS` changes how long it waits before SIGKILL. These are `docker run` flags, so the old container has to be replaced.",
+    "```bash\ndocker rm -f tide-logger\ndocker run -d --name tide-logger \\\n  --init \\\n  --stop-signal SIGINT \\\n  --stop-timeout 20 \\\n  kestrel/tide-logger:1.0\n\ndocker stop tide-logger && docker logs tide-logger | tail -2\n```"
   ],
+  "setup": {
+    "files": [
+      {
+        "path": "tide/Dockerfile",
+        "content": "FROM alpine:3.20\nCOPY logger.sh /logger.sh\nRUN chmod +x /logger.sh\nCMD [\"/logger.sh\"]\n"
+      },
+      {
+        "path": "tide/logger.sh",
+        "content": "#!/bin/sh\nbuf=0\nflush() { echo \"FLUSHED $buf readings\"; exit 0; }\ntrap flush INT\necho \"tide-logger started\"\nwhile true; do\n  buf=$((buf + 1))\n  ( sleep 1 & )\n  sleep 1\ndone\n"
+      }
+    ],
+    "commands": [
+      "docker build -q -t kestrel/tide-logger:1.0 tide",
+      "docker run -d --name tide-logger kestrel/tide-logger:1.0"
+    ]
+  },
   "validation": [
     {
       "type": "container_running",
       "params": {
-        "name": "signal-safe"
+        "name": "tide-logger",
+        "image": "kestrel/tide-logger:1.0"
       },
-      "description": "name=signal-safe"
+      "description": "Container `tide-logger` is running from `kestrel/tide-logger:1.0`"
     },
     {
-      "type": "uses_init",
+      "type": "container_inspect",
       "params": {
-        "container": "signal-safe"
+        "name": "tide-logger",
+        "path": "HostConfig.Init",
+        "equals": true
       },
-      "description": "container=signal-safe"
+      "description": "`tide-logger` runs with an init process (`--init`)"
+    },
+    {
+      "type": "container_inspect",
+      "params": {
+        "name": "tide-logger",
+        "path": "Config.StopSignal",
+        "contains": "INT"
+      },
+      "description": "`tide-logger` has the stop signal `SIGINT`"
+    },
+    {
+      "type": "container_inspect",
+      "params": {
+        "name": "tide-logger",
+        "path": "Config.StopTimeout",
+        "equals": 20
+      },
+      "description": "`tide-logger` has a stop timeout of 20 seconds"
+    },
+    {
+      "type": "container_exec",
+      "params": {
+        "name": "tide-logger",
+        "command": "tr '\\0' ' ' < /proc/1/cmdline",
+        "output_contains": "docker-init"
+      },
+      "description": "PID 1 inside `tide-logger` is the init process, not the logger script"
     }
   ],
-  "initialState": {
-    "summary": "Clean Docker environment",
-    "workspaceFiles": []
-  }
+  "solution": [
+    "docker rm -f tide-logger",
+    "docker run -d --name tide-logger --init --stop-signal SIGINT --stop-timeout 20 kestrel/tide-logger:1.0"
+  ],
+  "debrief": "`docker stop` is a polite request (the stop signal) followed by a deadline (the timeout); if your program answers to a different signal, change the request rather than the program. Pro tip: put `STOPSIGNAL SIGINT` in the Dockerfile to make the right signal the image's default."
 }

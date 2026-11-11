@@ -91,5 +91,5 @@
     "docker rm -f ledger",
     "docker run -d --name ledger --read-only --tmpfs /tmp -p 8140:8000 -v /workspace/app:/app:ro python:3.12-alpine python /app/ledger.py"
   ],
-  "debrief": "A read-only root filesystem means a compromised process cannot plant or modify binaries and scripts, while `--tmpfs` hands out RAM-backed scratch space that vanishes on restart. Pro tip: if a program crashes with 'Read-only file system', the error names the path that needs its own tmpfs or volume."
+  "debrief": "With the root filesystem locked, an intruder cannot plant or alter a single binary, and `--tmpfs` still gives the service the scratch space it needs. Pro tip: when a program dies with 'Read-only file system', the error names the exact path that needs its own tmpfs or volume."
 }

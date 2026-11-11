@@ -82,5 +82,5 @@
   "solution": [
     "docker run -d --name field-journal -p 8085:80 -v /workspace/journal:/usr/share/nginx/html:ro nginx:alpine"
   ],
-  "debrief": "A bind mount shares a live host path with the container, which is ideal for content you edit outside it, and `:ro` makes the container a pure reader. Pro tip: bind mounts need an absolute host path; a bare name would create a named volume instead."
+  "debrief": "Edits in `/workspace/journal` appear instantly because the container reads the host folder directly, and `:ro` keeps it a pure reader. Pro tip: bind mounts need an absolute host path; a bare name like `journal` silently creates a named volume instead."
 }

@@ -2,40 +2,82 @@
   "id": "module_08_level_06",
   "moduleId": 8,
   "levelId": 6,
-  "title": "Docker Swarm Init",
-  "moduleTitle": "Advanced Docker",
+  "title": "Change the Watch",
+  "moduleTitle": "Polar Night",
   "difficulty": "hard",
   "xp": 200,
-  "story": "Docker Swarm turns your Docker host into a cluster manager. Initialize a single-node Swarm.",
+  "concepts": [
+    "docker service update",
+    "rolling update",
+    "update-parallelism",
+    "rollback"
+  ],
+  "story": "Station chat, after the aurora page went white.\n\n**Kip:** I pushed the new feed image to all three replicas at once and the whole page was down for forty seconds. Sorry!\n\n**Ingrid:** Nobody does it that way again. One replica at a time, a short pause between each, and if the new version fails to come up, the old one goes back on its own. Engineer, roll `aurora-feed` onto `nginx:alpine` the proper way, and make those rules part of the service so they apply next time too.",
   "objectives": [
-    "Initialize Docker Swarm with `docker swarm init`",
-    "Deploy a service named `web` with 3 replicas using `nginx` image",
-    "Confirm all 3 replicas are running"
+    "Update the running service `aurora-feed` to the image `nginx:alpine`",
+    "Set the update parallelism to `1` and the update delay to `5s`",
+    "Set the update failure action to `rollback`",
+    "The service still has 3 running replicas and the update has completed"
   ],
+  "startingState": "A swarm is running with the service `aurora-feed` (3 replicas of `nginx:1.27-alpine`, port 8091). It has never been updated.",
   "hints": [
-    "`docker swarm init` initializes the Swarm",
-    "`docker service create --name web --replicas 3 nginx`",
-    "`docker service ls` shows services; `docker service ps web` shows tasks"
+    "A swarm service is replaced task by task. How fast, how many at once, and what happens on failure are properties of the service's update configuration, and they apply to this update and every later one.",
+    "Use `docker service update` on the existing service. Relevant flags: `--image`, `--update-parallelism N`, `--update-delay DURATION`, `--update-failure-action rollback`. `--detach=false` waits until the rollout finishes.",
+    "```bash\ndocker service update --detach=false \\\n  --image nginx:alpine \\\n  --update-parallelism 1 \\\n  --update-delay 5s \\\n  --update-failure-action rollback \\\n  aurora-feed\n\ndocker service inspect aurora-feed --pretty\n```"
   ],
+  "setup": {
+    "files": [],
+    "commands": [
+      "docker swarm init --advertise-addr 127.0.0.1 || docker swarm init",
+      "docker service create --detach=false --name aurora-feed --replicas 3 -p 8091:80 nginx:1.27-alpine"
+    ]
+  },
   "validation": [
     {
-      "type": "swarm_active",
+      "type": "swarm_service",
       "params": {
-        "mode": "active"
+        "name": "aurora-feed",
+        "replicas": 3,
+        "image_contains": "nginx:alpine",
+        "running": 3
       },
-      "description": "mode=active"
+      "description": "`aurora-feed` runs 3 replicas, all running `nginx:alpine`"
     },
     {
-      "type": "swarm_service_running",
+      "type": "shell",
       "params": {
-        "name": "web",
-        "replicas": 3
+        "command": "docker service inspect aurora-feed --format '{{.Spec.UpdateConfig.Parallelism}}'",
+        "output_equals": "1"
       },
-      "description": "name=web, replicas=3"
+      "description": "The update parallelism of `aurora-feed` is `1`"
+    },
+    {
+      "type": "shell",
+      "params": {
+        "command": "docker service inspect aurora-feed --format '{{.Spec.UpdateConfig.Delay}}'",
+        "output_equals": "5s"
+      },
+      "description": "The update delay of `aurora-feed` is `5s`"
+    },
+    {
+      "type": "shell",
+      "params": {
+        "command": "docker service inspect aurora-feed --format '{{.Spec.UpdateConfig.FailureAction}}'",
+        "output_equals": "rollback"
+      },
+      "description": "The update failure action of `aurora-feed` is `rollback`"
+    },
+    {
+      "type": "shell",
+      "params": {
+        "command": "for i in $(seq 14); do s=$(docker service inspect aurora-feed --format '{{.UpdateStatus.State}}'); [ \"$s\" = completed ] && break; sleep 1; done; echo $s",
+        "output_equals": "completed"
+      },
+      "description": "The rolling update of `aurora-feed` has completed"
     }
   ],
-  "initialState": {
-    "summary": "Clean Docker environment",
-    "workspaceFiles": []
-  }
+  "solution": [
+    "docker service update --detach=false --image nginx:alpine --update-parallelism 1 --update-delay 5s --update-failure-action rollback aurora-feed"
+  ],
+  "debrief": "Swarm swapped the tasks one at a time, with a pause between them, so the feed never went fully dark, and a failed task would have triggered a rollback. Pro tip: `docker service rollback aurora-feed` undoes the last update by hand."
 }

@@ -1,283 +1,560 @@
 {
   "id": 6,
-  "title": "Docker Security",
-  "theme": "Hardening containers",
+  "title": "The Audit",
+  "theme": "An auditor arrives from the mainland: harden everything",
   "totalLevels": 6,
   "missions": [
     {
       "id": "module_06_level_01",
       "moduleId": 6,
       "levelId": 1,
-      "title": "Run as Non-Root",
-      "moduleTitle": "Docker Security",
+      "title": "Nobody Runs as Root",
+      "moduleTitle": "The Audit",
       "difficulty": "easy",
-      "xp": 50,
-      "story": "Containers running as root are dangerous. If they escape, they own your host. Run an alpine container as user ID `1000` instead of root.",
+      "xp": 60,
+      "concepts": [
+        "--user",
+        "least privilege"
+      ],
+      "story": "AUDIT FINDING F-01\nAuditor: Wren Achebe        Severity: HIGH\n\nObserved: the process inside container `telemetry` runs as uid 0. A single bug in the telemetry parser would hand an attacker root inside that container, with every kernel feature root can reach.\n\nRequired: the service has no reason to be root. Recreate `telemetry` from `alpine:3.20` so it runs as user and group 1000:1000, and keep it running. I will check with `id`.\n\nRemediation window: until the supply ship leaves Friday.",
       "objectives": [
-        "Run container `safe-app` from `alpine` as user `1000` (`sleep 3600`, detached)",
-        "Confirm the container process does NOT run as root"
+        "Remove the root-running container `telemetry`",
+        "Run a new container named `telemetry` from `alpine:3.20` with `sleep infinity`, in the background",
+        "It must run as user 1000 and group 1000"
       ],
+      "startingState": "A container `telemetry` (alpine:3.20, sleep infinity) is running as root.",
       "hints": [
-        "Use `--user <uid>` to set the container user",
-        "`--user 1000`",
-        "`docker run -d --name safe-app --user 1000 alpine sleep 3600`"
+        "A container's user is chosen when it is created; you cannot turn a running root container into an unprivileged one. You have to replace it, and `docker run` has an option that sets the user and group the main process runs as.",
+        "The flag is `--user` (short form `-u`) and takes `UID:GID`. Remove the old container with `docker rm -f` first, because the name `telemetry` is taken.",
+        "```bash\ndocker rm -f telemetry\ndocker run -d --name telemetry --user 1000:1000 alpine:3.20 sleep infinity\ndocker exec telemetry id\n```"
       ],
+      "setup": {
+        "files": [],
+        "commands": [
+          "docker run -d --name telemetry alpine:3.20 sleep infinity"
+        ]
+      },
       "validation": [
         {
           "type": "container_running",
           "params": {
-            "name": "safe-app"
+            "name": "telemetry",
+            "image": "alpine:3.20"
           },
-          "description": "name=safe-app"
+          "description": "Container `telemetry` is running from `alpine:3.20`"
         },
         {
-          "type": "no_root",
+          "type": "container_inspect",
           "params": {
-            "container": "safe-app"
+            "name": "telemetry",
+            "path": "Config.User",
+            "equals": "1000:1000"
           },
-          "description": "container=safe-app"
+          "description": "The container is configured to run as `1000:1000`"
+        },
+        {
+          "type": "container_exec",
+          "params": {
+            "name": "telemetry",
+            "command": "id -u",
+            "output_equals": "1000"
+          },
+          "description": "`id -u` inside `telemetry` prints 1000"
+        },
+        {
+          "type": "container_exec",
+          "params": {
+            "name": "telemetry",
+            "command": "id -g",
+            "output_equals": "1000"
+          },
+          "description": "`id -g` inside `telemetry` prints 1000"
         }
       ],
-      "initialState": {
-        "summary": "Clean Docker environment",
-        "workspaceFiles": []
-      }
+      "solution": [
+        "docker rm -f telemetry",
+        "docker run -d --name telemetry --user 1000:1000 alpine:3.20 sleep infinity"
+      ],
+      "debrief": "Running as a non-root user means an exploited process starts with far fewer powers, and `--user UID:GID` achieves that without rebuilding the image. Pro tip: use a numeric UID:GID rather than a name, because names only resolve if the image has a matching /etc/passwd entry."
     },
     {
       "id": "module_06_level_02",
       "moduleId": 6,
       "levelId": 2,
-      "title": "Read-Only Filesystem",
-      "moduleTitle": "Docker Security",
-      "difficulty": "easy",
-      "xp": 50,
-      "story": "A container that can't write to its own filesystem is significantly harder to compromise. Run nginx in read-only mode.",
+      "title": "Carved in Stone",
+      "moduleTitle": "The Audit",
+      "difficulty": "medium",
+      "xp": 120,
+      "concepts": [
+        "--read-only",
+        "--tmpfs"
+      ],
+      "story": "[RADIO -- INGRID TO ENGINEER, 06:40]\n\nEngineer, Halvorsen. Wren just showed me that anything that gets a shell inside `ledger` can rewrite the ledger program itself. Tomasz's ice-core sample counts run through that service; if the code can be tampered with, nobody can trust the numbers.\n\nRebuild the container so its root filesystem is read-only. The service still needs somewhere to write its running log, so give it a RAM-backed `/tmp` and nothing more. Same port as before, 8140. Over.",
       "objectives": [
-        "Run `nginx` container named `readonly-web` with a read-only filesystem (`--read-only`)",
-        "Nginx needs a writable tmpfs at `/tmp` and `/var/run` to start — add those",
-        "Publish port 8080"
+        "Replace container `ledger` with a new one from `python:3.12-alpine`, publishing host port 8140 to container port 8000",
+        "Mount `/workspace/app` read-only at `/app` and run `python /app/ledger.py`",
+        "Make the root filesystem read-only, with a `tmpfs` at `/tmp`",
+        "http://localhost:8140 must still answer"
       ],
+      "startingState": "Container `ledger` runs the service with a writable root filesystem; the code is in `/workspace/app/ledger.py`.",
       "hints": [
-        "`--read-only` makes the root filesystem read-only",
-        "Combine with `--tmpfs` for directories that must be writable",
-        "`docker run -d --name readonly-web --read-only --tmpfs /tmp --tmpfs /var/run -p 8080:80 nginx`"
+        "Docker can start a container with its whole root filesystem mounted read-only, so nothing can be changed or installed. Programs that need scratch space then require a separate writable location, and RAM-backed temporary mounts are the usual answer.",
+        "Use `--read-only` for the filesystem and `--tmpfs /tmp` for the one writable path. A container cannot be edited in place, so remove `ledger` first and recreate it with the same port and bind mount (`-v /workspace/app:/app:ro`).",
+        "```bash\ndocker rm -f ledger\ndocker run -d --name ledger --read-only --tmpfs /tmp \\\n  -p 8140:8000 -v /workspace/app:/app:ro \\\n  python:3.12-alpine python /app/ledger.py\ncurl localhost:8140\n```"
       ],
+      "setup": {
+        "files": [
+          {
+            "path": "app/ledger.py",
+            "content": "from http.server import BaseHTTPRequestHandler, HTTPServer\n\nLOG = \"/tmp/ledger.log\"\n\n\nclass Ledger(BaseHTTPRequestHandler):\n    def do_GET(self):\n        with open(LOG, \"a\") as f:\n            f.write(\"sample logged\\n\")\n        with open(LOG) as f:\n            entries = len(f.readlines())\n        self.send_response(200)\n        self.end_headers()\n        self.wfile.write(f\"LEDGER OK entries={entries}\\n\".encode())\n\n\nHTTPServer((\"0.0.0.0\", 8000), Ledger).serve_forever()\n"
+          }
+        ],
+        "commands": [
+          "docker run -d --name ledger -p 8140:8000 -v /workspace/app:/app:ro python:3.12-alpine python /app/ledger.py"
+        ]
+      },
       "validation": [
         {
           "type": "container_running",
           "params": {
-            "name": "readonly-web"
+            "name": "ledger",
+            "image": "python:3.12-alpine"
           },
-          "description": "name=readonly-web"
+          "description": "Container `ledger` is running from `python:3.12-alpine`"
         },
         {
-          "type": "readonly_rootfs",
+          "type": "container_inspect",
           "params": {
-            "container": "readonly-web"
+            "name": "ledger",
+            "path": "HostConfig.ReadonlyRootfs",
+            "equals": true
           },
-          "description": "container=readonly-web"
+          "description": "The root filesystem of `ledger` is read-only"
         },
         {
-          "type": "http_responds",
+          "type": "container_inspect",
           "params": {
-            "url": "http://localhost:8080",
-            "status": 200
+            "name": "ledger",
+            "path": "HostConfig.Tmpfs",
+            "contains": "/tmp"
           },
-          "description": "url=http://localhost:8080, status=200"
+          "description": "`/tmp` is mounted as a tmpfs"
+        },
+        {
+          "type": "container_exec",
+          "params": {
+            "name": "ledger",
+            "command": "touch /etc/tamper",
+            "exit_code": 1
+          },
+          "description": "Writing to the root filesystem (`/etc`) fails"
+        },
+        {
+          "type": "container_exec",
+          "params": {
+            "name": "ledger",
+            "command": "touch /tmp/scratch-ok"
+          },
+          "description": "Writing to `/tmp` still works"
+        },
+        {
+          "type": "http",
+          "params": {
+            "url": "http://localhost:8140",
+            "body_contains": "LEDGER OK"
+          },
+          "description": "http://localhost:8140 still answers with the ledger entry count"
         }
       ],
-      "initialState": {
-        "summary": "Clean Docker environment",
-        "workspaceFiles": []
-      }
+      "solution": [
+        "docker rm -f ledger",
+        "docker run -d --name ledger --read-only --tmpfs /tmp -p 8140:8000 -v /workspace/app:/app:ro python:3.12-alpine python /app/ledger.py"
+      ],
+      "debrief": "With the root filesystem locked, an intruder cannot plant or alter a single binary, and `--tmpfs` still gives the service the scratch space it needs. Pro tip: when a program dies with 'Read-only file system', the error names the exact path that needs its own tmpfs or volume."
     },
     {
       "id": "module_06_level_03",
       "moduleId": 6,
       "levelId": 3,
-      "title": "Drop Linux Capabilities",
-      "moduleTitle": "Docker Security",
+      "title": "Fewer Keys on the Ring",
+      "moduleTitle": "The Audit",
       "difficulty": "medium",
-      "xp": 100,
-      "story": "Containers inherit too many Linux capabilities by default. Drop ALL capabilities from a container and add back only what's needed.",
+      "xp": 130,
+      "concepts": [
+        "--cap-drop",
+        "--cap-add",
+        "Linux capabilities"
+      ],
+      "story": "NORA: GATEKEEPER CAPABILITY COUNT 14\nNORA: GATEKEEPER REQUIRED CAPABILITIES 1\nNORA: AUDITOR WREN FLAGGED EXCESS PRIVILEGE\n\nThe `gatekeeper` container serves the crew login page on port 8150 and runs with Docker's default bundle of 14 Linux capabilities. Its only privileged act is binding to port 80 inside the container.\n\nWren's note, pinned beside the alert: \"Least privilege is not a suggestion. Take every key off the ring, then hand back the one it needs.\" Recreate `gatekeeper` that way.",
       "objectives": [
-        "Run container `minimal-caps` from `alpine` dropping ALL capabilities with `--cap-drop=ALL`",
-        "Add back only `NET_BIND_SERVICE` with `--cap-add`",
-        "Run `sleep 3600` detached"
+        "Replace container `gatekeeper` with one from `python:3.12-alpine`, publishing host port 8150 to container port 80",
+        "Run `python -m http.server 80 --directory /gate` with `/workspace/gate` mounted read-only at `/gate`",
+        "Drop ALL capabilities and add back only `NET_BIND_SERVICE`",
+        "The login page at http://localhost:8150 must still load"
       ],
+      "startingState": "Container `gatekeeper` is running with the default capability set; the login page lives in `/workspace/gate/`.",
       "hints": [
-        "`--cap-drop=ALL` drops every Linux capability",
-        "`--cap-add=<CAP>` adds individual capabilities back",
-        "`docker run -d --name minimal-caps --cap-drop=ALL --cap-add=NET_BIND_SERVICE alpine sleep 3600`"
+        "Linux splits root's powers into separate capabilities, and Docker gives each container a default set of 14. You can remove capabilities when creating a container, and add specific ones back. Binding a port below 1024 is one such capability.",
+        "`--cap-drop ALL` removes the whole default set, and `--cap-add NET_BIND_SERVICE` returns the single one the web server needs. The order of the flags does not matter, but the container has to be recreated.",
+        "```bash\ndocker rm -f gatekeeper\ndocker run -d --name gatekeeper \\\n  --cap-drop ALL --cap-add NET_BIND_SERVICE \\\n  -p 8150:80 -v /workspace/gate:/gate:ro \\\n  python:3.12-alpine python -m http.server 80 --directory /gate\ndocker inspect -f '{{.HostConfig.CapAdd}}' gatekeeper\n```"
       ],
+      "setup": {
+        "files": [
+          {
+            "path": "gate/index.html",
+            "content": "<h1>KESTREL POINT CREW LOGIN</h1>\n<p>Badge required.</p>\n"
+          }
+        ],
+        "commands": [
+          "docker run -d --name gatekeeper -p 8150:80 -v /workspace/gate:/gate:ro python:3.12-alpine python -m http.server 80 --directory /gate"
+        ]
+      },
       "validation": [
         {
           "type": "container_running",
           "params": {
-            "name": "minimal-caps"
+            "name": "gatekeeper",
+            "image": "python:3.12-alpine"
           },
-          "description": "name=minimal-caps"
+          "description": "Container `gatekeeper` is running from `python:3.12-alpine`"
         },
         {
-          "type": "cap_dropped_all",
+          "type": "container_inspect",
           "params": {
-            "container": "minimal-caps"
+            "name": "gatekeeper",
+            "path": "HostConfig.CapDrop",
+            "contains": "ALL"
           },
-          "description": "container=minimal-caps"
+          "description": "All default capabilities are dropped (`CapDrop` contains ALL)"
         },
         {
-          "type": "cap_added",
+          "type": "container_inspect",
           "params": {
-            "container": "minimal-caps",
-            "cap": "NET_BIND_SERVICE"
+            "name": "gatekeeper",
+            "path": "HostConfig.CapAdd",
+            "contains": "CAP_NET_BIND_SERVICE"
           },
-          "description": "container=minimal-caps, cap=NET_BIND_SERVICE"
+          "description": "`NET_BIND_SERVICE` is added back"
+        },
+        {
+          "type": "shell",
+          "params": {
+            "command": "docker inspect -f '{{len .HostConfig.CapAdd}}' gatekeeper",
+            "output_equals": "1"
+          },
+          "description": "`NET_BIND_SERVICE` is the only capability added"
+        },
+        {
+          "type": "container_exec",
+          "params": {
+            "name": "gatekeeper",
+            "command": "grep CapEff /proc/1/status",
+            "output_contains": "0000000000000400"
+          },
+          "description": "The main process holds only the bind-service capability"
+        },
+        {
+          "type": "http",
+          "params": {
+            "url": "http://localhost:8150",
+            "body_contains": "CREW LOGIN"
+          },
+          "description": "The crew login page still loads on port 8150"
         }
       ],
-      "initialState": {
-        "summary": "Clean Docker environment",
-        "workspaceFiles": []
-      }
+      "solution": [
+        "docker rm -f gatekeeper",
+        "docker run -d --name gatekeeper --cap-drop ALL --cap-add NET_BIND_SERVICE -p 8150:80 -v /workspace/gate:/gate:ro python:3.12-alpine python -m http.server 80 --directory /gate"
+      ],
+      "debrief": "Capabilities slice root into small privileges, and dropping ALL then adding back one by name is the strictest form of least privilege Docker offers. Pro tip: if a dropped container fails, its error message names what is missing, so add capabilities back one at a time rather than reaching for `--privileged`."
     },
     {
       "id": "module_06_level_04",
       "moduleId": 6,
       "levelId": 4,
-      "title": "Seccomp Profile",
-      "moduleTitle": "Docker Security",
+      "title": "Rationing",
+      "moduleTitle": "The Audit",
       "difficulty": "medium",
-      "xp": 100,
-      "story": "Seccomp filters which system calls a container can make. Apply the default Docker seccomp profile explicitly to lock down `syscall-test` container.",
+      "xp": 130,
+      "concepts": [
+        "resource limits",
+        "docker update"
+      ],
+      "story": "Sticky note on monitor 3, Amara's handwriting:\n\n\"cruncher went into a loop at 3am, spawned a few hundred processes and took the whole box with it. sorry!!\n\ncan you box it in? 256 MB of RAM, half a CPU, 64 processes max.\nDO NOT restart it -- the glacier job is 80% done and I wrote the checkpoint file by hand. -- A.\"\n\nBeneath it, in red pen, Wren has underlined \"whole box\" twice.",
       "objectives": [
-        "Run container `syscall-test` from `alpine` with the default seccomp profile applied explicitly",
-        "Run `sleep 3600` detached"
+        "Limit the running container `cruncher` to 256 MB of memory",
+        "Limit it to 0.5 CPUs",
+        "Limit it to at most 64 processes",
+        "Do not recreate it: `/tmp/checkpoint` inside the container must survive"
       ],
+      "startingState": "Container `cruncher` (alpine:3.20) runs with no limits at all, and holds a checkpoint in `/tmp/checkpoint`.",
       "hints": [
-        "`--security-opt seccomp=<path>` applies a seccomp profile",
-        "The profile is JSON file defining allowed syscalls",
-        "`docker run -d --name syscall-test --security-opt seccomp=/workspace/default-seccomp.json alpine sleep 3600`"
+        "Resource limits are not only for new containers; Docker can change them on a running one. Restarting or recreating `cruncher` would lose the checkpoint that only exists inside it, so look for a command that edits a live container.",
+        "`docker update` accepts `--memory`, `--cpus` and `--pids-limit`. When you set a memory limit on a container that had none, set `--memory-swap` to the same value so swap does not exceed it.",
+        "```bash\ndocker update --memory 256m --memory-swap 256m --cpus 0.5 --pids-limit 64 cruncher\ndocker inspect -f '{{.HostConfig.Memory}} {{.HostConfig.NanoCpus}} {{.HostConfig.PidsLimit}}' cruncher\n```"
       ],
+      "setup": {
+        "files": [],
+        "commands": [
+          "docker run -d --name cruncher alpine:3.20 sleep infinity",
+          "docker exec cruncher sh -c 'echo stage-8-of-10 > /tmp/checkpoint'"
+        ]
+      },
       "validation": [
         {
           "type": "container_running",
           "params": {
-            "name": "syscall-test"
+            "name": "cruncher"
           },
-          "description": "name=syscall-test"
+          "description": "Container `cruncher` is still running"
         },
         {
-          "type": "seccomp_applied",
+          "type": "container_inspect",
           "params": {
-            "container": "syscall-test"
+            "name": "cruncher",
+            "path": "HostConfig.Memory",
+            "equals": 268435456
           },
-          "description": "container=syscall-test"
+          "description": "Memory limit is 256 MB (268435456 bytes)"
+        },
+        {
+          "type": "container_inspect",
+          "params": {
+            "name": "cruncher",
+            "path": "HostConfig.NanoCpus",
+            "equals": 500000000
+          },
+          "description": "CPU limit is 0.5 CPUs"
+        },
+        {
+          "type": "container_inspect",
+          "params": {
+            "name": "cruncher",
+            "path": "HostConfig.PidsLimit",
+            "equals": 64
+          },
+          "description": "Process limit is 64"
+        },
+        {
+          "type": "container_exec",
+          "params": {
+            "name": "cruncher",
+            "command": "cat /tmp/checkpoint",
+            "output_contains": "stage-8-of-10"
+          },
+          "description": "The original container (with its checkpoint) was not recreated"
         }
       ],
-      "initialState": {
-        "summary": "`/workspace/default-seccomp.json` contains Docker's default seccomp profile",
-        "workspaceFiles": [
-          {
-            "path": "default-seccomp.json",
-            "content": "{ \"defaultAction\": \"SCMP_ACT_ERRNO\", \"architectures\": [], \"syscalls\": [] }\n"
-          }
-        ]
-      }
+      "solution": [
+        "docker update --memory 256m --memory-swap 256m --cpus 0.5 --pids-limit 64 cruncher"
+      ],
+      "debrief": "Memory, CPU and process limits keep one runaway container from starving everything else on the host, and `docker update` applies them live without touching the container's state. Pro tip: `--pids-limit` is the cheap defence against fork bombs, and `docker stats` shows whether a limit is actually being hit."
     },
     {
       "id": "module_06_level_05",
       "moduleId": 6,
       "levelId": 5,
-      "title": "Resource Limits",
-      "moduleTitle": "Docker Security",
-      "difficulty": "medium",
-      "xp": 100,
-      "story": "A runaway container can starve the host. Limit container `resource-hog` to 256MB RAM and 0.5 CPU.",
+      "title": "Secrets Belong in Files",
+      "moduleTitle": "The Audit",
+      "difficulty": "hard",
+      "xp": 200,
+      "concepts": [
+        "secrets",
+        "image history",
+        "bind mount"
+      ],
+      "story": "**From:** Wren Achebe\n**Subject:** F-05 -- credential visible to anyone who can run `docker inspect`\n\nEngineer,\n\nI ran `docker inspect uplink` and `docker history kestrel/uplink:1.0`. The satellite uplink's API key appears in plain text in both: it was baked into the image as an `ENV` line. Anyone who pulls this image owns the key.\n\nRebuild `kestrel/uplink:1.0` without it, and give the container the key as a read-only file at `/run/secrets/api_key`, taken from `/workspace/secrets/api_key.txt`. The program already knows how to read that file.\n\nRotating the key is Ingrid's job. Yours is making sure it is not in the image.\n\nW.",
       "objectives": [
-        "Run container `resource-hog` from `alpine` with:",
-        "Memory limit: `256m`",
-        "CPU limit: `0.5`",
-        "Run `sleep 3600` detached"
+        "Rebuild image `kestrel/uplink:1.0` from `/workspace` without the `API_KEY` environment variable in the image or its history",
+        "Replace container `uplink` with one from the new image, publishing host port 8160 to 8000",
+        "Bind-mount `/workspace/secrets/api_key.txt` read-only at `/run/secrets/api_key`",
+        "The container must not receive `API_KEY` as an environment variable"
       ],
+      "startingState": "`kestrel/uplink:1.0` was built with `ENV API_KEY=...` and container `uplink` runs on port 8160. The key file `secrets/api_key.txt` is ready.",
       "hints": [
-        "`--memory 256m` sets RAM limit; `--cpus 0.5` sets CPU limit",
-        "These prevent the container from consuming unlimited host resources",
-        "`docker run -d --name resource-hog --memory 256m --cpus 0.5 alpine sleep 3600`"
+        "Anything in `ENV`, `ARG` or a `RUN` command becomes part of the image's metadata or history, and `docker inspect` shows a container's environment too. Secrets should arrive at runtime, as a file that is not part of the image.",
+        "Delete the `ENV API_KEY=...` line from the Dockerfile and rebuild the same tag. Then recreate the container with a bind mount of the key file onto `/run/secrets/api_key`, ending in `:ro`. Do not pass the key with `-e`.",
+        "```bash\nsed -i '/^ENV API_KEY/d' Dockerfile\ndocker build -t kestrel/uplink:1.0 .\ndocker rm -f uplink\ndocker run -d --name uplink -p 8160:8000 \\\n  -v /workspace/secrets/api_key.txt:/run/secrets/api_key:ro \\\n  kestrel/uplink:1.0\n```"
       ],
+      "setup": {
+        "files": [
+          {
+            "path": "Dockerfile",
+            "content": "FROM python:3.12-alpine\nWORKDIR /srv\nENV API_KEY=kp_live_9Q4xT2\nCOPY app.py .\nCMD [\"python\", \"app.py\"]\n"
+          },
+          {
+            "path": "app.py",
+            "content": "import os\nfrom http.server import BaseHTTPRequestHandler, HTTPServer\n\n\ndef load_key():\n    try:\n        with open(\"/run/secrets/api_key\") as f:\n            return f.read().strip()\n    except OSError:\n        return os.environ.get(\"API_KEY\", \"\")\n\n\nclass Uplink(BaseHTTPRequestHandler):\n    def do_GET(self):\n        ok = load_key().startswith(\"kp_live_\")\n        self.send_response(200)\n        self.end_headers()\n        self.wfile.write(b\"UPLINK AUTH OK\\n\" if ok else b\"UPLINK NO KEY\\n\")\n\n\nHTTPServer((\"0.0.0.0\", 8000), Uplink).serve_forever()\n"
+          },
+          {
+            "path": "secrets/api_key.txt",
+            "content": "kp_live_9Q4xT2\n"
+          }
+        ],
+        "commands": [
+          "docker build -t kestrel/uplink:1.0 .",
+          "docker run -d --name uplink -p 8160:8000 kestrel/uplink:1.0"
+        ]
+      },
       "validation": [
+        {
+          "type": "shell",
+          "params": {
+            "command": "docker image inspect -f '{{json .Config.Env}}' kestrel/uplink:1.0",
+            "output_not_contains": "API_KEY"
+          },
+          "description": "The image's environment no longer contains `API_KEY`"
+        },
+        {
+          "type": "image_history",
+          "params": {
+            "ref": "kestrel/uplink:1.0",
+            "not_contains": "kp_live_9Q4xT2"
+          },
+          "description": "The image history no longer contains the key value"
+        },
         {
           "type": "container_running",
           "params": {
-            "name": "resource-hog"
+            "name": "uplink",
+            "image": "kestrel/uplink:1.0"
           },
-          "description": "name=resource-hog"
+          "description": "Container `uplink` is running from `kestrel/uplink:1.0`"
         },
         {
-          "type": "memory_limit",
+          "type": "shell",
           "params": {
-            "container": "resource-hog",
-            "limit": "268435456 (256MB in bytes)"
+            "command": "docker inspect -f '{{json .Config.Env}}' uplink",
+            "output_not_contains": "API_KEY"
           },
-          "description": "container=resource-hog, limit=268435456 (256MB in bytes)"
+          "description": "The container has no `API_KEY` environment variable"
         },
         {
-          "type": "cpu_limit",
+          "type": "mount",
           "params": {
-            "container": "resource-hog",
-            "cpus": 0.5
+            "name": "uplink",
+            "destination": "/run/secrets/api_key",
+            "type": "bind",
+            "rw": false
           },
-          "description": "container=resource-hog, cpus=0.5"
+          "description": "The key file is bind-mounted read-only at `/run/secrets/api_key`"
+        },
+        {
+          "type": "http",
+          "params": {
+            "url": "http://localhost:8160",
+            "body_contains": "UPLINK AUTH OK"
+          },
+          "description": "The uplink authenticates using the mounted key"
         }
       ],
-      "initialState": {
-        "summary": "Clean Docker environment",
-        "workspaceFiles": []
-      }
+      "solution": [
+        "sed -i '/^ENV API_KEY/d' Dockerfile",
+        "docker build -t kestrel/uplink:1.0 .",
+        "docker rm -f uplink",
+        "docker run -d --name uplink -p 8160:8000 -v /workspace/secrets/api_key.txt:/run/secrets/api_key:ro kestrel/uplink:1.0"
+      ],
+      "debrief": "Whatever you put in an image layer, `ENV` or `ARG` stays readable by anyone holding the image, so credentials belong in files mounted at runtime (Compose `secrets:` does the same thing). Pro tip: add secret paths to `.dockerignore` so they can never be copied in by accident, and rotate any key that was ever baked into an image."
     },
     {
       "id": "module_06_level_06",
       "moduleId": 6,
       "levelId": 6,
-      "title": "Scan an Image for Vulnerabilities",
-      "moduleTitle": "Docker Security",
+      "title": "A Relay That Can't Escalate",
+      "moduleTitle": "The Audit",
       "difficulty": "hard",
-      "xp": 350,
-      "story": "You've built an image `legacy-app:v1`. Use Docker Scout or Trivy to scan it for critical CVEs, then rebuild using an updated base image to eliminate the critical vulnerabilities.",
+      "xp": 190,
+      "concepts": [
+        "USER",
+        "no-new-privileges"
+      ],
+      "story": "**Kip:** quick question, what does USER do in a Dockerfile?\n\n**Kip:** asking because Wren ran `docker run --rm --entrypoint id kestrel/safe-relay:1.0 -u` on my relay image and said a word I can't repeat in front of Ingrid. It printed 0.\n\n**Kip:** she also wants the running container to have no-new-privileges, which I think means setuid tricks stop working? can you do the Dockerfile AND the container? Dockerfile and `relay.sh` are in /workspace. I'll watch and learn!",
       "objectives": [
-        "Scan `legacy-app:v1` (pre-built with old ubuntu base) and identify critical vulnerabilities",
-        "Rebuild with updated base image `ubuntu:22.04` as `legacy-app:v2`",
-        "Scan `legacy-app:v2` and confirm zero critical CVEs"
+        "Edit the Dockerfile so image `kestrel/safe-relay:1.0` creates an unprivileged user and sets it with `USER`, then rebuild that tag",
+        "The image's default user must not be root",
+        "Replace container `relay` with one from the rebuilt image, started with `no-new-privileges`",
+        "The container's process must not run as uid 0"
       ],
+      "startingState": "`kestrel/safe-relay:1.0` was built from the Dockerfile in `/workspace` (no `USER` line); container `relay` runs from it as root.",
       "hints": [
-        "`docker scout cves legacy-app:v1` or `trivy image legacy-app:v1`",
-        "Change `FROM ubuntu:18.04` to `FROM ubuntu:22.04` in the Dockerfile",
-        "Rebuild: `docker build -t legacy-app:v2 /workspace`"
+        "Without a `USER` instruction an image runs as root. Setting the user in the Dockerfile makes safe the default for everyone who runs the image, instead of relying on each person remembering a flag. The second requirement is a separate runtime setting, passed with `--security-opt`.",
+        "In the Dockerfile: create a user with Alpine's `addgroup -S` and `adduser -S`, then put `USER relay` before `CMD`. At runtime the option is `--security-opt no-new-privileges`. Rebuild the same tag and replace the old container.",
+        "```dockerfile\nFROM alpine:3.20\nRUN addgroup -S relay && adduser -S -G relay relay\nCOPY relay.sh /usr/local/bin/relay.sh\nUSER relay\nCMD [\"sh\", \"/usr/local/bin/relay.sh\"]\n```\n\nThen build and run:\n\n```bash\ndocker build -t kestrel/safe-relay:1.0 .\ndocker rm -f relay\ndocker run -d --name relay --security-opt no-new-privileges kestrel/safe-relay:1.0\n```"
       ],
-      "validation": [
-        {
-          "type": "image_exists",
-          "params": {
-            "name": "legacy-app",
-            "tag": "v2"
-          },
-          "description": "name=legacy-app, tag=v2"
-        },
-        {
-          "type": "scan_critical_cves_zero",
-          "params": {
-            "image": "legacy-app:v2"
-          },
-          "description": "image=legacy-app:v2"
-        }
-      ],
-      "initialState": {
-        "summary": "- `legacy-app:v1` pre-built using `ubuntu:18.04` (has known CVEs) - `/workspace/Dockerfile` available for editing",
-        "workspaceFiles": [
+      "setup": {
+        "files": [
           {
             "path": "Dockerfile",
-            "content": "FROM ubuntu:18.04\nRUN apt-get update\nRUN apt-get install -y curl\nRUN apt-get install -y wget\nCMD [\"bash\", \"-lc\", \"sleep 3600\"]\n"
+            "content": "FROM alpine:3.20\nCOPY relay.sh /usr/local/bin/relay.sh\nCMD [\"sh\", \"/usr/local/bin/relay.sh\"]\n"
+          },
+          {
+            "path": "relay.sh",
+            "content": "#!/bin/sh\necho \"relay up uid=$(id -u)\"\nwhile true; do sleep 30; done\n"
           }
+        ],
+        "commands": [
+          "docker build -t kestrel/safe-relay:1.0 .",
+          "docker run -d --name relay kestrel/safe-relay:1.0"
         ]
-      }
+      },
+      "validation": [
+        {
+          "type": "image_inspect",
+          "params": {
+            "ref": "kestrel/safe-relay:1.0",
+            "path": "Config.User",
+            "exists": true
+          },
+          "description": "The image sets a default user (`USER` in the Dockerfile)"
+        },
+        {
+          "type": "shell",
+          "params": {
+            "command": "[ \"$(docker run --rm --entrypoint id kestrel/safe-relay:1.0 -u)\" != \"0\" ]"
+          },
+          "description": "Running the image's default configuration does not give uid 0"
+        },
+        {
+          "type": "container_running",
+          "params": {
+            "name": "relay",
+            "image": "kestrel/safe-relay:1.0"
+          },
+          "description": "Container `relay` is running from `kestrel/safe-relay:1.0`"
+        },
+        {
+          "type": "shell",
+          "params": {
+            "command": "docker inspect -f '{{json .HostConfig.SecurityOpt}}' relay",
+            "output_contains": "no-new-privileges"
+          },
+          "description": "`relay` was started with `no-new-privileges`"
+        },
+        {
+          "type": "container_exec",
+          "params": {
+            "name": "relay",
+            "command": "[ \"$(id -u)\" != \"0\" ]"
+          },
+          "description": "The process inside `relay` is not uid 0"
+        },
+        {
+          "type": "container_logs",
+          "params": {
+            "name": "relay",
+            "contains": "relay up uid=",
+            "not_contains": "uid=0"
+          },
+          "description": "The relay reports an unprivileged uid in its log"
+        }
+      ],
+      "solution": [
+        "cat > Dockerfile <<'EOF'\nFROM alpine:3.20\nRUN addgroup -S relay && adduser -S -G relay relay\nCOPY relay.sh /usr/local/bin/relay.sh\nUSER relay\nCMD [\"sh\", \"/usr/local/bin/relay.sh\"]\nEOF",
+        "docker build -t kestrel/safe-relay:1.0 .",
+        "docker rm -f relay",
+        "docker run -d --name relay --security-opt no-new-privileges kestrel/safe-relay:1.0"
+      ],
+      "debrief": "`USER` makes the safe choice the default for everyone who runs the image, and `no-new-privileges` stops setuid binaries from gaining more rights than the process started with -- two layers that work together. Pro tip: put `USER` after your `RUN` steps that need root (installing packages), so only the final runtime stage is unprivileged."
     }
   ]
 }

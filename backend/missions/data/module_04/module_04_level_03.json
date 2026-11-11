@@ -89,5 +89,5 @@
   "solution": [
     "docker run -d --name decoder --tmpfs /scratch:rw,size=16m -v /workspace/decoder:/opt/decoder:ro alpine:3.20 sh /opt/decoder/decode.sh"
   ],
-  "debrief": "A tmpfs mount keeps temporary data in memory, never touches the disk, and vanishes when the container stops. Pro tip: always set a size, because an unbounded tmpfs can grow until it competes with your applications for RAM."
+  "debrief": "Nothing written to `/scratch` ever reaches the disk: tmpfs lives in RAM and disappears with the container. Pro tip: always cap it with `size=`, or a runaway decoder can eat the memory your other services need."
 }

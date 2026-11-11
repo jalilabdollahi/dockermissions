@@ -1,323 +1,670 @@
 {
   "id": 5,
-  "title": "Docker Compose",
-  "theme": "Multi-container applications",
+  "title": "The Station Stack",
+  "theme": "Describe the whole station declaratively with Compose",
   "totalLevels": 7,
   "missions": [
     {
       "id": "module_05_level_01",
       "moduleId": 5,
       "levelId": 1,
-      "title": "Your First Compose File",
-      "moduleTitle": "Docker Compose",
+      "title": "Write It Down Once",
+      "moduleTitle": "The Station Stack",
       "difficulty": "easy",
-      "xp": 50,
-      "story": "Running multi-container apps with `docker run` is painful. Docker Compose lets you define everything in one YAML file. Write a Compose file that runs a single `nginx` service.",
+      "xp": 60,
+      "concepts": [
+        "compose.yaml",
+        "docker compose up",
+        "project name"
+      ],
+      "story": "Taped to the rack, in Tomasz's tiny handwriting:\n\n\"After every power blip I retype the same docker run line from memory. Last night I got the port wrong and the crew stared at a blank dashboard until breakfast.\n\nIngrid says the whole station should live in ONE file. Start with the dashboard. `restart-dashboard.sh` shows what I type; the hand-started container `dashboard-hand` is still sitting on port 8090. Please replace it with a Compose project named `station`, so one command brings the dashboard back every time. -- T.W.\" ",
       "objectives": [
-        "Write `/workspace/docker-compose.yml` with one service: `web` using image `nginx:latest`, no port mapping yet",
-        "Run `docker compose up -d`",
-        "Confirm service `web` is running"
+        "Remove the hand-started container `dashboard-hand`",
+        "Create `/workspace/compose.yaml` with the top-level project name `station`",
+        "Define a service `dashboard` from `nginx:alpine`, publishing host port 8090 to container port 80 and mounting `./dashboard` read-only at `/usr/share/nginx/html`",
+        "Bring the project up in the background so http://localhost:8090 shows the dashboard"
       ],
+      "startingState": "`/workspace/dashboard/index.html` and Tomasz's `restart-dashboard.sh` exist; container `dashboard-hand` is already serving the page on port 8090.",
       "hints": [
-        "A Compose file has a `services:` key at the top level",
-        "```yaml",
-        "Write the file, then `docker compose -f /workspace/docker-compose.yml up -d`"
+        "Compose lets you describe containers in a YAML file instead of typing `docker run` flags. The file is called `compose.yaml`, and a single `docker compose` command in that folder reads it. Port 8090 is taken, so deal with the old container first.",
+        "The file has two top-level keys: `name:` (the project name) and `services:`. Under a service you list `image`, a `ports` list written as \"host:container\", and `volumes` where a trailing `:ro` makes the mount read-only. Remove the old container with `docker rm -f`, then start the project with `docker compose up -d`.",
+        "Put this in `compose.yaml`, then run `docker rm -f dashboard-hand && docker compose up -d`:\n\n```yaml\nname: station\nservices:\n  dashboard:\n    image: nginx:alpine\n    ports:\n      - \"8090:80\"\n    volumes:\n      - ./dashboard:/usr/share/nginx/html:ro\n```"
       ],
+      "setup": {
+        "files": [
+          {
+            "path": "dashboard/index.html",
+            "content": "<h1>KESTREL DASHBOARD</h1>\n<p>Power: nominal. Wind: 41 km/h. Ice: stable.</p>\n"
+          },
+          {
+            "path": "restart-dashboard.sh",
+            "content": "#!/bin/sh\n# Tomasz: typed from memory after every power blip\ndocker rm -f dashboard-hand\ndocker run -d --name dashboard-hand -p 8090:80 \\\n  -v /workspace/dashboard:/usr/share/nginx/html:ro nginx:alpine\n"
+          }
+        ],
+        "commands": [
+          "docker run -d --name dashboard-hand -p 8090:80 -v /workspace/dashboard:/usr/share/nginx/html:ro nginx:alpine"
+        ]
+      },
       "validation": [
         {
-          "type": "compose_service_running",
+          "type": "container_absent",
           "params": {
-            "service": "web",
-            "project": "workspace"
+            "name": "dashboard-hand"
           },
-          "description": "service=web, project=workspace"
+          "description": "The hand-started container `dashboard-hand` is removed"
+        },
+        {
+          "type": "workspace_file",
+          "params": {
+            "path": "compose.yaml",
+            "contains": "name: station"
+          },
+          "description": "`/workspace/compose.yaml` exists and declares `name: station`"
+        },
+        {
+          "type": "compose_service",
+          "params": {
+            "project": "station",
+            "service": "dashboard",
+            "running": 1
+          },
+          "description": "Compose project `station` has a running `dashboard` service"
+        },
+        {
+          "type": "shell",
+          "params": {
+            "command": "docker inspect -f '{{range .Mounts}}{{.Destination}} rw={{.RW}}{{end}}' $(docker ps -q --filter label=com.docker.compose.project=station --filter label=com.docker.compose.service=dashboard)",
+            "output_contains": "/usr/share/nginx/html rw=false"
+          },
+          "description": "The dashboard content is mounted read-only at `/usr/share/nginx/html`"
+        },
+        {
+          "type": "http",
+          "params": {
+            "url": "http://localhost:8090",
+            "body_contains": "KESTREL DASHBOARD"
+          },
+          "description": "http://localhost:8090 serves the Kestrel dashboard"
         }
       ],
-      "initialState": {
-        "summary": "`/workspace` is empty",
-        "workspaceFiles": []
-      }
+      "solution": [
+        "docker rm -f dashboard-hand",
+        "cat > compose.yaml <<'EOF'\nname: station\nservices:\n  dashboard:\n    image: nginx:alpine\n    ports:\n      - \"8090:80\"\n    volumes:\n      - ./dashboard:/usr/share/nginx/html:ro\nEOF",
+        "docker compose up -d"
+      ],
+      "debrief": "A compose.yaml turns a pile of remembered flags into a file you can read, review and version: `docker compose up -d` always rebuilds the same state, and the `name:` key decides which project owns the containers. Pro tip: `docker compose config` prints the fully resolved file, which is the fastest way to catch YAML mistakes before anything starts."
     },
     {
       "id": "module_05_level_02",
       "moduleId": 5,
       "levelId": 2,
-      "title": "Multiple Services",
-      "moduleTitle": "Docker Compose",
-      "difficulty": "easy",
-      "xp": 50,
-      "story": "Real apps have multiple components. Define a Compose stack with a `web` (nginx) service and a `db` (postgres:15-alpine) service.",
+      "title": "Two Services, One File",
+      "moduleTitle": "The Station Stack",
+      "difficulty": "medium",
+      "xp": 110,
+      "concepts": [
+        "multi-service compose",
+        "environment",
+        "depends_on"
+      ],
+      "story": "**#kestrel-dev, 02:14**\n\nAmara: the hit counter works on my laptop!!\n\nAmara: it needs redis. `app/app.py` reads `REDIS_HOST` from the environment. I was running redis in a tmux pane. don't ask.\n\nAmara: can you put both in one compose file? project name `weather-desk`. the API is `api` on port 8100, redis is `cache`, and api shouldn't start before cache exists. I'm going to sleep.",
       "objectives": [
-        "Write a `docker-compose.yml` with services `web` (nginx) and `db` (postgres:15-alpine)",
-        "Set required env var for postgres: `POSTGRES_PASSWORD=secret`",
-        "Run `docker compose up -d`"
+        "Create `/workspace/compose.yaml` for the project `weather-desk`",
+        "Service `cache` runs `redis:7-alpine`",
+        "Service `api` runs `python:3.12-alpine` with command `python /app/app.py`, mounts `./app` at `/app` read-only, publishes 8100 to 8000, sets `REDIS_HOST=cache` and declares `depends_on: cache`",
+        "Start the project so http://localhost:8100 returns the hit counter"
       ],
+      "startingState": "`/workspace/app/app.py` is Amara's counter service; nothing is running yet.",
       "hints": [
-        "Add multiple entries under `services:`",
-        "Use `environment:` key for env vars",
-        "```yaml"
+        "Both programs go into one `compose.yaml` under `services:`. Services on the same Compose project can reach each other by service name, so the API only needs the right hostname handed to it as an environment variable.",
+        "Give `api` an `environment:` block whose value is the name of the redis service, and a `depends_on:` list so Compose starts `cache` first. Because the code lives in `./app`, mount that folder and set `command:` to run the script from the mounted path.",
+        "A full file for this mission looks like this. Save it as `compose.yaml` and run `docker compose up -d`:\n\n```yaml\nname: weather-desk\nservices:\n  cache:\n    image: redis:7-alpine\n  api:\n    image: python:3.12-alpine\n    command: python /app/app.py\n    volumes:\n      - ./app:/app:ro\n    ports:\n      - \"8100:8000\"\n    environment:\n      REDIS_HOST: cache\n    depends_on:\n      - cache\n```"
       ],
+      "setup": {
+        "files": [
+          {
+            "path": "app/app.py",
+            "content": "import os, socket\nfrom http.server import BaseHTTPRequestHandler, HTTPServer\n\nHOST = os.environ[\"REDIS_HOST\"]\n\n\ndef bump():\n    with socket.create_connection((HOST, 6379), timeout=2) as s:\n        s.sendall(b\"INCR hits\\r\\n\")\n        return int(s.recv(64).strip()[1:])\n\n\nclass Desk(BaseHTTPRequestHandler):\n    def do_GET(self):\n        body = f\"WEATHER DESK hits={bump()}\\n\".encode()\n        self.send_response(200)\n        self.end_headers()\n        self.wfile.write(body)\n\n\nHTTPServer((\"0.0.0.0\", 8000), Desk).serve_forever()\n"
+          }
+        ],
+        "commands": []
+      },
       "validation": [
         {
-          "type": "compose_service_running",
+          "type": "workspace_file",
           "params": {
-            "service": "web"
+            "path": "compose.yaml",
+            "contains": "name: weather-desk"
           },
-          "description": "service=web"
+          "description": "`compose.yaml` declares `name: weather-desk`"
         },
         {
-          "type": "compose_service_running",
+          "type": "compose_service",
           "params": {
-            "service": "db"
+            "project": "weather-desk",
+            "service": "cache",
+            "running": 1
           },
-          "description": "service=db"
+          "description": "Service `cache` is running in project `weather-desk`"
         },
         {
-          "type": "env_var_set",
+          "type": "compose_service",
           "params": {
-            "container": "*db*",
-            "key": "POSTGRES_PASSWORD",
-            "value": "secret"
+            "project": "weather-desk",
+            "service": "api",
+            "running": 1
           },
-          "description": "container=*db*, key=POSTGRES_PASSWORD, value=secret"
+          "description": "Service `api` is running in project `weather-desk`"
+        },
+        {
+          "type": "workspace_file",
+          "params": {
+            "path": "compose.yaml",
+            "contains": "depends_on"
+          },
+          "description": "`api` declares `depends_on` so it starts after `cache`"
+        },
+        {
+          "type": "shell",
+          "params": {
+            "command": "docker compose -p weather-desk exec -T api printenv REDIS_HOST",
+            "output_contains": "cache"
+          },
+          "description": "`api` receives `REDIS_HOST=cache`"
+        },
+        {
+          "type": "http",
+          "params": {
+            "url": "http://localhost:8100",
+            "body_contains": "WEATHER DESK hits="
+          },
+          "description": "http://localhost:8100 returns the hit counter from redis"
         }
       ],
-      "initialState": {
-        "summary": "Clean Docker environment",
-        "workspaceFiles": []
-      }
+      "solution": [
+        "cat > compose.yaml <<'EOF'\nname: weather-desk\nservices:\n  cache:\n    image: redis:7-alpine\n  api:\n    image: python:3.12-alpine\n    command: python /app/app.py\n    volumes:\n      - ./app:/app:ro\n    ports:\n      - \"8100:8000\"\n    environment:\n      REDIS_HOST: cache\n    depends_on:\n      - cache\nEOF",
+        "docker compose up -d"
+      ],
+      "debrief": "Compose gives every project its own network where each service name is a DNS name, so `REDIS_HOST: cache` is all the wiring the API needs. Pro tip: `depends_on` only orders container start, not readiness -- if the dependency needs time to become usable, pair it with a healthcheck."
     },
     {
       "id": "module_05_level_03",
       "moduleId": 5,
       "levelId": 3,
-      "title": "Port Mapping in Compose",
-      "moduleTitle": "Docker Compose",
-      "difficulty": "easy",
-      "xp": 50,
-      "story": "Expose the nginx service on host port 8080.",
+      "title": "Build on Arrival",
+      "moduleTitle": "The Station Stack",
+      "difficulty": "medium",
+      "xp": 120,
+      "concepts": [
+        "compose build",
+        "image naming"
+      ],
+      "story": "```\n[nightly] 03:00:01 docker build -t ingest-dev ./ingest      OK\n[nightly] 03:00:09 docker run -d -p 8110:8000 kestrel/ingest:dev\n[nightly] 03:00:09 Unable to find image 'kestrel/ingest:dev' locally\n[nightly] 03:00:10 docker: pull access denied for kestrel/ingest\n[nightly] 03:00:10 FATAL: ingest bay is dark\n```\n\nIngrid pinned this above the coffee machine. Amara's nightly script builds one tag and runs another, so the ingest bay for the radiometer data has been dark for three nights. She wants build and run to stop disagreeing: a Compose project `ingest-bay` with one service `ingest`, built from the `./ingest` folder and tagged `kestrel/ingest:dev`.",
       "objectives": [
-        "Add `ports: [\"8080:80\"]` to the `web` service",
-        "Restart the stack",
-        "Confirm http://localhost:8080 responds"
+        "Create `/workspace/compose.yaml` for project `ingest-bay`",
+        "Service `ingest` builds from `./ingest` and is tagged `kestrel/ingest:dev`",
+        "It publishes host port 8110 to container port 8000",
+        "Run it so image `kestrel/ingest:dev` exists and http://localhost:8110 answers"
       ],
+      "startingState": "`/workspace/ingest/` holds a working Dockerfile and `app.py`; no image has been built.",
       "hints": [
-        "Use `ports:` key under the service",
-        "Format: `\"host:container\"`",
-        "`ports: [\"8080:80\"]`"
+        "A Compose service can carry a `build:` instruction instead of only pulling an image, so Compose builds it for you during `up`. If the service also has an `image:` key, that key becomes the name the built image receives.",
+        "Under the service use `build: ./ingest` (the folder containing the Dockerfile) together with `image: kestrel/ingest:dev`. Then `docker compose up -d --build` builds and starts it in one go.",
+        "Save this as `compose.yaml` and run `docker compose up -d --build`:\n\n```yaml\nname: ingest-bay\nservices:\n  ingest:\n    build: ./ingest\n    image: kestrel/ingest:dev\n    ports:\n      - \"8110:8000\"\n```"
       ],
+      "setup": {
+        "files": [
+          {
+            "path": "ingest/Dockerfile",
+            "content": "FROM python:3.12-alpine\nWORKDIR /srv\nCOPY app.py .\nEXPOSE 8000\nCMD [\"python\", \"app.py\"]\n"
+          },
+          {
+            "path": "ingest/app.py",
+            "content": "from http.server import BaseHTTPRequestHandler, HTTPServer\n\n\nclass Bay(BaseHTTPRequestHandler):\n    def do_GET(self):\n        self.send_response(200)\n        self.end_headers()\n        self.wfile.write(b\"INGEST READY: radiometer feed open\\n\")\n\n\nHTTPServer((\"0.0.0.0\", 8000), Bay).serve_forever()\n"
+          }
+        ],
+        "commands": []
+      },
       "validation": [
         {
-          "type": "port_exposed",
+          "type": "workspace_file",
           "params": {
-            "service": "web",
-            "host_port": 8080,
-            "container_port": 80
+            "path": "compose.yaml",
+            "matches": "name: ingest-bay[\\s\\S]*build:"
           },
-          "description": "service=web, host_port=8080, container_port=80"
+          "description": "`compose.yaml` declares `name: ingest-bay` and a `build:` section"
         },
         {
-          "type": "http_responds",
+          "type": "image_exists",
           "params": {
-            "url": "http://localhost:8080",
-            "status": 200
+            "ref": "kestrel/ingest:dev"
           },
-          "description": "url=http://localhost:8080, status=200"
+          "description": "Image `kestrel/ingest:dev` exists"
+        },
+        {
+          "type": "compose_service",
+          "params": {
+            "project": "ingest-bay",
+            "service": "ingest",
+            "running": 1
+          },
+          "description": "Service `ingest` is running in project `ingest-bay`"
+        },
+        {
+          "type": "shell",
+          "params": {
+            "command": "docker ps --filter label=com.docker.compose.project=ingest-bay --filter label=com.docker.compose.service=ingest --format '{{.Image}}'",
+            "output_contains": "kestrel/ingest:dev"
+          },
+          "description": "The running `ingest` container uses image `kestrel/ingest:dev`"
+        },
+        {
+          "type": "http",
+          "params": {
+            "url": "http://localhost:8110",
+            "body_contains": "INGEST READY"
+          },
+          "description": "http://localhost:8110 reports the ingest bay is ready"
         }
       ],
-      "initialState": {
-        "summary": "Clean Docker environment",
-        "workspaceFiles": []
-      }
+      "solution": [
+        "cat > compose.yaml <<'EOF'\nname: ingest-bay\nservices:\n  ingest:\n    build: ./ingest\n    image: kestrel/ingest:dev\n    ports:\n      - \"8110:8000\"\nEOF",
+        "docker compose up -d --build"
+      ],
+      "debrief": "With `build:` plus `image:`, Compose is the single source of truth for both how an image is made and what it is called, so scripts can no longer drift apart. Pro tip: `docker compose build` only builds, and `docker compose up -d --build` forces a rebuild after you edit code -- plain `up` reuses an existing image."
     },
     {
       "id": "module_05_level_04",
       "moduleId": 5,
       "levelId": 4,
-      "title": "Named Volumes in Compose",
-      "moduleTitle": "Docker Compose",
-      "difficulty": "medium",
-      "xp": 100,
-      "story": "Your Postgres data disappears on every `docker compose down`. Add a named volume `db-data` to persist it.",
+      "title": "Wait for the Database",
+      "moduleTitle": "The Station Stack",
+      "difficulty": "hard",
+      "xp": 190,
+      "concepts": [
+        "healthcheck",
+        "depends_on condition",
+        "one-shot service"
+      ],
+      "story": "[RADIO -- PETREL, CHANNEL 9]\n\nRafael Duarte: Kestrel Point, Petrel. I sail at dawn and my cargo manifest has to be in your database before I load. Last time the migration ran while Postgres was still starting, the table never got made, and I loaded half the crates blind. Over.\n\nIngrid, from the doorway: Compose project `manifest`, engineer. Service `db` is Postgres, container name `manifest-db`, with a health check. Service `migrate` runs `migrations/001_cargo.sql` once the database is healthy, then exits cleanly. The tide won't wait. Over.",
       "objectives": [
-        "Add a named volume `db-data` to the Compose file",
-        "Mount it in the `db` service at `/var/lib/postgresql/data`",
-        "Re-deploy the stack"
+        "Create `/workspace/compose.yaml` for project `manifest`",
+        "Service `db` runs `postgres:16-alpine` with `container_name: manifest-db`, a `POSTGRES_PASSWORD`, and a healthcheck",
+        "Service `migrate` runs `psql` against host `db` with the file `/migrations/001_cargo.sql` (mount `./migrations`), starts only when `db` is healthy and exits with code 0",
+        "Bring the project up: `manifest-db` is healthy and table `cargo_manifest` contains 3 rows"
       ],
+      "startingState": "`/workspace/migrations/001_cargo.sql` creates and fills `cargo_manifest`; there is no compose file yet.",
       "hints": [
-        "Define volumes at the top level `volumes:` and reference them in services",
-        "```yaml",
-        "db-data:/var/lib/postgresql/data",
-        "Add both the top-level `volumes:` block and the service-level mount"
+        "A container being 'started' is not the same as the service inside it being ready. Compose can wait for a health check: give `db` a `healthcheck`, and make `migrate` depend on it with a condition rather than just a name.",
+        "Use `pg_isready` as the health test and `depends_on: db: condition: service_healthy` on the migrator. The migrator can reuse the Postgres image just for its `psql` client; give it `PGPASSWORD` and set `restart: \"no\"` so it exits once and stays done. Use `-h 127.0.0.1` in the health test so it only turns healthy when Postgres accepts network connections.",
+        "A complete file, followed by `docker compose up -d`:\n\n```yaml\nname: manifest\nservices:\n  db:\n    image: postgres:16-alpine\n    container_name: manifest-db\n    environment:\n      POSTGRES_PASSWORD: kestrel-pass\n    healthcheck:\n      test: [\"CMD-SHELL\", \"pg_isready -h 127.0.0.1 -U postgres\"]\n      interval: 2s\n      timeout: 3s\n      retries: 20\n  migrate:\n    image: postgres:16-alpine\n    depends_on:\n      db:\n        condition: service_healthy\n    environment:\n      PGPASSWORD: kestrel-pass\n    volumes:\n      - ./migrations:/migrations:ro\n    command: [\"psql\", \"-h\", \"db\", \"-U\", \"postgres\", \"-v\", \"ON_ERROR_STOP=1\", \"-f\", \"/migrations/001_cargo.sql\"]\n    restart: \"no\"\n```"
       ],
+      "setup": {
+        "files": [
+          {
+            "path": "migrations/001_cargo.sql",
+            "content": "CREATE TABLE IF NOT EXISTS cargo_manifest (\n  id serial PRIMARY KEY,\n  item text NOT NULL,\n  crates integer NOT NULL\n);\nINSERT INTO cargo_manifest (item, crates) VALUES\n  ('ice-core tubes', 40),\n  ('diesel drums', 12),\n  ('fresh bread', 6);\n"
+          }
+        ],
+        "commands": []
+      },
       "validation": [
         {
-          "type": "volume_exists",
+          "type": "workspace_file",
           "params": {
-            "name": "*db-data*"
+            "path": "compose.yaml",
+            "contains": "service_healthy"
           },
-          "description": "name=*db-data*"
+          "description": "`migrate` waits for `db` with `condition: service_healthy`"
         },
         {
-          "type": "volume_mounted",
+          "type": "compose_service",
           "params": {
+            "project": "manifest",
             "service": "db",
-            "volume": "*db-data*",
-            "path": "/var/lib/postgresql/data"
+            "running": 1
           },
-          "description": "service=db, volume=*db-data*, path=/var/lib/postgresql/data"
+          "description": "Service `db` is running in project `manifest`"
+        },
+        {
+          "type": "health",
+          "params": {
+            "name": "manifest-db",
+            "status": "healthy"
+          },
+          "description": "Container `manifest-db` is healthy"
+        },
+        {
+          "type": "shell",
+          "params": {
+            "command": "docker ps -a --filter label=com.docker.compose.project=manifest --filter label=com.docker.compose.service=migrate --format '{{.Status}}'",
+            "output_contains": "Exited (0)"
+          },
+          "description": "The one-shot `migrate` container finished with exit code 0"
+        },
+        {
+          "type": "container_exec",
+          "params": {
+            "name": "manifest-db",
+            "command": "psql -U postgres -tAc \"SELECT count(*) FROM cargo_manifest\"",
+            "output_equals": "3"
+          },
+          "description": "Table `cargo_manifest` holds the 3 manifest rows"
         }
       ],
-      "initialState": {
-        "summary": "Clean Docker environment",
-        "workspaceFiles": []
-      }
+      "solution": [
+        "cat > compose.yaml <<'EOF'\nname: manifest\nservices:\n  db:\n    image: postgres:16-alpine\n    container_name: manifest-db\n    environment:\n      POSTGRES_PASSWORD: kestrel-pass\n    healthcheck:\n      test: [\"CMD-SHELL\", \"pg_isready -h 127.0.0.1 -U postgres\"]\n      interval: 2s\n      timeout: 3s\n      retries: 20\n  migrate:\n    image: postgres:16-alpine\n    depends_on:\n      db:\n        condition: service_healthy\n    environment:\n      PGPASSWORD: kestrel-pass\n    volumes:\n      - ./migrations:/migrations:ro\n    command: [\"psql\", \"-h\", \"db\", \"-U\", \"postgres\", \"-v\", \"ON_ERROR_STOP=1\", \"-f\", \"/migrations/001_cargo.sql\"]\n    restart: \"no\"\nEOF",
+        "docker compose up -d"
+      ],
+      "debrief": "`condition: service_healthy` makes the migrator wait for the moment the database actually answers, not just the moment its process starts. Pro tip: write migrations with `IF NOT EXISTS`, so rerunning the one-shot service is harmless."
     },
     {
       "id": "module_05_level_05",
       "moduleId": 5,
       "levelId": 5,
-      "title": "Custom Network in Compose",
-      "moduleTitle": "Docker Compose",
+      "title": "Many Hands",
+      "moduleTitle": "The Station Stack",
       "difficulty": "medium",
-      "xp": 100,
-      "story": "By default Compose creates one network. Define a custom network `backend` and put the `db` on it. Put `web` on both `backend` and a `frontend` network.",
+      "xp": 120,
+      "concepts": [
+        "scaling services",
+        "replicas",
+        "container_name conflicts"
+      ],
+      "story": "NORA: SURVEY-QUEUE BACKLOG 412 JOBS\nNORA: SURVEY-WORKER COUNT 1. EXPECTED 3\nNORA: CPU HEADROOM 71 PERCENT. IDLE\n\nThe glacier survey pipeline (Compose project `survey`) has a `queue` and a single `worker`. The jobs are independent; three workers would clear the backlog before the shift ends. Amara tried to scale it and got a name conflict, because the compose file pins a container name and a host port on the worker. Fix the file so `docker compose up -d` leaves exactly three `worker` containers, and do not disturb the `queue`.",
       "objectives": [
-        "Define two networks: `frontend` and `backend`",
-        "`web` service on both networks",
-        "`db` service only on `backend` network"
+        "Edit `/workspace/compose.yaml` so service `worker` has no fixed `container_name` and no published host port",
+        "Project `survey` runs exactly 3 containers of service `worker` (via `deploy.replicas` or `--scale`)",
+        "Service `queue` keeps running"
       ],
+      "startingState": "Project `survey` is up with one `survey-worker` (host port 8200) and a redis `queue`.",
       "hints": [
-        "Define networks at the top level `networks:` and reference under each service",
-        "A service can list multiple networks",
-        "Use `networks:` key both at the top level and under each service"
+        "Compose names containers `project-service-N` so they can be numbered. A hard-coded `container_name` allows only one copy, and a fixed host port can be bound by only one container, so both must go before a service can have several replicas.",
+        "Delete the `container_name:` line and the `ports:` section from `worker`, then ask for three copies, either with `deploy: replicas: 3` in the file or with `docker compose up -d --scale worker=3` on the command line.",
+        "The worker section should end up like this, then run `docker compose up -d`:\n\n```yaml\n  worker:\n    image: python:3.12-alpine\n    command: [\"python\", \"-m\", \"http.server\", \"8000\"]\n    deploy:\n      replicas: 3\n```"
       ],
+      "setup": {
+        "files": [
+          {
+            "path": "compose.yaml",
+            "content": "name: survey\nservices:\n  queue:\n    image: redis:7-alpine\n  worker:\n    image: python:3.12-alpine\n    container_name: survey-worker\n    command: [\"python\", \"-m\", \"http.server\", \"8000\"]\n    ports:\n      - \"8200:8000\"\n"
+          }
+        ],
+        "commands": [
+          "docker compose up -d"
+        ]
+      },
       "validation": [
         {
-          "type": "network_exists",
+          "type": "workspace_file",
           "params": {
-            "name": "*frontend*"
+            "path": "compose.yaml",
+            "not_contains": "container_name"
           },
-          "description": "name=*frontend*"
+          "description": "`worker` no longer pins a `container_name`"
         },
         {
-          "type": "network_exists",
+          "type": "workspace_file",
           "params": {
-            "name": "*backend*"
+            "path": "compose.yaml",
+            "not_contains": "8200"
           },
-          "description": "name=*backend*"
+          "description": "`worker` no longer publishes fixed host port 8200"
         },
         {
-          "type": "service_on_network",
+          "type": "compose_service",
           "params": {
-            "service": "web",
-            "network": "frontend"
+            "project": "survey",
+            "service": "worker",
+            "count": 3
           },
-          "description": "service=web, network=frontend"
+          "description": "Exactly 3 `worker` containers are running in project `survey`"
         },
         {
-          "type": "service_on_network",
+          "type": "compose_service",
           "params": {
-            "service": "web",
-            "network": "backend"
+            "project": "survey",
+            "service": "queue",
+            "running": 1
           },
-          "description": "service=web, network=backend"
-        },
-        {
-          "type": "service_on_network",
-          "params": {
-            "service": "db",
-            "network": "backend"
-          },
-          "description": "service=db, network=backend"
-        },
-        {
-          "type": "service_not_on_network",
-          "params": {
-            "service": "db",
-            "network": "frontend"
-          },
-          "description": "service=db, network=frontend"
+          "description": "The `queue` service is still running"
         }
       ],
-      "initialState": {
-        "summary": "Clean Docker environment",
-        "workspaceFiles": []
-      }
+      "solution": [
+        "cat > compose.yaml <<'EOF'\nname: survey\nservices:\n  queue:\n    image: redis:7-alpine\n  worker:\n    image: python:3.12-alpine\n    command: [\"python\", \"-m\", \"http.server\", \"8000\"]\n    deploy:\n      replicas: 3\nEOF",
+        "docker compose up -d"
+      ],
+      "debrief": "Anything that must be unique per container -- a fixed container name or a fixed host port -- blocks horizontal scaling; stateless workers should be anonymous and reached through the project network. Pro tip: `docker compose up -d --scale worker=5` changes the count on the fly, but `deploy.replicas` keeps the number written down in the file."
     },
     {
       "id": "module_05_level_06",
       "moduleId": 5,
       "levelId": 6,
-      "title": "Health Checks and Depends_on",
-      "moduleTitle": "Docker Compose",
+      "title": "Front Door, Back Room",
+      "moduleTitle": "The Station Stack",
       "difficulty": "hard",
       "xp": 200,
-      "story": "The `web` service crashes on startup because `db` isn't ready. Use `depends_on` with a health check to make `web` wait for `db` to be healthy before starting.",
+      "concepts": [
+        "compose networks",
+        "segmentation",
+        "least exposure"
+      ],
+      "story": "FRONT-DOOR CHECKLIST -- Ingrid Halvorsen, unsigned\n\n[ ] Crew traffic enters through `proxy` on port 8120 and nowhere else.\n[ ] `db` lives in the back room: `proxy` must have no route to it, ever.\n[ ] `api` is the only service allowed to stand in both rooms.\n\nRight now all three services share one flat network, so a compromised proxy could talk straight to the database. Rework the stack in Compose project `frontdoor` with two networks, `front` and `back`, and bring it up again. Tick every box.",
       "objectives": [
-        "Add a `healthcheck` to the `db` service: `pg_isready -U postgres`",
-        "Add `depends_on: db: condition: service_healthy` to the `web` service",
-        "Redeploy and confirm `web` starts only after `db` is healthy"
+        "In `/workspace/compose.yaml` (project `frontdoor`) define networks `front` and `back`",
+        "`proxy` joins only `front`; `db` joins only `back`; `api` joins both",
+        "The stack runs, and http://localhost:8120 returns the API answer including `db=PONG`",
+        "From inside `proxy`, the hostname `db` must not resolve"
       ],
+      "startingState": "Project `frontdoor` runs with `proxy`, `api` and `db` all on Compose's default flat network.",
       "hints": [
-        "`healthcheck` has `test`, `interval`, `timeout`, `retries` keys",
-        "`depends_on` can take a `condition: service_healthy` qualifier",
-        "```yaml"
+        "Compose creates one default network for a project, and every service on it can see every other. Containers can only resolve each other when they share at least one network, so segmentation means declaring your own networks and attaching each service only where it belongs.",
+        "Add a top-level `networks:` section with `front` and `back`, and a `networks:` list under every service. Once every service lists networks explicitly, the default one disappears. Then apply the change with `docker compose up -d`.",
+        "Keep the services you have and add the network wiring:\n\n```yaml\nservices:\n  proxy:\n    networks: [front]\n  api:\n    networks: [front, back]\n  db:\n    networks: [back]\nnetworks:\n  front:\n  back:\n```"
       ],
+      "setup": {
+        "files": [
+          {
+            "path": "compose.yaml",
+            "content": "name: frontdoor\nservices:\n  proxy:\n    image: nginx:alpine\n    ports:\n      - \"8120:80\"\n    volumes:\n      - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro\n    depends_on:\n      - api\n  api:\n    image: python:3.12-alpine\n    command: [\"python\", \"/app/app.py\"]\n    volumes:\n      - ./api:/app:ro\n    environment:\n      DB_HOST: db\n  db:\n    image: redis:7-alpine\n"
+          },
+          {
+            "path": "nginx.conf",
+            "content": "server {\n  listen 80;\n  location / {\n    proxy_pass http://api:8000;\n  }\n}\n"
+          },
+          {
+            "path": "api/app.py",
+            "content": "import os, socket\nfrom http.server import BaseHTTPRequestHandler, HTTPServer\n\nDB = os.environ[\"DB_HOST\"]\n\n\ndef ping():\n    with socket.create_connection((DB, 6379), timeout=2) as s:\n        s.sendall(b\"PING\\r\\n\")\n        return s.recv(16).decode().strip().lstrip(\"+\")\n\n\nclass Api(BaseHTTPRequestHandler):\n    def do_GET(self):\n        try:\n            body = f\"API OK db={ping()}\\n\".encode()\n        except OSError:\n            body = b\"API OK db=DOWN\\n\"\n        self.send_response(200)\n        self.end_headers()\n        self.wfile.write(body)\n\n\nHTTPServer((\"0.0.0.0\", 8000), Api).serve_forever()\n"
+          }
+        ],
+        "commands": [
+          "docker compose up -d"
+        ]
+      },
       "validation": [
         {
-          "type": "service_has_healthcheck",
+          "type": "shell",
           "params": {
-            "service": "db"
+            "command": "docker inspect -f '{{range $k,$v := .NetworkSettings.Networks}}{{$k}} {{end}}' $(docker ps -q --filter label=com.docker.compose.project=frontdoor --filter label=com.docker.compose.service=proxy) | xargs -n1 | sort | xargs",
+            "output_equals": "frontdoor_front"
           },
-          "description": "service=db"
+          "description": "`proxy` is attached only to the `front` network"
         },
         {
-          "type": "depends_on_healthy",
+          "type": "shell",
           "params": {
-            "service": "web",
-            "depends_on": "db"
+            "command": "docker inspect -f '{{range $k,$v := .NetworkSettings.Networks}}{{$k}} {{end}}' $(docker ps -q --filter label=com.docker.compose.project=frontdoor --filter label=com.docker.compose.service=api) | xargs -n1 | sort | xargs",
+            "output_equals": "frontdoor_back frontdoor_front"
           },
-          "description": "service=web, depends_on=db"
+          "description": "`api` is attached to both `front` and `back`"
+        },
+        {
+          "type": "shell",
+          "params": {
+            "command": "docker inspect -f '{{range $k,$v := .NetworkSettings.Networks}}{{$k}} {{end}}' $(docker ps -q --filter label=com.docker.compose.project=frontdoor --filter label=com.docker.compose.service=db) | xargs -n1 | sort | xargs",
+            "output_equals": "frontdoor_back"
+          },
+          "description": "`db` is attached only to the `back` network"
+        },
+        {
+          "type": "compose_service",
+          "params": {
+            "project": "frontdoor",
+            "service": "proxy",
+            "running": 1
+          },
+          "description": "`proxy` is running"
+        },
+        {
+          "type": "compose_service",
+          "params": {
+            "project": "frontdoor",
+            "service": "api",
+            "running": 1
+          },
+          "description": "`api` is running"
+        },
+        {
+          "type": "compose_service",
+          "params": {
+            "project": "frontdoor",
+            "service": "db",
+            "running": 1
+          },
+          "description": "`db` is running"
+        },
+        {
+          "type": "http",
+          "params": {
+            "url": "http://localhost:8120",
+            "body_contains": "db=PONG"
+          },
+          "description": "The API can still reach the database through the proxy"
+        },
+        {
+          "type": "shell",
+          "params": {
+            "command": "docker compose -p frontdoor exec -T proxy sh -c 'getent hosts db || echo UNREACHABLE'",
+            "output_contains": "UNREACHABLE"
+          },
+          "description": "From inside `proxy`, the name `db` does not resolve"
         }
       ],
-      "initialState": {
-        "summary": "Clean Docker environment",
-        "workspaceFiles": []
-      }
+      "solution": [
+        "cat > compose.yaml <<'EOF'\nname: frontdoor\nservices:\n  proxy:\n    image: nginx:alpine\n    ports:\n      - \"8120:80\"\n    volumes:\n      - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro\n    depends_on:\n      - api\n    networks: [front]\n  api:\n    image: python:3.12-alpine\n    command: [\"python\", \"/app/app.py\"]\n    volumes:\n      - ./api:/app:ro\n    environment:\n      DB_HOST: db\n    networks: [front, back]\n  db:\n    image: redis:7-alpine\n    networks: [back]\nnetworks:\n  front:\n  back:\nEOF",
+        "docker compose up -d --remove-orphans"
+      ],
+      "debrief": "Multiple networks turn a flat 'everything talks to everything' layout into rooms with doors: only the service standing in both rooms can carry traffic between them. Pro tip: mark a network `internal: true` in Compose to also cut it off from the outside world."
     },
     {
       "id": "module_05_level_07",
       "moduleId": 5,
       "levelId": 7,
-      "title": "Scale a Service",
-      "moduleTitle": "Docker Compose",
-      "difficulty": "hard",
-      "xp": 200,
-      "story": "Traffic is spiking. Scale the `web` service to 3 replicas using Docker Compose.",
+      "title": "Settings Without Edits",
+      "moduleTitle": "The Station Stack",
+      "difficulty": "medium",
+      "xp": 140,
+      "concepts": [
+        ".env interpolation",
+        "profiles"
+      ],
+      "story": "**From:** Amara Okafor\n**Subject:** lab-bench, again\n\nThree people edited `compose.yaml` this week just to change a port, and Kip's `toolbox` debug container has been running on the bench for days eating CPU.\n\nPlease move the tunables into a `.env` file next to `compose.yaml`: `DESK_PORT=8130` and `DESK_TAG=1.27-alpine`, and make the `desk` service use them. `toolbox` should only exist when somebody asks for the `debug` profile. Project name stays `lab-bench`.\n\nThanks!! -- A.",
       "objectives": [
-        "Scale the `web` service to 3 replicas",
-        "Confirm 3 containers for the `web` service are running"
+        "Create `/workspace/.env` with `DESK_PORT=8130` and `DESK_TAG=1.27-alpine`",
+        "In `compose.yaml`, build the `desk` image name and host port from `${DESK_TAG}` and `${DESK_PORT}`",
+        "Put `toolbox` in the profile `debug`, and make sure no `toolbox` container is running",
+        "Project `lab-bench` serves http://localhost:8130 from `nginx:1.27-alpine`"
       ],
+      "startingState": "Project `lab-bench` is running with hard-coded values: `desk` on `nginx:alpine` (port 8000) and an always-on `toolbox`.",
       "hints": [
-        "`docker compose up --scale web=3 -d` scales a service",
-        "Or add `deploy.replicas: 3` in the Compose file (requires Swarm or Compose v3 with deploy)",
-        "`docker compose up --scale web=3 -d`"
+        "Compose reads a file named `.env` in the project folder and substitutes `${VARIABLE}` references inside `compose.yaml`. Separately, a service can be tagged with `profiles`, which keeps it out of a plain `docker compose up` until that profile is requested.",
+        "In `.env` write one `KEY=value` per line. In the YAML use `nginx:${DESK_TAG}` and `\"${DESK_PORT}:80\"`, and add `profiles: [\"debug\"]` under `toolbox`. Editing the file does not stop the toolbox that is already running; remove it explicitly with `docker compose rm -sf toolbox`.",
+        "Put this into `.env`:\n\n```bash\nDESK_PORT=8130\nDESK_TAG=1.27-alpine\n```\n\nand edit `compose.yaml` so it reads:\n\n```yaml\nname: lab-bench\nservices:\n  desk:\n    image: nginx:${DESK_TAG}\n    ports:\n      - \"${DESK_PORT}:80\"\n  toolbox:\n    image: alpine:3.20\n    command: [\"sleep\", \"infinity\"]\n    profiles: [\"debug\"]\n```\n\nFinish with `docker compose rm -sf toolbox` and `docker compose up -d`."
       ],
+      "setup": {
+        "files": [
+          {
+            "path": "compose.yaml",
+            "content": "name: lab-bench\nservices:\n  desk:\n    image: nginx:alpine\n    ports:\n      - \"8000:80\"\n  toolbox:\n    image: alpine:3.20\n    command: [\"sleep\", \"infinity\"]\n"
+          }
+        ],
+        "commands": [
+          "docker compose up -d"
+        ]
+      },
       "validation": [
         {
-          "type": "service_replicas",
+          "type": "workspace_file",
           "params": {
-            "service": "web",
-            "count": 3
+            "path": ".env",
+            "contains": "DESK_PORT=8130"
           },
-          "description": "service=web, count=3"
+          "description": "`.env` sets `DESK_PORT=8130`"
+        },
+        {
+          "type": "workspace_file",
+          "params": {
+            "path": ".env",
+            "contains": "DESK_TAG=1.27-alpine"
+          },
+          "description": "`.env` sets `DESK_TAG=1.27-alpine`"
+        },
+        {
+          "type": "workspace_file",
+          "params": {
+            "path": "compose.yaml",
+            "contains": "${DESK_PORT"
+          },
+          "description": "`compose.yaml` references `${DESK_PORT}` instead of a hard-coded port"
+        },
+        {
+          "type": "workspace_file",
+          "params": {
+            "path": "compose.yaml",
+            "contains": "${DESK_TAG"
+          },
+          "description": "`compose.yaml` references `${DESK_TAG}` instead of a hard-coded tag"
+        },
+        {
+          "type": "shell",
+          "params": {
+            "command": "docker compose -p lab-bench config --services",
+            "output_not_contains": "toolbox"
+          },
+          "description": "`toolbox` is only part of the project when the `debug` profile is requested"
+        },
+        {
+          "type": "compose_service",
+          "params": {
+            "project": "lab-bench",
+            "service": "toolbox",
+            "count": 0
+          },
+          "description": "No `toolbox` container is running"
+        },
+        {
+          "type": "shell",
+          "params": {
+            "command": "docker ps --filter label=com.docker.compose.project=lab-bench --filter label=com.docker.compose.service=desk --format '{{.Image}}'",
+            "output_contains": "nginx:1.27-alpine"
+          },
+          "description": "`desk` runs from `nginx:1.27-alpine`"
+        },
+        {
+          "type": "http",
+          "params": {
+            "url": "http://localhost:8130"
+          },
+          "description": "http://localhost:8130 answers"
         }
       ],
-      "initialState": {
-        "summary": "Clean Docker environment",
-        "workspaceFiles": []
-      }
+      "solution": [
+        "printf 'DESK_PORT=8130\\nDESK_TAG=1.27-alpine\\n' > .env",
+        "cat > compose.yaml <<'EOF'\nname: lab-bench\nservices:\n  desk:\n    image: nginx:${DESK_TAG}\n    ports:\n      - \"${DESK_PORT}:80\"\n  toolbox:\n    image: alpine:3.20\n    command: [\"sleep\", \"infinity\"]\n    profiles: [\"debug\"]\nEOF",
+        "docker compose rm -sf toolbox",
+        "docker compose up -d"
+      ],
+      "debrief": "Keeping tunables in `.env` means a port or tag change is a one-line edit that never touches the structure of the stack, and a profile keeps tools like a debug toolbox off until someone asks for them. Pro tip: `docker compose --profile debug up -d toolbox` starts it on demand, and `${VAR:-default}` supplies a fallback when the variable is missing."
     }
   ]
 }

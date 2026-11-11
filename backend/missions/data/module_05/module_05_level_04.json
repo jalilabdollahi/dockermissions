@@ -81,5 +81,5 @@
     "cat > compose.yaml <<'EOF'\nname: manifest\nservices:\n  db:\n    image: postgres:16-alpine\n    container_name: manifest-db\n    environment:\n      POSTGRES_PASSWORD: kestrel-pass\n    healthcheck:\n      test: [\"CMD-SHELL\", \"pg_isready -h 127.0.0.1 -U postgres\"]\n      interval: 2s\n      timeout: 3s\n      retries: 20\n  migrate:\n    image: postgres:16-alpine\n    depends_on:\n      db:\n        condition: service_healthy\n    environment:\n      PGPASSWORD: kestrel-pass\n    volumes:\n      - ./migrations:/migrations:ro\n    command: [\"psql\", \"-h\", \"db\", \"-U\", \"postgres\", \"-v\", \"ON_ERROR_STOP=1\", \"-f\", \"/migrations/001_cargo.sql\"]\n    restart: \"no\"\nEOF",
     "docker compose up -d"
   ],
-  "debrief": "A healthcheck turns 'the process started' into 'the service answers', and `condition: service_healthy` makes dependent services wait for exactly that moment -- migrations, seeders and apps stop racing their database. Pro tip: write migrations with `IF NOT EXISTS`, so a rerun of the one-shot service is harmless."
+  "debrief": "`condition: service_healthy` makes the migrator wait for the moment the database actually answers, not just the moment its process starts. Pro tip: write migrations with `IF NOT EXISTS`, so rerunning the one-shot service is harmless."
 }

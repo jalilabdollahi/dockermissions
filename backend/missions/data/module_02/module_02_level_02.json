@@ -62,5 +62,5 @@
     "cat > Dockerfile <<'EOF'\nFROM alpine:3.20\nCOPY greet.sh /app/greet.sh\nCMD [\"/app/greet.sh\"]\nEOF",
     "docker build -t kestrel/greeter:1.0 ."
   ],
-  "debrief": "A Dockerfile is a repeatable recipe: `FROM` picks the base, `COPY` adds your files, `CMD` sets the default command. Pro tip: keep the build context small and put the Dockerfile at its root so `docker build .` just works."
+  "debrief": "Your script now ships with its own runtime: `FROM` chose the base, `COPY` brought the file in and `CMD` decided what runs. Pro tip: keep the build context small and the Dockerfile at its root, so a plain `docker build .` always works."
 }
