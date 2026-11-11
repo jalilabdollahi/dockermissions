@@ -4,7 +4,7 @@ const rootDir = path.resolve(process.cwd(), "..");
 const backendDir = process.cwd();
 
 export const env = {
-  port: Number(process.env.PORT ?? 3000),
+  port: Number(process.env.PORT ?? 3001),
   frontendOrigin: process.env.FRONTEND_ORIGIN ?? "http://localhost:5173",
   missionsDir: process.env.MISSIONS_DIR ?? path.join(rootDir, "modules"),
   missionDataDir: process.env.MISSION_DATA_DIR ?? path.join(backendDir, "missions", "data"),
