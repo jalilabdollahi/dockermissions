@@ -2,48 +2,92 @@
   "id": "module_05_level_02",
   "moduleId": 5,
   "levelId": 2,
-  "title": "Multiple Services",
-  "moduleTitle": "Docker Compose",
-  "difficulty": "easy",
-  "xp": 50,
-  "story": "Real apps have multiple components. Define a Compose stack with a `web` (nginx) service and a `db` (postgres:15-alpine) service.",
+  "title": "Two Services, One File",
+  "moduleTitle": "The Station Stack",
+  "difficulty": "medium",
+  "xp": 110,
+  "concepts": [
+    "multi-service compose",
+    "environment",
+    "depends_on"
+  ],
+  "story": "**#kestrel-dev, 02:14**\n\nAmara: the hit counter works on my laptop!!\n\nAmara: it needs redis. `app/app.py` reads `REDIS_HOST` from the environment. I was running redis in a tmux pane. don't ask.\n\nAmara: can you put both in one compose file? project name `weather-desk`. the API is `api` on port 8100, redis is `cache`, and api shouldn't start before cache exists. I'm going to sleep.",
   "objectives": [
-    "Write a `docker-compose.yml` with services `web` (nginx) and `db` (postgres:15-alpine)",
-    "Set required env var for postgres: `POSTGRES_PASSWORD=secret`",
-    "Run `docker compose up -d`"
+    "Create `/workspace/compose.yaml` for the project `weather-desk`",
+    "Service `cache` runs `redis:7-alpine`",
+    "Service `api` runs `python:3.12-alpine` with command `python /app/app.py`, mounts `./app` at `/app` read-only, publishes 8100 to 8000, sets `REDIS_HOST=cache` and declares `depends_on: cache`",
+    "Start the project so http://localhost:8100 returns the hit counter"
   ],
+  "startingState": "`/workspace/app/app.py` is Amara's counter service; nothing is running yet.",
   "hints": [
-    "Add multiple entries under `services:`",
-    "Use `environment:` key for env vars",
-    "```yaml"
+    "Both programs go into one `compose.yaml` under `services:`. Services on the same Compose project can reach each other by service name, so the API only needs the right hostname handed to it as an environment variable.",
+    "Give `api` an `environment:` block whose value is the name of the redis service, and a `depends_on:` list so Compose starts `cache` first. Because the code lives in `./app`, mount that folder and set `command:` to run the script from the mounted path.",
+    "A full file for this mission looks like this. Save it as `compose.yaml` and run `docker compose up -d`:\n\n```yaml\nname: weather-desk\nservices:\n  cache:\n    image: redis:7-alpine\n  api:\n    image: python:3.12-alpine\n    command: python /app/app.py\n    volumes:\n      - ./app:/app:ro\n    ports:\n      - \"8100:8000\"\n    environment:\n      REDIS_HOST: cache\n    depends_on:\n      - cache\n```"
   ],
+  "setup": {
+    "files": [
+      {
+        "path": "app/app.py",
+        "content": "import os, socket\nfrom http.server import BaseHTTPRequestHandler, HTTPServer\n\nHOST = os.environ[\"REDIS_HOST\"]\n\n\ndef bump():\n    with socket.create_connection((HOST, 6379), timeout=2) as s:\n        s.sendall(b\"INCR hits\\r\\n\")\n        return int(s.recv(64).strip()[1:])\n\n\nclass Desk(BaseHTTPRequestHandler):\n    def do_GET(self):\n        body = f\"WEATHER DESK hits={bump()}\\n\".encode()\n        self.send_response(200)\n        self.end_headers()\n        self.wfile.write(body)\n\n\nHTTPServer((\"0.0.0.0\", 8000), Desk).serve_forever()\n"
+      }
+    ],
+    "commands": []
+  },
   "validation": [
     {
-      "type": "compose_service_running",
+      "type": "workspace_file",
       "params": {
-        "service": "web"
+        "path": "compose.yaml",
+        "contains": "name: weather-desk"
       },
-      "description": "service=web"
+      "description": "`compose.yaml` declares `name: weather-desk`"
     },
     {
-      "type": "compose_service_running",
+      "type": "compose_service",
       "params": {
-        "service": "db"
+        "project": "weather-desk",
+        "service": "cache",
+        "running": 1
       },
-      "description": "service=db"
+      "description": "Service `cache` is running in project `weather-desk`"
     },
     {
-      "type": "env_var_set",
+      "type": "compose_service",
       "params": {
-        "container": "*db*",
-        "key": "POSTGRES_PASSWORD",
-        "value": "secret"
+        "project": "weather-desk",
+        "service": "api",
+        "running": 1
       },
-      "description": "container=*db*, key=POSTGRES_PASSWORD, value=secret"
+      "description": "Service `api` is running in project `weather-desk`"
+    },
+    {
+      "type": "workspace_file",
+      "params": {
+        "path": "compose.yaml",
+        "contains": "depends_on"
+      },
+      "description": "`api` declares `depends_on` so it starts after `cache`"
+    },
+    {
+      "type": "shell",
+      "params": {
+        "command": "docker compose -p weather-desk exec -T api printenv REDIS_HOST",
+        "output_contains": "cache"
+      },
+      "description": "`api` receives `REDIS_HOST=cache`"
+    },
+    {
+      "type": "http",
+      "params": {
+        "url": "http://localhost:8100",
+        "body_contains": "WEATHER DESK hits="
+      },
+      "description": "http://localhost:8100 returns the hit counter from redis"
     }
   ],
-  "initialState": {
-    "summary": "Clean Docker environment",
-    "workspaceFiles": []
-  }
+  "solution": [
+    "cat > compose.yaml <<'EOF'\nname: weather-desk\nservices:\n  cache:\n    image: redis:7-alpine\n  api:\n    image: python:3.12-alpine\n    command: python /app/app.py\n    volumes:\n      - ./app:/app:ro\n    ports:\n      - \"8100:8000\"\n    environment:\n      REDIS_HOST: cache\n    depends_on:\n      - cache\nEOF",
+    "docker compose up -d"
+  ],
+  "debrief": "Compose gives every project its own network where each service name is a DNS name, so `REDIS_HOST: cache` is all the wiring the API needs. Pro tip: `depends_on` only orders container start, not readiness -- if the dependency needs time to become usable, pair it with a healthcheck."
 }

@@ -2,33 +2,89 @@
   "id": "module_05_level_01",
   "moduleId": 5,
   "levelId": 1,
-  "title": "Your First Compose File",
-  "moduleTitle": "Docker Compose",
+  "title": "Write It Down Once",
+  "moduleTitle": "The Station Stack",
   "difficulty": "easy",
-  "xp": 50,
-  "story": "Running multi-container apps with `docker run` is painful. Docker Compose lets you define everything in one YAML file. Write a Compose file that runs a single `nginx` service.",
+  "xp": 60,
+  "concepts": [
+    "compose.yaml",
+    "docker compose up",
+    "project name"
+  ],
+  "story": "Taped to the rack, in Tomasz's tiny handwriting:\n\n\"After every power blip I retype the same docker run line from memory. Last night I got the port wrong and the crew stared at a blank dashboard until breakfast.\n\nIngrid says the whole station should live in ONE file. Start with the dashboard. `restart-dashboard.sh` shows what I type; the hand-started container `dashboard-hand` is still sitting on port 8090. Please replace it with a Compose project named `station`, so one command brings the dashboard back every time. -- T.W.\" ",
   "objectives": [
-    "Write `/workspace/docker-compose.yml` with one service: `web` using image `nginx:latest`, no port mapping yet",
-    "Run `docker compose up -d`",
-    "Confirm service `web` is running"
+    "Remove the hand-started container `dashboard-hand`",
+    "Create `/workspace/compose.yaml` with the top-level project name `station`",
+    "Define a service `dashboard` from `nginx:alpine`, publishing host port 8090 to container port 80 and mounting `./dashboard` read-only at `/usr/share/nginx/html`",
+    "Bring the project up in the background so http://localhost:8090 shows the dashboard"
   ],
+  "startingState": "`/workspace/dashboard/index.html` and Tomasz's `restart-dashboard.sh` exist; container `dashboard-hand` is already serving the page on port 8090.",
   "hints": [
-    "A Compose file has a `services:` key at the top level",
-    "```yaml",
-    "Write the file, then `docker compose -f /workspace/docker-compose.yml up -d`"
+    "Compose lets you describe containers in a YAML file instead of typing `docker run` flags. The file is called `compose.yaml`, and a single `docker compose` command in that folder reads it. Port 8090 is taken, so deal with the old container first.",
+    "The file has two top-level keys: `name:` (the project name) and `services:`. Under a service you list `image`, a `ports` list written as \"host:container\", and `volumes` where a trailing `:ro` makes the mount read-only. Remove the old container with `docker rm -f`, then start the project with `docker compose up -d`.",
+    "Put this in `compose.yaml`, then run `docker rm -f dashboard-hand && docker compose up -d`:\n\n```yaml\nname: station\nservices:\n  dashboard:\n    image: nginx:alpine\n    ports:\n      - \"8090:80\"\n    volumes:\n      - ./dashboard:/usr/share/nginx/html:ro\n```"
   ],
+  "setup": {
+    "files": [
+      {
+        "path": "dashboard/index.html",
+        "content": "<h1>KESTREL DASHBOARD</h1>\n<p>Power: nominal. Wind: 41 km/h. Ice: stable.</p>\n"
+      },
+      {
+        "path": "restart-dashboard.sh",
+        "content": "#!/bin/sh\n# Tomasz: typed from memory after every power blip\ndocker rm -f dashboard-hand\ndocker run -d --name dashboard-hand -p 8090:80 \\\n  -v /workspace/dashboard:/usr/share/nginx/html:ro nginx:alpine\n"
+      }
+    ],
+    "commands": [
+      "docker run -d --name dashboard-hand -p 8090:80 -v /workspace/dashboard:/usr/share/nginx/html:ro nginx:alpine"
+    ]
+  },
   "validation": [
     {
-      "type": "compose_service_running",
+      "type": "container_absent",
       "params": {
-        "service": "web",
-        "project": "workspace"
+        "name": "dashboard-hand"
       },
-      "description": "service=web, project=workspace"
+      "description": "The hand-started container `dashboard-hand` is removed"
+    },
+    {
+      "type": "workspace_file",
+      "params": {
+        "path": "compose.yaml",
+        "contains": "name: station"
+      },
+      "description": "`/workspace/compose.yaml` exists and declares `name: station`"
+    },
+    {
+      "type": "compose_service",
+      "params": {
+        "project": "station",
+        "service": "dashboard",
+        "running": 1
+      },
+      "description": "Compose project `station` has a running `dashboard` service"
+    },
+    {
+      "type": "shell",
+      "params": {
+        "command": "docker inspect -f '{{range .Mounts}}{{.Destination}} rw={{.RW}}{{end}}' $(docker ps -q --filter label=com.docker.compose.project=station --filter label=com.docker.compose.service=dashboard)",
+        "output_contains": "/usr/share/nginx/html rw=false"
+      },
+      "description": "The dashboard content is mounted read-only at `/usr/share/nginx/html`"
+    },
+    {
+      "type": "http",
+      "params": {
+        "url": "http://localhost:8090",
+        "body_contains": "KESTREL DASHBOARD"
+      },
+      "description": "http://localhost:8090 serves the Kestrel dashboard"
     }
   ],
-  "initialState": {
-    "summary": "`/workspace` is empty",
-    "workspaceFiles": []
-  }
+  "solution": [
+    "docker rm -f dashboard-hand",
+    "cat > compose.yaml <<'EOF'\nname: station\nservices:\n  dashboard:\n    image: nginx:alpine\n    ports:\n      - \"8090:80\"\n    volumes:\n      - ./dashboard:/usr/share/nginx/html:ro\nEOF",
+    "docker compose up -d"
+  ],
+  "debrief": "A compose.yaml turns a pile of remembered flags into a file you can read, review and version: `docker compose up -d` always rebuilds the same state, and the `name:` key decides which project owns the containers. Pro tip: `docker compose config` prints the fully resolved file, which is the fastest way to catch YAML mistakes before anything starts."
 }

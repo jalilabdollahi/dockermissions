@@ -159,6 +159,10 @@ Semantics notes:
 - `output_equals` compares trimmed output. `image_run.args` is a raw string appended to the
   `docker run` command line (shell-parsed). `image_size_under.mb` uses 1 MB = 1,000,000 bytes
   (same as `docker images`).
+- A missing inspect value (e.g. `Config.User` on an image without `USER`): `equals`/`contains` FAIL,
+  `not_equals`/`not_contains` PASS, `exists: false` passes. Use `exists: true` to require a value.
+- Docker 29 stores capabilities with the prefix: `HostConfig.CapAdd` contains `CAP_NET_BIND_SERVICE`.
+- `image_run` and `container_exec` support `output_equals` too (same as `shell`).
 - `mount` also sees `--tmpfs` mounts (they only appear in `HostConfig.Tmpfs`).
 - `workspace_file` with `contains`/`not_contains`/`matches` fails when the file does not exist.
 

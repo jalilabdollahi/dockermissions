@@ -2,47 +2,94 @@
   "id": "module_06_level_02",
   "moduleId": 6,
   "levelId": 2,
-  "title": "Read-Only Filesystem",
-  "moduleTitle": "Docker Security",
-  "difficulty": "easy",
-  "xp": 50,
-  "story": "A container that can't write to its own filesystem is significantly harder to compromise. Run nginx in read-only mode.",
+  "title": "Carved in Stone",
+  "moduleTitle": "The Audit",
+  "difficulty": "medium",
+  "xp": 120,
+  "concepts": [
+    "--read-only",
+    "--tmpfs"
+  ],
+  "story": "[RADIO -- INGRID TO ENGINEER, 06:40]\n\nEngineer, Halvorsen. Wren just showed me that anything that gets a shell inside `ledger` can rewrite the ledger program itself. Tomasz's ice-core sample counts run through that service; if the code can be tampered with, nobody can trust the numbers.\n\nRebuild the container so its root filesystem is read-only. The service still needs somewhere to write its running log, so give it a RAM-backed `/tmp` and nothing more. Same port as before, 8140. Over.",
   "objectives": [
-    "Run `nginx` container named `readonly-web` with a read-only filesystem (`--read-only`)",
-    "Nginx needs a writable tmpfs at `/tmp` and `/var/run` to start — add those",
-    "Publish port 8080"
+    "Replace container `ledger` with a new one from `python:3.12-alpine`, publishing host port 8140 to container port 8000",
+    "Mount `/workspace/app` read-only at `/app` and run `python /app/ledger.py`",
+    "Make the root filesystem read-only, with a `tmpfs` at `/tmp`",
+    "http://localhost:8140 must still answer"
   ],
+  "startingState": "Container `ledger` runs the service with a writable root filesystem; the code is in `/workspace/app/ledger.py`.",
   "hints": [
-    "`--read-only` makes the root filesystem read-only",
-    "Combine with `--tmpfs` for directories that must be writable",
-    "`docker run -d --name readonly-web --read-only --tmpfs /tmp --tmpfs /var/run -p 8080:80 nginx`"
+    "Docker can start a container with its whole root filesystem mounted read-only, so nothing can be changed or installed. Programs that need scratch space then require a separate writable location, and RAM-backed temporary mounts are the usual answer.",
+    "Use `--read-only` for the filesystem and `--tmpfs /tmp` for the one writable path. A container cannot be edited in place, so remove `ledger` first and recreate it with the same port and bind mount (`-v /workspace/app:/app:ro`).",
+    "```bash\ndocker rm -f ledger\ndocker run -d --name ledger --read-only --tmpfs /tmp \\\n  -p 8140:8000 -v /workspace/app:/app:ro \\\n  python:3.12-alpine python /app/ledger.py\ncurl localhost:8140\n```"
   ],
+  "setup": {
+    "files": [
+      {
+        "path": "app/ledger.py",
+        "content": "from http.server import BaseHTTPRequestHandler, HTTPServer\n\nLOG = \"/tmp/ledger.log\"\n\n\nclass Ledger(BaseHTTPRequestHandler):\n    def do_GET(self):\n        with open(LOG, \"a\") as f:\n            f.write(\"sample logged\\n\")\n        with open(LOG) as f:\n            entries = len(f.readlines())\n        self.send_response(200)\n        self.end_headers()\n        self.wfile.write(f\"LEDGER OK entries={entries}\\n\".encode())\n\n\nHTTPServer((\"0.0.0.0\", 8000), Ledger).serve_forever()\n"
+      }
+    ],
+    "commands": [
+      "docker run -d --name ledger -p 8140:8000 -v /workspace/app:/app:ro python:3.12-alpine python /app/ledger.py"
+    ]
+  },
   "validation": [
     {
       "type": "container_running",
       "params": {
-        "name": "readonly-web"
+        "name": "ledger",
+        "image": "python:3.12-alpine"
       },
-      "description": "name=readonly-web"
+      "description": "Container `ledger` is running from `python:3.12-alpine`"
     },
     {
-      "type": "readonly_rootfs",
+      "type": "container_inspect",
       "params": {
-        "container": "readonly-web"
+        "name": "ledger",
+        "path": "HostConfig.ReadonlyRootfs",
+        "equals": true
       },
-      "description": "container=readonly-web"
+      "description": "The root filesystem of `ledger` is read-only"
     },
     {
-      "type": "http_responds",
+      "type": "container_inspect",
       "params": {
-        "url": "http://localhost:8080",
-        "status": 200
+        "name": "ledger",
+        "path": "HostConfig.Tmpfs",
+        "contains": "/tmp"
       },
-      "description": "url=http://localhost:8080, status=200"
+      "description": "`/tmp` is mounted as a tmpfs"
+    },
+    {
+      "type": "container_exec",
+      "params": {
+        "name": "ledger",
+        "command": "touch /etc/tamper",
+        "exit_code": 1
+      },
+      "description": "Writing to the root filesystem (`/etc`) fails"
+    },
+    {
+      "type": "container_exec",
+      "params": {
+        "name": "ledger",
+        "command": "touch /tmp/scratch-ok"
+      },
+      "description": "Writing to `/tmp` still works"
+    },
+    {
+      "type": "http",
+      "params": {
+        "url": "http://localhost:8140",
+        "body_contains": "LEDGER OK"
+      },
+      "description": "http://localhost:8140 still answers with the ledger entry count"
     }
   ],
-  "initialState": {
-    "summary": "Clean Docker environment",
-    "workspaceFiles": []
-  }
+  "solution": [
+    "docker rm -f ledger",
+    "docker run -d --name ledger --read-only --tmpfs /tmp -p 8140:8000 -v /workspace/app:/app:ro python:3.12-alpine python /app/ledger.py"
+  ],
+  "debrief": "A read-only root filesystem means a compromised process cannot plant or modify binaries and scripts, while `--tmpfs` hands out RAM-backed scratch space that vanishes on restart. Pro tip: if a program crashes with 'Read-only file system', the error names the path that needs its own tmpfs or volume."
 }

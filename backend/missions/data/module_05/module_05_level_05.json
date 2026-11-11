@@ -2,71 +2,77 @@
   "id": "module_05_level_05",
   "moduleId": 5,
   "levelId": 5,
-  "title": "Custom Network in Compose",
-  "moduleTitle": "Docker Compose",
+  "title": "Many Hands",
+  "moduleTitle": "The Station Stack",
   "difficulty": "medium",
-  "xp": 100,
-  "story": "By default Compose creates one network. Define a custom network `backend` and put the `db` on it. Put `web` on both `backend` and a `frontend` network.",
+  "xp": 120,
+  "concepts": [
+    "scaling services",
+    "replicas",
+    "container_name conflicts"
+  ],
+  "story": "NORA: SURVEY-QUEUE BACKLOG 412 JOBS\nNORA: SURVEY-WORKER COUNT 1. EXPECTED 3\nNORA: CPU HEADROOM 71 PERCENT. IDLE\n\nThe glacier survey pipeline (Compose project `survey`) has a `queue` and a single `worker`. The jobs are independent; three workers would clear the backlog before the shift ends. Amara tried to scale it and got a name conflict, because the compose file pins a container name and a host port on the worker. Fix the file so `docker compose up -d` leaves exactly three `worker` containers, and do not disturb the `queue`.",
   "objectives": [
-    "Define two networks: `frontend` and `backend`",
-    "`web` service on both networks",
-    "`db` service only on `backend` network"
+    "Edit `/workspace/compose.yaml` so service `worker` has no fixed `container_name` and no published host port",
+    "Project `survey` runs exactly 3 containers of service `worker` (via `deploy.replicas` or `--scale`)",
+    "Service `queue` keeps running"
   ],
+  "startingState": "Project `survey` is up with one `survey-worker` (host port 8200) and a redis `queue`.",
   "hints": [
-    "Define networks at the top level `networks:` and reference under each service",
-    "A service can list multiple networks",
-    "Use `networks:` key both at the top level and under each service"
+    "Compose names containers `project-service-N` so they can be numbered. A hard-coded `container_name` allows only one copy, and a fixed host port can be bound by only one container, so both must go before a service can have several replicas.",
+    "Delete the `container_name:` line and the `ports:` section from `worker`, then ask for three copies, either with `deploy: replicas: 3` in the file or with `docker compose up -d --scale worker=3` on the command line.",
+    "The worker section should end up like this, then run `docker compose up -d`:\n\n```yaml\n  worker:\n    image: python:3.12-alpine\n    command: [\"python\", \"-m\", \"http.server\", \"8000\"]\n    deploy:\n      replicas: 3\n```"
   ],
+  "setup": {
+    "files": [
+      {
+        "path": "compose.yaml",
+        "content": "name: survey\nservices:\n  queue:\n    image: redis:7-alpine\n  worker:\n    image: python:3.12-alpine\n    container_name: survey-worker\n    command: [\"python\", \"-m\", \"http.server\", \"8000\"]\n    ports:\n      - \"8200:8000\"\n"
+      }
+    ],
+    "commands": [
+      "docker compose up -d"
+    ]
+  },
   "validation": [
     {
-      "type": "network_exists",
+      "type": "workspace_file",
       "params": {
-        "name": "*frontend*"
+        "path": "compose.yaml",
+        "not_contains": "container_name"
       },
-      "description": "name=*frontend*"
+      "description": "`worker` no longer pins a `container_name`"
     },
     {
-      "type": "network_exists",
+      "type": "workspace_file",
       "params": {
-        "name": "*backend*"
+        "path": "compose.yaml",
+        "not_contains": "8200"
       },
-      "description": "name=*backend*"
+      "description": "`worker` no longer publishes fixed host port 8200"
     },
     {
-      "type": "service_on_network",
+      "type": "compose_service",
       "params": {
-        "service": "web",
-        "network": "frontend"
+        "project": "survey",
+        "service": "worker",
+        "count": 3
       },
-      "description": "service=web, network=frontend"
+      "description": "Exactly 3 `worker` containers are running in project `survey`"
     },
     {
-      "type": "service_on_network",
+      "type": "compose_service",
       "params": {
-        "service": "web",
-        "network": "backend"
+        "project": "survey",
+        "service": "queue",
+        "running": 1
       },
-      "description": "service=web, network=backend"
-    },
-    {
-      "type": "service_on_network",
-      "params": {
-        "service": "db",
-        "network": "backend"
-      },
-      "description": "service=db, network=backend"
-    },
-    {
-      "type": "service_not_on_network",
-      "params": {
-        "service": "db",
-        "network": "frontend"
-      },
-      "description": "service=db, network=frontend"
+      "description": "The `queue` service is still running"
     }
   ],
-  "initialState": {
-    "summary": "Clean Docker environment",
-    "workspaceFiles": []
-  }
+  "solution": [
+    "cat > compose.yaml <<'EOF'\nname: survey\nservices:\n  queue:\n    image: redis:7-alpine\n  worker:\n    image: python:3.12-alpine\n    command: [\"python\", \"-m\", \"http.server\", \"8000\"]\n    deploy:\n      replicas: 3\nEOF",
+    "docker compose up -d"
+  ],
+  "debrief": "Anything that must be unique per container -- a fixed container name or a fixed host port -- blocks horizontal scaling; stateless workers should be anonymous and reached through the project network. Pro tip: `docker compose up -d --scale worker=5` changes the count on the fly, but `deploy.replicas` keeps the number written down in the file."
 }

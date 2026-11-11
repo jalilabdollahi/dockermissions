@@ -2,49 +2,105 @@
   "id": "module_06_level_05",
   "moduleId": 6,
   "levelId": 5,
-  "title": "Resource Limits",
-  "moduleTitle": "Docker Security",
-  "difficulty": "medium",
-  "xp": 100,
-  "story": "A runaway container can starve the host. Limit container `resource-hog` to 256MB RAM and 0.5 CPU.",
+  "title": "Secrets Belong in Files",
+  "moduleTitle": "The Audit",
+  "difficulty": "hard",
+  "xp": 200,
+  "concepts": [
+    "secrets",
+    "image history",
+    "bind mount"
+  ],
+  "story": "**From:** Wren Achebe\n**Subject:** F-05 -- credential visible to anyone who can run `docker inspect`\n\nEngineer,\n\nI ran `docker inspect uplink` and `docker history kestrel/uplink:1.0`. The satellite uplink's API key appears in plain text in both: it was baked into the image as an `ENV` line. Anyone who pulls this image owns the key.\n\nRebuild `kestrel/uplink:1.0` without it, and give the container the key as a read-only file at `/run/secrets/api_key`, taken from `/workspace/secrets/api_key.txt`. The program already knows how to read that file.\n\nRotating the key is Ingrid's job. Yours is making sure it is not in the image.\n\nW.",
   "objectives": [
-    "Run container `resource-hog` from `alpine` with:",
-    "Memory limit: `256m`",
-    "CPU limit: `0.5`",
-    "Run `sleep 3600` detached"
+    "Rebuild image `kestrel/uplink:1.0` from `/workspace` without the `API_KEY` environment variable in the image or its history",
+    "Replace container `uplink` with one from the new image, publishing host port 8160 to 8000",
+    "Bind-mount `/workspace/secrets/api_key.txt` read-only at `/run/secrets/api_key`",
+    "The container must not receive `API_KEY` as an environment variable"
   ],
+  "startingState": "`kestrel/uplink:1.0` was built with `ENV API_KEY=...` and container `uplink` runs on port 8160. The key file `secrets/api_key.txt` is ready.",
   "hints": [
-    "`--memory 256m` sets RAM limit; `--cpus 0.5` sets CPU limit",
-    "These prevent the container from consuming unlimited host resources",
-    "`docker run -d --name resource-hog --memory 256m --cpus 0.5 alpine sleep 3600`"
+    "Anything in `ENV`, `ARG` or a `RUN` command becomes part of the image's metadata or history, and `docker inspect` shows a container's environment too. Secrets should arrive at runtime, as a file that is not part of the image.",
+    "Delete the `ENV API_KEY=...` line from the Dockerfile and rebuild the same tag. Then recreate the container with a bind mount of the key file onto `/run/secrets/api_key`, ending in `:ro`. Do not pass the key with `-e`.",
+    "```bash\nsed -i '/^ENV API_KEY/d' Dockerfile\ndocker build -t kestrel/uplink:1.0 .\ndocker rm -f uplink\ndocker run -d --name uplink -p 8160:8000 \\\n  -v /workspace/secrets/api_key.txt:/run/secrets/api_key:ro \\\n  kestrel/uplink:1.0\n```"
   ],
+  "setup": {
+    "files": [
+      {
+        "path": "Dockerfile",
+        "content": "FROM python:3.12-alpine\nWORKDIR /srv\nENV API_KEY=kp_live_9Q4xT2\nCOPY app.py .\nCMD [\"python\", \"app.py\"]\n"
+      },
+      {
+        "path": "app.py",
+        "content": "import os\nfrom http.server import BaseHTTPRequestHandler, HTTPServer\n\n\ndef load_key():\n    try:\n        with open(\"/run/secrets/api_key\") as f:\n            return f.read().strip()\n    except OSError:\n        return os.environ.get(\"API_KEY\", \"\")\n\n\nclass Uplink(BaseHTTPRequestHandler):\n    def do_GET(self):\n        ok = load_key().startswith(\"kp_live_\")\n        self.send_response(200)\n        self.end_headers()\n        self.wfile.write(b\"UPLINK AUTH OK\\n\" if ok else b\"UPLINK NO KEY\\n\")\n\n\nHTTPServer((\"0.0.0.0\", 8000), Uplink).serve_forever()\n"
+      },
+      {
+        "path": "secrets/api_key.txt",
+        "content": "kp_live_9Q4xT2\n"
+      }
+    ],
+    "commands": [
+      "docker build -t kestrel/uplink:1.0 .",
+      "docker run -d --name uplink -p 8160:8000 kestrel/uplink:1.0"
+    ]
+  },
   "validation": [
+    {
+      "type": "shell",
+      "params": {
+        "command": "docker image inspect -f '{{json .Config.Env}}' kestrel/uplink:1.0",
+        "output_not_contains": "API_KEY"
+      },
+      "description": "The image's environment no longer contains `API_KEY`"
+    },
+    {
+      "type": "image_history",
+      "params": {
+        "ref": "kestrel/uplink:1.0",
+        "not_contains": "kp_live_9Q4xT2"
+      },
+      "description": "The image history no longer contains the key value"
+    },
     {
       "type": "container_running",
       "params": {
-        "name": "resource-hog"
+        "name": "uplink",
+        "image": "kestrel/uplink:1.0"
       },
-      "description": "name=resource-hog"
+      "description": "Container `uplink` is running from `kestrel/uplink:1.0`"
     },
     {
-      "type": "memory_limit",
+      "type": "shell",
       "params": {
-        "container": "resource-hog",
-        "limit": "268435456 (256MB in bytes)"
+        "command": "docker inspect -f '{{json .Config.Env}}' uplink",
+        "output_not_contains": "API_KEY"
       },
-      "description": "container=resource-hog, limit=268435456 (256MB in bytes)"
+      "description": "The container has no `API_KEY` environment variable"
     },
     {
-      "type": "cpu_limit",
+      "type": "mount",
       "params": {
-        "container": "resource-hog",
-        "cpus": 0.5
+        "name": "uplink",
+        "destination": "/run/secrets/api_key",
+        "type": "bind",
+        "rw": false
       },
-      "description": "container=resource-hog, cpus=0.5"
+      "description": "The key file is bind-mounted read-only at `/run/secrets/api_key`"
+    },
+    {
+      "type": "http",
+      "params": {
+        "url": "http://localhost:8160",
+        "body_contains": "UPLINK AUTH OK"
+      },
+      "description": "The uplink authenticates using the mounted key"
     }
   ],
-  "initialState": {
-    "summary": "Clean Docker environment",
-    "workspaceFiles": []
-  }
+  "solution": [
+    "sed -i '/^ENV API_KEY/d' Dockerfile",
+    "docker build -t kestrel/uplink:1.0 .",
+    "docker rm -f uplink",
+    "docker run -d --name uplink -p 8160:8000 -v /workspace/secrets/api_key.txt:/run/secrets/api_key:ro kestrel/uplink:1.0"
+  ],
+  "debrief": "Whatever you put in an image layer, `ENV` or `ARG` stays readable by anyone holding the image, so credentials belong in files mounted at runtime (Compose `secrets:` does the same thing). Pro tip: add secret paths to `.dockerignore` so they can never be copied in by accident, and rotate any key that was ever baked into an image."
 }

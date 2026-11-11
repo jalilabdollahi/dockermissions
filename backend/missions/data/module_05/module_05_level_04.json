@@ -2,42 +2,84 @@
   "id": "module_05_level_04",
   "moduleId": 5,
   "levelId": 4,
-  "title": "Named Volumes in Compose",
-  "moduleTitle": "Docker Compose",
-  "difficulty": "medium",
-  "xp": 100,
-  "story": "Your Postgres data disappears on every `docker compose down`. Add a named volume `db-data` to persist it.",
+  "title": "Wait for the Database",
+  "moduleTitle": "The Station Stack",
+  "difficulty": "hard",
+  "xp": 190,
+  "concepts": [
+    "healthcheck",
+    "depends_on condition",
+    "one-shot service"
+  ],
+  "story": "[RADIO -- PETREL, CHANNEL 9]\n\nRafael Duarte: Kestrel Point, Petrel. I sail at dawn and my cargo manifest has to be in your database before I load. Last time the migration ran while Postgres was still starting, the table never got made, and I loaded half the crates blind. Over.\n\nIngrid, from the doorway: Compose project `manifest`, engineer. Service `db` is Postgres, container name `manifest-db`, with a health check. Service `migrate` runs `migrations/001_cargo.sql` once the database is healthy, then exits cleanly. The tide won't wait. Over.",
   "objectives": [
-    "Add a named volume `db-data` to the Compose file",
-    "Mount it in the `db` service at `/var/lib/postgresql/data`",
-    "Re-deploy the stack"
+    "Create `/workspace/compose.yaml` for project `manifest`",
+    "Service `db` runs `postgres:16-alpine` with `container_name: manifest-db`, a `POSTGRES_PASSWORD`, and a healthcheck",
+    "Service `migrate` runs `psql` against host `db` with the file `/migrations/001_cargo.sql` (mount `./migrations`), starts only when `db` is healthy and exits with code 0",
+    "Bring the project up: `manifest-db` is healthy and table `cargo_manifest` contains 3 rows"
   ],
+  "startingState": "`/workspace/migrations/001_cargo.sql` creates and fills `cargo_manifest`; there is no compose file yet.",
   "hints": [
-    "Define volumes at the top level `volumes:` and reference them in services",
-    "```yaml",
-    "db-data:/var/lib/postgresql/data",
-    "Add both the top-level `volumes:` block and the service-level mount"
+    "A container being 'started' is not the same as the service inside it being ready. Compose can wait for a health check: give `db` a `healthcheck`, and make `migrate` depend on it with a condition rather than just a name.",
+    "Use `pg_isready` as the health test and `depends_on: db: condition: service_healthy` on the migrator. The migrator can reuse the Postgres image just for its `psql` client; give it `PGPASSWORD` and set `restart: \"no\"` so it exits once and stays done. Use `-h 127.0.0.1` in the health test so it only turns healthy when Postgres accepts network connections.",
+    "A complete file, followed by `docker compose up -d`:\n\n```yaml\nname: manifest\nservices:\n  db:\n    image: postgres:16-alpine\n    container_name: manifest-db\n    environment:\n      POSTGRES_PASSWORD: kestrel-pass\n    healthcheck:\n      test: [\"CMD-SHELL\", \"pg_isready -h 127.0.0.1 -U postgres\"]\n      interval: 2s\n      timeout: 3s\n      retries: 20\n  migrate:\n    image: postgres:16-alpine\n    depends_on:\n      db:\n        condition: service_healthy\n    environment:\n      PGPASSWORD: kestrel-pass\n    volumes:\n      - ./migrations:/migrations:ro\n    command: [\"psql\", \"-h\", \"db\", \"-U\", \"postgres\", \"-v\", \"ON_ERROR_STOP=1\", \"-f\", \"/migrations/001_cargo.sql\"]\n    restart: \"no\"\n```"
   ],
+  "setup": {
+    "files": [
+      {
+        "path": "migrations/001_cargo.sql",
+        "content": "CREATE TABLE IF NOT EXISTS cargo_manifest (\n  id serial PRIMARY KEY,\n  item text NOT NULL,\n  crates integer NOT NULL\n);\nINSERT INTO cargo_manifest (item, crates) VALUES\n  ('ice-core tubes', 40),\n  ('diesel drums', 12),\n  ('fresh bread', 6);\n"
+      }
+    ],
+    "commands": []
+  },
   "validation": [
     {
-      "type": "volume_exists",
+      "type": "workspace_file",
       "params": {
-        "name": "*db-data*"
+        "path": "compose.yaml",
+        "contains": "service_healthy"
       },
-      "description": "name=*db-data*"
+      "description": "`migrate` waits for `db` with `condition: service_healthy`"
     },
     {
-      "type": "volume_mounted",
+      "type": "compose_service",
       "params": {
+        "project": "manifest",
         "service": "db",
-        "volume": "*db-data*",
-        "path": "/var/lib/postgresql/data"
+        "running": 1
       },
-      "description": "service=db, volume=*db-data*, path=/var/lib/postgresql/data"
+      "description": "Service `db` is running in project `manifest`"
+    },
+    {
+      "type": "health",
+      "params": {
+        "name": "manifest-db",
+        "status": "healthy"
+      },
+      "description": "Container `manifest-db` is healthy"
+    },
+    {
+      "type": "shell",
+      "params": {
+        "command": "docker ps -a --filter label=com.docker.compose.project=manifest --filter label=com.docker.compose.service=migrate --format '{{.Status}}'",
+        "output_contains": "Exited (0)"
+      },
+      "description": "The one-shot `migrate` container finished with exit code 0"
+    },
+    {
+      "type": "container_exec",
+      "params": {
+        "name": "manifest-db",
+        "command": "psql -U postgres -tAc \"SELECT count(*) FROM cargo_manifest\"",
+        "output_equals": "3"
+      },
+      "description": "Table `cargo_manifest` holds the 3 manifest rows"
     }
   ],
-  "initialState": {
-    "summary": "Clean Docker environment",
-    "workspaceFiles": []
-  }
+  "solution": [
+    "cat > compose.yaml <<'EOF'\nname: manifest\nservices:\n  db:\n    image: postgres:16-alpine\n    container_name: manifest-db\n    environment:\n      POSTGRES_PASSWORD: kestrel-pass\n    healthcheck:\n      test: [\"CMD-SHELL\", \"pg_isready -h 127.0.0.1 -U postgres\"]\n      interval: 2s\n      timeout: 3s\n      retries: 20\n  migrate:\n    image: postgres:16-alpine\n    depends_on:\n      db:\n        condition: service_healthy\n    environment:\n      PGPASSWORD: kestrel-pass\n    volumes:\n      - ./migrations:/migrations:ro\n    command: [\"psql\", \"-h\", \"db\", \"-U\", \"postgres\", \"-v\", \"ON_ERROR_STOP=1\", \"-f\", \"/migrations/001_cargo.sql\"]\n    restart: \"no\"\nEOF",
+    "docker compose up -d"
+  ],
+  "debrief": "A healthcheck turns 'the process started' into 'the service answers', and `condition: service_healthy` makes dependent services wait for exactly that moment -- migrations, seeders and apps stop racing their database. Pro tip: write migrations with `IF NOT EXISTS`, so a rerun of the one-shot service is harmless."
 }

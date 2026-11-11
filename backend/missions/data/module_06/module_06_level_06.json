@@ -2,45 +2,99 @@
   "id": "module_06_level_06",
   "moduleId": 6,
   "levelId": 6,
-  "title": "Scan an Image for Vulnerabilities",
-  "moduleTitle": "Docker Security",
+  "title": "A Relay That Can't Escalate",
+  "moduleTitle": "The Audit",
   "difficulty": "hard",
-  "xp": 350,
-  "story": "You've built an image `legacy-app:v1`. Use Docker Scout or Trivy to scan it for critical CVEs, then rebuild using an updated base image to eliminate the critical vulnerabilities.",
+  "xp": 190,
+  "concepts": [
+    "USER",
+    "no-new-privileges"
+  ],
+  "story": "**Kip:** quick question, what does USER do in a Dockerfile?\n\n**Kip:** asking because Wren ran `docker run --rm --entrypoint id kestrel/safe-relay:1.0 -u` on my relay image and said a word I can't repeat in front of Ingrid. It printed 0.\n\n**Kip:** she also wants the running container to have no-new-privileges, which I think means setuid tricks stop working? can you do the Dockerfile AND the container? Dockerfile and `relay.sh` are in /workspace. I'll watch and learn!",
   "objectives": [
-    "Scan `legacy-app:v1` (pre-built with old ubuntu base) and identify critical vulnerabilities",
-    "Rebuild with updated base image `ubuntu:22.04` as `legacy-app:v2`",
-    "Scan `legacy-app:v2` and confirm zero critical CVEs"
+    "Edit the Dockerfile so image `kestrel/safe-relay:1.0` creates an unprivileged user and sets it with `USER`, then rebuild that tag",
+    "The image's default user must not be root",
+    "Replace container `relay` with one from the rebuilt image, started with `no-new-privileges`",
+    "The container's process must not run as uid 0"
   ],
+  "startingState": "`kestrel/safe-relay:1.0` was built from the Dockerfile in `/workspace` (no `USER` line); container `relay` runs from it as root.",
   "hints": [
-    "`docker scout cves legacy-app:v1` or `trivy image legacy-app:v1`",
-    "Change `FROM ubuntu:18.04` to `FROM ubuntu:22.04` in the Dockerfile",
-    "Rebuild: `docker build -t legacy-app:v2 /workspace`"
+    "Without a `USER` instruction an image runs as root. Setting the user in the Dockerfile makes safe the default for everyone who runs the image, instead of relying on each person remembering a flag. The second requirement is a separate runtime setting, passed with `--security-opt`.",
+    "In the Dockerfile: create a user with Alpine's `addgroup -S` and `adduser -S`, then put `USER relay` before `CMD`. At runtime the option is `--security-opt no-new-privileges`. Rebuild the same tag and replace the old container.",
+    "```dockerfile\nFROM alpine:3.20\nRUN addgroup -S relay && adduser -S -G relay relay\nCOPY relay.sh /usr/local/bin/relay.sh\nUSER relay\nCMD [\"sh\", \"/usr/local/bin/relay.sh\"]\n```\n\nThen build and run:\n\n```bash\ndocker build -t kestrel/safe-relay:1.0 .\ndocker rm -f relay\ndocker run -d --name relay --security-opt no-new-privileges kestrel/safe-relay:1.0\n```"
   ],
-  "validation": [
-    {
-      "type": "image_exists",
-      "params": {
-        "name": "legacy-app",
-        "tag": "v2"
-      },
-      "description": "name=legacy-app, tag=v2"
-    },
-    {
-      "type": "scan_critical_cves_zero",
-      "params": {
-        "image": "legacy-app:v2"
-      },
-      "description": "image=legacy-app:v2"
-    }
-  ],
-  "initialState": {
-    "summary": "- `legacy-app:v1` pre-built using `ubuntu:18.04` (has known CVEs) - `/workspace/Dockerfile` available for editing",
-    "workspaceFiles": [
+  "setup": {
+    "files": [
       {
         "path": "Dockerfile",
-        "content": "FROM ubuntu:18.04\nRUN apt-get update\nRUN apt-get install -y curl\nRUN apt-get install -y wget\nCMD [\"bash\", \"-lc\", \"sleep 3600\"]\n"
+        "content": "FROM alpine:3.20\nCOPY relay.sh /usr/local/bin/relay.sh\nCMD [\"sh\", \"/usr/local/bin/relay.sh\"]\n"
+      },
+      {
+        "path": "relay.sh",
+        "content": "#!/bin/sh\necho \"relay up uid=$(id -u)\"\nwhile true; do sleep 30; done\n"
       }
+    ],
+    "commands": [
+      "docker build -t kestrel/safe-relay:1.0 .",
+      "docker run -d --name relay kestrel/safe-relay:1.0"
     ]
-  }
+  },
+  "validation": [
+    {
+      "type": "image_inspect",
+      "params": {
+        "ref": "kestrel/safe-relay:1.0",
+        "path": "Config.User",
+        "exists": true
+      },
+      "description": "The image sets a default user (`USER` in the Dockerfile)"
+    },
+    {
+      "type": "shell",
+      "params": {
+        "command": "[ \"$(docker run --rm --entrypoint id kestrel/safe-relay:1.0 -u)\" != \"0\" ]"
+      },
+      "description": "Running the image's default configuration does not give uid 0"
+    },
+    {
+      "type": "container_running",
+      "params": {
+        "name": "relay",
+        "image": "kestrel/safe-relay:1.0"
+      },
+      "description": "Container `relay` is running from `kestrel/safe-relay:1.0`"
+    },
+    {
+      "type": "shell",
+      "params": {
+        "command": "docker inspect -f '{{json .HostConfig.SecurityOpt}}' relay",
+        "output_contains": "no-new-privileges"
+      },
+      "description": "`relay` was started with `no-new-privileges`"
+    },
+    {
+      "type": "container_exec",
+      "params": {
+        "name": "relay",
+        "command": "[ \"$(id -u)\" != \"0\" ]"
+      },
+      "description": "The process inside `relay` is not uid 0"
+    },
+    {
+      "type": "container_logs",
+      "params": {
+        "name": "relay",
+        "contains": "relay up uid=",
+        "not_contains": "uid=0"
+      },
+      "description": "The relay reports an unprivileged uid in its log"
+    }
+  ],
+  "solution": [
+    "cat > Dockerfile <<'EOF'\nFROM alpine:3.20\nRUN addgroup -S relay && adduser -S -G relay relay\nCOPY relay.sh /usr/local/bin/relay.sh\nUSER relay\nCMD [\"sh\", \"/usr/local/bin/relay.sh\"]\nEOF",
+    "docker build -t kestrel/safe-relay:1.0 .",
+    "docker rm -f relay",
+    "docker run -d --name relay --security-opt no-new-privileges kestrel/safe-relay:1.0"
+  ],
+  "debrief": "`USER` makes the safe choice the default for everyone who runs the image, and `no-new-privileges` stops setuid binaries from gaining more rights than the process started with -- two layers that work together. Pro tip: put `USER` after your `RUN` steps that need root (installing packages), so only the final runtime stage is unprivileged."
 }
