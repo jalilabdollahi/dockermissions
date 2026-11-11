@@ -2,31 +2,62 @@
   "id": "module_01_level_06",
   "moduleId": 1,
   "levelId": 6,
-  "title": "Stop and Remove",
-  "moduleTitle": "Docker Basics",
+  "title": "Inside the Thermostat",
+  "moduleTitle": "Arrival",
   "difficulty": "easy",
-  "xp": 50,
-  "story": "Containers left running waste resources. Stop and remove the container named `old-service` to clean up the docks.",
+  "xp": 70,
+  "concepts": [
+    "docker exec",
+    "running container",
+    "in-place change"
+  ],
+  "story": "Tomasz: The cold-room thermostat reads setpoint 25. It must be 18. Core samples cannot sit above 20.\n\nYou: Can I restart the container with new settings?\n\nTomasz: No. It has been recording since this morning, and its calibration log lives in the container's own temp files. A restart-and-recreate would erase the day's curve. Change the value inside the running container. The file is `/etc/thermostat/thermostat.conf` in the container `thermostat`; `setpoint=25` has to become `setpoint=18`.",
   "objectives": [
-    "Stop the container named `old-service`",
-    "Remove the container named `old-service`"
+    "Change `setpoint=25` to `setpoint=18` in `/etc/thermostat/thermostat.conf` inside the container `thermostat`",
+    "Keep the same container running: do not remove or recreate it"
   ],
+  "startingState": "A container named `thermostat` is running with `setpoint=25` in its config and a calibration log at `/tmp/calibration.log`.",
   "hints": [
-    "`docker stop <name>` stops a container; `docker rm <name>` removes it",
-    "Stop first, then remove: `docker stop old-service && docker rm old-service`",
-    "Or force remove in one step: `docker rm -f old-service`"
+    "You can run an extra command inside a container that is already running without touching its main process. That command family is `docker exec`.",
+    "The shape is `docker exec <container> <command>`. A one-line `sed -i 's/old/new/' file` edits a file without opening an editor; `cat` lets you verify the result.",
+    "```bash\ndocker exec thermostat cat /etc/thermostat/thermostat.conf\ndocker exec thermostat sed -i 's/setpoint=25/setpoint=18/' /etc/thermostat/thermostat.conf\ndocker exec thermostat cat /etc/thermostat/thermostat.conf\n```"
   ],
+  "setup": {
+    "files": [],
+    "commands": [
+      "docker run -d --name thermostat alpine:3.20 sh -c 'mkdir -p /etc/thermostat; echo setpoint=25 > /etc/thermostat/thermostat.conf; echo \"day curve: 22 23 25\" > /tmp/calibration.log; sleep infinity'",
+      "sleep 1"
+    ]
+  },
   "validation": [
     {
-      "type": "container_not_exists",
+      "type": "container_running",
       "params": {
-        "name": "old-service"
+        "name": "thermostat"
       },
-      "description": "name=old-service"
+      "description": "Container `thermostat` is still running"
+    },
+    {
+      "type": "container_exec",
+      "params": {
+        "name": "thermostat",
+        "command": "cat /etc/thermostat/thermostat.conf",
+        "output_contains": "setpoint=18",
+        "output_not_contains": "setpoint=25"
+      },
+      "description": "`/etc/thermostat/thermostat.conf` says `setpoint=18` and no longer `setpoint=25`"
+    },
+    {
+      "type": "container_exec",
+      "params": {
+        "name": "thermostat",
+        "command": "test -f /tmp/calibration.log"
+      },
+      "description": "The original container survived: `/tmp/calibration.log` still exists"
     }
   ],
-  "initialState": {
-    "summary": "Container `old-service` (nginx, running) pre-created",
-    "workspaceFiles": []
-  }
+  "solution": [
+    "docker exec thermostat sed -i 's/setpoint=25/setpoint=18/' /etc/thermostat/thermostat.conf"
+  ],
+  "debrief": "`docker exec` starts a second process inside the same container, so it can inspect or repair a live service. Pro tip: changes made this way vanish if the container is recreated, so also fix the source of the config afterwards."
 }

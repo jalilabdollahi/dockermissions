@@ -2,31 +2,64 @@
   "id": "module_01_level_07",
   "moduleId": 1,
   "levelId": 7,
-  "title": "Exec Into a Container",
-  "moduleTitle": "Docker Basics",
-  "difficulty": "medium",
-  "xp": 100,
-  "story": "Something is wrong inside the `debug-box` container. Get a shell inside it and create a file `/tmp/mission-complete` to signal success.",
+  "title": "Generator Rotation",
+  "moduleTitle": "Arrival",
+  "difficulty": "easy",
+  "xp": 75,
+  "concepts": [
+    "docker stop",
+    "docker start",
+    "docker rm",
+    "docker ps -a"
+  ],
+  "story": "SHIFT HANDOVER SHEET, GENERATOR ROOM, initialled I.H.\n[ ] gen-alpha: 400 hours without a break, stand it down\n[ ] gen-bravo: rested and ready, bring it online\n[ ] gen-charlie: crashed overnight, clear out the wreckage\n\nThe three generator services were moved into containers last night. Ingrid went to bed after signing the sheet, so the list is yours. Work through it top to bottom. `docker ps -a` shows every container, running or not, and you will need it to see which one is which.",
   "objectives": [
-    "Exec into container `debug-box` and create file `/tmp/mission-complete`"
+    "Stop `gen-alpha` (it must still exist, just not running)",
+    "Start `gen-bravo` so that it is running",
+    "Remove `gen-charlie` completely"
   ],
+  "startingState": "`gen-alpha` is running, `gen-bravo` is stopped, and `gen-charlie` has crashed and exited with an error.",
   "hints": [
-    "`docker exec -it <name> <command>` runs a command inside a running container",
-    "Use `docker exec debug-box touch /tmp/mission-complete` or exec a shell",
-    "`docker exec debug-box touch /tmp/mission-complete`"
+    "Containers move between states: running, stopped, and removed. Each transition has its own command, and a stopped container still shows up in `docker ps -a`.",
+    "Three separate verbs do the work: `docker stop`, `docker start` and `docker rm`, each followed by the container name. Removing is not the same thing as stopping.",
+    "```bash\ndocker ps -a\ndocker stop gen-alpha\ndocker start gen-bravo\ndocker rm gen-charlie\ndocker ps -a\n```"
   ],
+  "setup": {
+    "files": [],
+    "commands": [
+      "docker run -d --name gen-alpha alpine:3.20 sh -c 'trap \"exit 0\" TERM; while :; do sleep 1; done'",
+      "docker run -d --name gen-bravo alpine:3.20 sh -c 'trap \"exit 0\" TERM; while :; do sleep 1; done'",
+      "docker stop gen-bravo",
+      "docker run --name gen-charlie alpine:3.20 sh -c 'exit 3' || true"
+    ]
+  },
   "validation": [
     {
-      "type": "file_in_container",
+      "type": "container_exited",
       "params": {
-        "container": "debug-box",
-        "path": "/tmp/mission-complete"
+        "name": "gen-alpha"
       },
-      "description": "container=debug-box, path=/tmp/mission-complete"
+      "description": "`gen-alpha` exists but is stopped"
+    },
+    {
+      "type": "container_running",
+      "params": {
+        "name": "gen-bravo"
+      },
+      "description": "`gen-bravo` is running"
+    },
+    {
+      "type": "container_absent",
+      "params": {
+        "name": "gen-charlie"
+      },
+      "description": "`gen-charlie` has been removed"
     }
   ],
-  "initialState": {
-    "summary": "Container `debug-box` (ubuntu, running with `sleep 3600`) pre-created",
-    "workspaceFiles": []
-  }
+  "solution": [
+    "docker stop gen-alpha",
+    "docker start gen-bravo",
+    "docker rm gen-charlie"
+  ],
+  "debrief": "A container's life has three separate stages: running, stopped (still on disk) and removed (gone). Pro tip: `docker container prune` removes every stopped container at once, so use it only when you are sure nothing there matters."
 }

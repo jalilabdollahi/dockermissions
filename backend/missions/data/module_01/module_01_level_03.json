@@ -2,34 +2,51 @@
   "id": "module_01_level_03",
   "moduleId": 1,
   "levelId": 3,
-  "title": "Inspect the Fleet",
-  "moduleTitle": "Docker Basics",
+  "title": "The Noticeboard",
+  "moduleTitle": "Arrival",
   "difficulty": "easy",
-  "xp": 50,
-  "story": "A good operator always knows the state of their fleet. List all running containers and identify the one named `mission-agent`.",
+  "xp": 60,
+  "concepts": [
+    "publishing ports",
+    "-p",
+    "host and container ports"
+  ],
+  "story": "Taped to the side of the rack, in Kip's round handwriting:\n\n\"The noticeboard lived on port 8081 of the old server and now it is just gone?? Everybody's bookmarks point at :8081. Sauna rota, ferry dates, who stole the last of the good coffee. It's the Apache one (`httpd:2.4-alpine`). Please bring it back!! - Kip\"\n\nBelow it, in Ingrid's neat hand: \"Same port as before. The container is called `noticeboard`.\"",
   "objectives": [
-    "Run `docker ps` to see running containers (validation auto-passes after you run `docker ps` once)",
-    "Extra: Find the container ID of `mission-agent` and run `docker inspect mission-agent`"
+    "Run `httpd:2.4-alpine` detached as a container named `noticeboard`",
+    "Publish it so that `http://localhost:8081` reaches the web server (container port 80)"
   ],
+  "startingState": "No containers exist. The `httpd:2.4-alpine` image is already downloaded.",
   "hints": [
-    "`docker ps` lists running containers",
-    "`docker inspect <name>` shows full details",
-    "`docker ps` then `docker inspect mission-agent`"
+    "A container has its own private network. To reach a service inside it from the outside, you publish one of its ports on the host.",
+    "The publish flag is `-p HOST_PORT:CONTAINER_PORT`. The Apache image listens on port 80 inside the container, and the crew expects 8081 on the outside.",
+    "```bash\ndocker run -d --name noticeboard -p 8081:80 httpd:2.4-alpine\ncurl http://localhost:8081\n```"
   ],
+  "setup": {
+    "files": [],
+    "commands": []
+  },
   "validation": [
     {
-      "type": "command_run",
-      "params": {},
-      "description": "docker ps executed"
+      "type": "container_running",
+      "params": {
+        "name": "noticeboard",
+        "image": "httpd:2.4-alpine"
+      },
+      "description": "Container `noticeboard` is running from `httpd:2.4-alpine`"
     },
     {
-      "type": "command_run",
-      "params": {},
-      "description": "docker inspect mission-agent executed"
+      "type": "http",
+      "params": {
+        "url": "http://localhost:8081",
+        "status": 200,
+        "body_contains": "It works"
+      },
+      "description": "`http://localhost:8081` answers with the Apache page"
     }
   ],
-  "initialState": {
-    "summary": "Container `mission-agent` (alpine, running) pre-created",
-    "workspaceFiles": []
-  }
+  "solution": [
+    "docker run -d --name noticeboard -p 8081:80 httpd:2.4-alpine"
+  ],
+  "debrief": "`-p 8081:80` maps host port 8081 to container port 80, so the left number is what clients use and the right one is what the app listens on. Pro tip: `docker port noticeboard` prints the active mappings."
 }

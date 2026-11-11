@@ -2,41 +2,71 @@
   "id": "module_02_level_03",
   "moduleId": 2,
   "levelId": 3,
-  "title": "Your First Dockerfile",
-  "moduleTitle": "Images & Dockerfile",
+  "title": "Tools for the Field Kit",
+  "moduleTitle": "Instrument Images",
   "difficulty": "easy",
-  "xp": 50,
-  "story": "It's time to build something. Create a Dockerfile that starts from `alpine:3.18`, sets maintainer label `maintainer=recruit`, and runs `echo \"Mission Ready\"` as the default command.",
+  "xp": 75,
+  "concepts": [
+    "RUN",
+    "apk add --no-cache",
+    "image size"
+  ],
+  "story": "FIELD KIT PACKING LIST, laminated, signed I. Halvorsen.\n[x] Boots, two pairs\n[x] Satellite phone\n[ ] `curl`, to poll the weather feed\n[ ] `jq`, to read what the feed sends back\n\nThe last two are software. The field laptops run a container image, and plain `alpine:3.20` ships with neither tool. Build `kestrel/fieldkit:1.0` on top of `alpine:3.20` with both installed. Alpine's package manager is `apk`, and the satellite link is slow, so keep the image under 30 MB.",
   "objectives": [
-    "Write a `Dockerfile` in `/workspace`",
-    "Build it as image `mission-image:v1`"
+    "Write `/workspace/Dockerfile` based on `alpine:3.20` that installs `curl` and `jq` with `apk`",
+    "Build the image as `kestrel/fieldkit:1.0` and keep it under 30 MB"
   ],
+  "startingState": "An empty /workspace. The machine has internet access for downloading Alpine packages.",
   "hints": [
-    "A Dockerfile starts with `FROM`, then `LABEL`, then `CMD`",
-    "```",
-    "Write the Dockerfile above, then `docker build -t mission-image:v1 /workspace`"
+    "Installing software while building an image is done with a `RUN` instruction, which executes a command during the build and saves the result in the image.",
+    "On Alpine the install command is `apk add`. Add `--no-cache` so the package index is not stored in the image, and list both tools in one `RUN` line.",
+    "```bash\ncat > Dockerfile <<'EOF'\nFROM alpine:3.20\nRUN apk add --no-cache curl jq\nEOF\ndocker build -t kestrel/fieldkit:1.0 .\ndocker run --rm kestrel/fieldkit:1.0 jq --version\n```"
   ],
+  "setup": {
+    "files": [],
+    "commands": []
+  },
   "validation": [
     {
-      "type": "image_exists",
+      "type": "workspace_file",
       "params": {
-        "name": "mission-image",
-        "tag": "v1"
+        "path": "Dockerfile",
+        "contains": "apk add"
       },
-      "description": "name=mission-image, tag=v1"
+      "description": "`/workspace/Dockerfile` installs packages with `apk add`"
     },
     {
-      "type": "image_label",
+      "type": "image_run",
       "params": {
-        "image": "mission-image:v1",
-        "key": "maintainer",
-        "value": "recruit"
+        "ref": "kestrel/fieldkit:1.0",
+        "entrypoint": "curl",
+        "args": "--version",
+        "output_contains": "curl"
       },
-      "description": "image=mission-image:v1, key=maintainer, value=recruit"
+      "description": "`curl` runs inside `kestrel/fieldkit:1.0`"
+    },
+    {
+      "type": "image_run",
+      "params": {
+        "ref": "kestrel/fieldkit:1.0",
+        "entrypoint": "jq",
+        "args": "--version",
+        "output_contains": "jq-"
+      },
+      "description": "`jq` runs inside `kestrel/fieldkit:1.0`"
+    },
+    {
+      "type": "image_size_under",
+      "params": {
+        "ref": "kestrel/fieldkit:1.0",
+        "mb": 30
+      },
+      "description": "The image is smaller than 30 MB"
     }
   ],
-  "initialState": {
-    "summary": "`/workspace` directory exists and is empty",
-    "workspaceFiles": []
-  }
+  "solution": [
+    "cat > Dockerfile <<'EOF'\nFROM alpine:3.20\nRUN apk add --no-cache curl jq\nEOF",
+    "docker build -t kestrel/fieldkit:1.0 ."
+  ],
+  "debrief": "`RUN` executes during the build and bakes the result into a new layer, and `--no-cache` keeps apk's index files out of that layer. Pro tip: combine related installs in one `RUN` so they share a single layer."
 }

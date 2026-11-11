@@ -2,41 +2,85 @@
   "id": "module_04_level_02",
   "moduleId": 4,
   "levelId": 2,
-  "title": "Mount a Volume",
-  "moduleTitle": "Volumes & Storage",
-  "difficulty": "easy",
-  "xp": 50,
-  "story": "A volume is only useful when mounted. Run an `alpine` container named `writer` with volume `app-data` mounted at `/data`, then write a file to it.",
+  "title": "The Field Journal",
+  "moduleTitle": "Ice-Core Archive",
+  "difficulty": "medium",
+  "xp": 100,
+  "concepts": [
+    "bind mount",
+    "read-only mount",
+    "live content"
+  ],
+  "story": "Pinned to the mess-hall corkboard, in Kip Lindqvist's loopy handwriting:\n\n\"Everyone writes the daily field journal into /workspace/journal and Tomasz wants it as a website. I made one, but I copied the files INTO the image, so every new entry needs a rebuild. Also I once typed into it from inside the container. Help??\"\n\nServe the journal with nginx as `field-journal` on port 8085. The folder must be mounted, not copied, so new entries appear at once, and mounted read-only so the website can never alter an entry.",
   "objectives": [
-    "Run container `writer` from `alpine` with `app-data` mounted at `/data` (detached, `sleep 3600`)",
-    "Create file `/data/record.txt` inside the container with content `mission=complete`"
+    "Run `field-journal` from `nginx:alpine` publishing port `8085` to container port 80",
+    "Bind-mount `/workspace/journal` at `/usr/share/nginx/html` read-only",
+    "`http://localhost:8085/day-02.txt` returns the journal entry",
+    "Writing into `/usr/share/nginx/html` inside the container must fail"
   ],
+  "startingState": "The folder `/workspace/journal` holds three daily entries (`day-01.txt` to `day-03.txt`). No containers are running.",
   "hints": [
-    "Use `-v <volume>:<path>` or `--mount` to attach a volume",
-    "`docker run -d --name writer -v app-data:/data alpine sleep 3600`",
-    "Then `docker exec writer sh -c 'echo mission=complete > /data/record.txt'`"
+    "A bind mount maps a host directory into a container, so edits on one side show up on the other immediately. You can also mark the mount so the container cannot write to it.",
+    "Use `-v <absolute-host-path>:<container-path>:ro` together with `-p 8085:80`. nginx serves files from `/usr/share/nginx/html`.",
+    "```bash\ndocker run -d --name field-journal -p 8085:80 \\\n  -v /workspace/journal:/usr/share/nginx/html:ro \\\n  nginx:alpine\ncurl http://localhost:8085/day-02.txt\n```"
   ],
+  "setup": {
+    "files": [
+      {
+        "path": "journal/day-01.txt",
+        "content": "DAY 01 - Landed at Kestrel Point. Wind 38 knots, gusting 52.\n"
+      },
+      {
+        "path": "journal/day-02.txt",
+        "content": "DAY 02 - Core drill assembled. Tomasz counted the bolts twice.\n"
+      },
+      {
+        "path": "journal/day-03.txt",
+        "content": "DAY 03 - First 40 metres of ice recovered. Generator coughing again.\n"
+      }
+    ],
+    "commands": []
+  },
   "validation": [
     {
-      "type": "volume_mounted",
+      "type": "container_running",
       "params": {
-        "container": "writer",
-        "volume": "app-data",
-        "path": "/data"
+        "name": "field-journal",
+        "image": "nginx:alpine"
       },
-      "description": "container=writer, volume=app-data, path=/data"
+      "description": "Container `field-journal` is running from `nginx:alpine`"
     },
     {
-      "type": "file_in_container",
+      "type": "mount",
       "params": {
-        "container": "writer",
-        "path": "/data/record.txt"
+        "name": "field-journal",
+        "destination": "/usr/share/nginx/html",
+        "type": "bind",
+        "source": "/workspace/journal",
+        "rw": false
       },
-      "description": "container=writer, path=/data/record.txt"
+      "description": "`/workspace/journal` is bind-mounted read-only at `/usr/share/nginx/html`"
+    },
+    {
+      "type": "http",
+      "params": {
+        "url": "http://localhost:8085/day-02.txt",
+        "body_contains": "DAY 02"
+      },
+      "description": "`http://localhost:8085/day-02.txt` serves the entry for day 2"
+    },
+    {
+      "type": "container_exec",
+      "params": {
+        "name": "field-journal",
+        "command": "touch /usr/share/nginx/html/probe.txt",
+        "exit_code": 1
+      },
+      "description": "Writing into the mounted folder fails inside the container"
     }
   ],
-  "initialState": {
-    "summary": "Volume `app-data` pre-created",
-    "workspaceFiles": []
-  }
+  "solution": [
+    "docker run -d --name field-journal -p 8085:80 -v /workspace/journal:/usr/share/nginx/html:ro nginx:alpine"
+  ],
+  "debrief": "A bind mount shares a live host path with the container, which is ideal for content you edit outside it, and `:ro` makes the container a pure reader. Pro tip: bind mounts need an absolute host path; a bare name would create a named volume instead."
 }

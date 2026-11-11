@@ -2,31 +2,57 @@
   "id": "module_02_level_01",
   "moduleId": 2,
   "levelId": 1,
-  "title": "Pull an Image",
-  "moduleTitle": "Images & Dockerfile",
+  "title": "Supplies from the Mainland",
+  "moduleTitle": "Instrument Images",
   "difficulty": "easy",
   "xp": 50,
-  "story": "Before you can deploy, you need the right image. Pull `redis:7-alpine` from Docker Hub — lightweight and battle-tested.",
+  "concepts": [
+    "docker pull",
+    "image tags",
+    "docker tag"
+  ],
+  "story": "PETREL CARGO MANIFEST, voyage 114. Item 22: one \"toolbox\", contents: software. Delivery: by network, because the ship's hold is full of fuel drums. Signed, Captain Rafael Duarte. Scribbled underneath: \"Satellite window opens in ten minutes. Pull it then, not later.\"\n\nIngrid's reply is clipped to the page. Tomasz's old scripts were only tested against BusyBox 1.36, not the newer release already on the machine, so pull exactly `busybox:1.36`. Then give it the station's own name, `kestrel/toolbox:1.0`, so the whole crew refers to one tag. Keep the original tag as well.",
   "objectives": [
-    "Pull image `redis:7-alpine` from Docker Hub"
+    "Pull the image `busybox:1.36` from the registry",
+    "Create a second tag `kestrel/toolbox:1.0` that points at the very same image"
   ],
+  "startingState": "The machine has several images pre-loaded, but `busybox:1.36` is not one of them.",
   "hints": [
-    "`docker pull <image>:<tag>` downloads an image",
-    "`docker pull redis:7-alpine`",
-    "`docker pull redis:7-alpine`"
+    "Images are downloaded from a registry, and every image can carry more than one name (tag). Downloading and renaming are two different commands.",
+    "Use `docker pull NAME:TAG` to fetch a specific version, and `docker tag SOURCE TARGET` to add a new name to an image that is already local.",
+    "```bash\ndocker pull busybox:1.36\ndocker tag busybox:1.36 kestrel/toolbox:1.0\ndocker images\n```"
   ],
+  "setup": {
+    "files": [],
+    "commands": []
+  },
   "validation": [
     {
       "type": "image_exists",
       "params": {
-        "name": "redis",
-        "tag": "7-alpine"
+        "ref": "busybox:1.36"
       },
-      "description": "name=redis, tag=7-alpine"
+      "description": "Image `busybox:1.36` is present locally"
+    },
+    {
+      "type": "image_exists",
+      "params": {
+        "ref": "kestrel/toolbox:1.0"
+      },
+      "description": "Image `kestrel/toolbox:1.0` exists"
+    },
+    {
+      "type": "shell",
+      "params": {
+        "command": "[ \"$(docker image inspect -f '{{.Id}}' busybox:1.36)\" = \"$(docker image inspect -f '{{.Id}}' kestrel/toolbox:1.0)\" ] && echo SAME-IMAGE",
+        "output_contains": "SAME-IMAGE"
+      },
+      "description": "`kestrel/toolbox:1.0` and `busybox:1.36` are the same image (identical ID)"
     }
   ],
-  "initialState": {
-    "summary": "Clean Docker environment",
-    "workspaceFiles": []
-  }
+  "solution": [
+    "docker pull busybox:1.36",
+    "docker tag busybox:1.36 kestrel/toolbox:1.0"
+  ],
+  "debrief": "A tag is just a movable label on an image, and `docker tag` adds a name without copying any data. Pro tip: always pull a specific tag, since `latest` can change underneath you."
 }

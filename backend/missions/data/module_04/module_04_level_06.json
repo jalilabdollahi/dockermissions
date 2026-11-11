@@ -2,39 +2,97 @@
   "id": "module_04_level_06",
   "moduleId": 4,
   "levelId": 6,
-  "title": "Volume Backup",
-  "moduleTitle": "Volumes & Storage",
+  "title": "One Writer, Many Readers",
+  "moduleTitle": "Ice-Core Archive",
   "difficulty": "hard",
-  "xp": 200,
-  "story": "Volumes must be backed up. Use a temporary container to tar the contents of `app-data` volume to `/backup/app-data.tar.gz` on the host.",
+  "xp": 175,
+  "concepts": [
+    "shared volume",
+    "read-only volume mount",
+    ":ro"
+  ],
+  "story": "NORA: TELEMETRY FEED CORRUPTED 04:12. CAUSE: reader-ops OPENED latest.txt FOR WRITING.\nNORA: THIS HAS HAPPENED BEFORE.\nNORA: NOBODY LISTENS TO NORA.\n\nThe telemetry feed has exactly one writer, `producer`, and two consumers: the ops desk and the lab. Last night a reader script wrote into the shared volume and wrecked the feed. The new rule is that readers may look but never touch.\n\nBuild it: a volume `telemetry`; `producer` writes a fresh `tick <timestamp>` line to `/data/latest.txt` every second; `reader-ops` and `reader-lab` see the same volume at `/feed`, strictly read-only.",
   "objectives": [
-    "Run a temporary container that mounts `app-data` at `/data` and `/backup` as a bind mount",
-    "Compress `/data` contents into `/backup/app-data.tar.gz`",
-    "Container should stop after completing the backup"
+    "Run `producer` (`alpine:3.20`) with the volume `telemetry` mounted read-write at `/data`, rewriting `/data/latest.txt` with `tick <timestamp>` every second",
+    "Run `reader-ops` and `reader-lab` (`alpine:3.20`, `sleep infinity`) with the same volume mounted at `/feed` read-only",
+    "A reader can read `/feed/latest.txt` but any write under `/feed` fails"
   ],
+  "startingState": "A clean engine: no volume `telemetry` and no containers.",
   "hints": [
-    "Use `docker run --rm` for throwaway containers",
-    "Mount both the volume and the backup directory",
-    "`docker run --rm -v app-data:/data -v /backup:/backup alpine tar czf /backup/app-data.tar.gz -C /data .`"
+    "Several containers can mount the same named volume at the same time. Each mount has its own mode, so the writer and the readers can have different permissions on the same data.",
+    "Add `:ro` to the readers' mount: `-v telemetry:/feed:ro`. For the writer, run a shell loop: `sh -c 'while true; do echo \"tick $(date +%s)\" > /data/latest.txt; sleep 1; done'`.",
+    "```bash\ndocker volume create telemetry\ndocker run -d --name producer -v telemetry:/data alpine:3.20 \\\n  sh -c 'while true; do echo \"tick $(date +%s)\" > /data/latest.txt; sleep 1; done'\ndocker run -d --name reader-ops -v telemetry:/feed:ro alpine:3.20 sleep infinity\ndocker run -d --name reader-lab -v telemetry:/feed:ro alpine:3.20 sleep infinity\ndocker exec reader-ops touch /feed/x   # must fail\n```"
   ],
+  "setup": {
+    "files": [],
+    "commands": []
+  },
   "validation": [
     {
-      "type": "file_exists_on_host",
+      "type": "container_running",
       "params": {
-        "path": "/backup/app-data.tar.gz"
+        "name": "producer",
+        "image": "alpine:3.20"
       },
-      "description": "path=/backup/app-data.tar.gz"
+      "description": "Container `producer` is running from `alpine:3.20`"
     },
     {
-      "type": "tar_valid",
+      "type": "mount",
       "params": {
-        "path": "/backup/app-data.tar.gz"
+        "name": "producer",
+        "destination": "/data",
+        "type": "volume",
+        "source": "telemetry",
+        "rw": true
       },
-      "description": "path=/backup/app-data.tar.gz"
+      "description": "`producer` has volume `telemetry` mounted read-write at `/data`"
+    },
+    {
+      "type": "mount",
+      "params": {
+        "name": "reader-ops",
+        "destination": "/feed",
+        "type": "volume",
+        "source": "telemetry",
+        "rw": false
+      },
+      "description": "`reader-ops` has volume `telemetry` mounted read-only at `/feed`"
+    },
+    {
+      "type": "mount",
+      "params": {
+        "name": "reader-lab",
+        "destination": "/feed",
+        "type": "volume",
+        "source": "telemetry",
+        "rw": false
+      },
+      "description": "`reader-lab` has volume `telemetry` mounted read-only at `/feed`"
+    },
+    {
+      "type": "container_exec",
+      "params": {
+        "name": "reader-lab",
+        "command": "grep -q tick /feed/latest.txt || (sleep 1; grep -q tick /feed/latest.txt)"
+      },
+      "description": "`reader-lab` can read the producer's `tick` line from `/feed/latest.txt`"
+    },
+    {
+      "type": "container_exec",
+      "params": {
+        "name": "reader-ops",
+        "command": "touch /feed/probe",
+        "exit_code": 1
+      },
+      "description": "A write under `/feed` in `reader-ops` fails"
     }
   ],
-  "initialState": {
-    "summary": "- Volume `app-data` with files pre-created - Host directory `/backup` exists and is writable",
-    "workspaceFiles": []
-  }
+  "solution": [
+    "docker volume create telemetry",
+    "docker run -d --name producer -v telemetry:/data alpine:3.20 sh -c 'while true; do echo \"tick $(date +%s)\" > /data/latest.txt; sleep 1; done'",
+    "docker run -d --name reader-ops -v telemetry:/feed:ro alpine:3.20 sleep infinity",
+    "docker run -d --name reader-lab -v telemetry:/feed:ro alpine:3.20 sleep infinity",
+    "sleep 2"
+  ],
+  "debrief": "One volume can be mounted many times, and each mount has its own access mode, so a single trusted writer can feed any number of read-only consumers. Pro tip: grant `:ro` by default and give write access only to the one container that truly needs it."
 }

@@ -2,30 +2,59 @@
   "id": "module_01_level_01",
   "moduleId": 1,
   "levelId": 1,
-  "title": "Hello, Container!",
-  "moduleTitle": "Docker Basics",
+  "title": "First Light",
+  "moduleTitle": "Arrival",
   "difficulty": "easy",
   "xp": 50,
-  "story": "Welcome, recruit. Your first mission is simple: prove you can launch a container. The docks are quiet, but not for long.",
+  "concepts": [
+    "docker run",
+    "exit codes",
+    "docker ps -a"
+  ],
+  "story": "RADIO, 06:42. Ingrid Halvorsen on the handset, static in the background.\n\n\"Engineer, you made it off the ferry. Good. The old server coughed twice overnight and I no longer trust anything it tells me. Tomasz installed a fresh Docker engine on the new machine, but nobody has run a single thing on it yet.\"\n\n\"Before I move one instrument over, I want proof that it works. Run a throwaway container from `alpine:3.20`, name it `first-light`, and have it print KESTREL POINT ONLINE. Then let it finish by itself. Show me it ended cleanly.\"",
   "objectives": [
-    "Run an `nginx` container in the foreground (any name)"
+    "Run a container named `first-light` from `alpine:3.20` that prints `KESTREL POINT ONLINE`",
+    "The container must have finished on its own with exit code 0 (it will show as Exited in `docker ps -a`)"
   ],
+  "startingState": "A freshly installed Docker engine with no containers yet. The shell opens in an empty /workspace.",
   "hints": [
-    "The command to run a container is `docker run`",
-    "Try `docker run nginx`",
-    "`docker run nginx` — this runs nginx in the foreground"
+    "`docker run` creates a container and starts it, running one command inside. A command that ends quickly leaves a stopped container behind, and `docker ps -a` is the way to see stopped ones.",
+    "The shape is `docker run --name <name> <image> <command>`. Use `echo` as the command to print text; a command that succeeds exits with code 0.",
+    "```bash\ndocker run --name first-light alpine:3.20 echo \"KESTREL POINT ONLINE\"\ndocker ps -a --filter name=first-light\n```"
   ],
+  "setup": {
+    "files": [],
+    "commands": []
+  },
   "validation": [
     {
-      "type": "container_running",
+      "type": "container_exited",
       "params": {
-        "image": "nginx"
+        "name": "first-light",
+        "exit_code": 0
       },
-      "description": "image=nginx"
+      "description": "Container `first-light` has stopped with exit code 0"
+    },
+    {
+      "type": "container_logs",
+      "params": {
+        "name": "first-light",
+        "contains": "KESTREL POINT ONLINE"
+      },
+      "description": "The output of `first-light` contains `KESTREL POINT ONLINE`"
+    },
+    {
+      "type": "container_inspect",
+      "params": {
+        "name": "first-light",
+        "path": "Config.Image",
+        "equals": "alpine:3.20"
+      },
+      "description": "Container `first-light` was created from `alpine:3.20`"
     }
   ],
-  "initialState": {
-    "summary": "Clean Docker environment",
-    "workspaceFiles": []
-  }
+  "solution": [
+    "docker run --name first-light alpine:3.20 echo \"KESTREL POINT ONLINE\""
+  ],
+  "debrief": "A container lives exactly as long as its main process: `echo` finished, so the container stopped, yet it stays on disk until you remove it. Pro tip: add `--rm` to throwaway runs so they clean up after themselves."
 }

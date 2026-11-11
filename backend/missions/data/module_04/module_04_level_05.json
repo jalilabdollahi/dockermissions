@@ -2,48 +2,60 @@
   "id": "module_04_level_05",
   "moduleId": 4,
   "levelId": 5,
-  "title": "tmpfs Mount",
-  "moduleTitle": "Volumes & Storage",
+  "title": "Unpack the Delivery",
+  "moduleTitle": "Ice-Core Archive",
   "difficulty": "medium",
-  "xp": 100,
-  "story": "Some sensitive data (tokens, secrets) should never touch disk. Use a `tmpfs` mount for in-memory-only storage.",
+  "xp": 125,
+  "concepts": [
+    "volume restore",
+    "tar",
+    "checksum verification"
+  ],
+  "story": "Tomasz: The Petrel delivered `glacier.tar.gz` from the mainland lab. Forty years of glacier-front measurements.\nIngrid: Where is it?\nTomasz: In `/workspace/incoming`. I cannot simply extract it on the host. The permissions on the old server were a swamp, and the viewer containers expect it in a Docker volume.\n\nIngrid: Then make it a volume, engineer. There is a `MANIFEST.sha256` inside. Nobody tells Tomasz it is done until the checksums pass.",
   "objectives": [
-    "Run container `secure-app` from `alpine` with a `tmpfs` mount at `/secrets` (detached, `sleep 3600`)",
-    "Write a file `/secrets/token.txt` to it",
-    "Confirm the data is in memory (not on a volume or bind mount)"
+    "Create a new volume named `glacier-data`",
+    "Extract `/workspace/incoming/glacier.tar.gz` into it using a throwaway container (the tarball must stay in place)",
+    "`sha256sum -c MANIFEST.sha256` inside the volume must report every file `OK`"
   ],
+  "startingState": "The tarball `/workspace/incoming/glacier.tar.gz` exists. No volume called `glacier-data` exists yet.",
   "hints": [
-    "`--tmpfs <path>` mounts an in-memory filesystem",
-    "Data in tmpfs is lost when the container stops",
-    "`docker run -d --name secure-app --tmpfs /secrets alpine sleep 3600`"
+    "Restoring is the reverse of backing up: a helper container mounts the target volume and the folder with the tarball, and unpacks one into the other.",
+    "Mount the volume at `/data` and `/workspace/incoming` at `/incoming` (read-only is fine), then run `tar xzf /incoming/glacier.tar.gz -C /data`.",
+    "```bash\ndocker run --rm \\\n  -v glacier-data:/data \\\n  -v /workspace/incoming:/incoming:ro \\\n  alpine:3.20 tar xzf /incoming/glacier.tar.gz -C /data\ndocker run --rm -v glacier-data:/data alpine:3.20 \\\n  sh -c 'cd /data && sha256sum -c MANIFEST.sha256'\n```"
   ],
+  "setup": {
+    "files": [],
+    "commands": [
+      "mkdir -p incoming && d=$(mktemp -d) && for i in 1 2 3; do head -c 2048 /dev/urandom | base64 > $d/core-000$i.dat; done && (cd $d && sha256sum *.dat > MANIFEST.sha256) && tar czf incoming/glacier.tar.gz -C $d . && rm -rf $d"
+    ]
+  },
   "validation": [
     {
-      "type": "container_running",
+      "type": "volume_exists",
       "params": {
-        "name": "secure-app"
+        "name": "glacier-data"
       },
-      "description": "name=secure-app"
+      "description": "Volume `glacier-data` exists"
     },
     {
-      "type": "tmpfs_mounted",
+      "type": "shell",
       "params": {
-        "container": "secure-app",
-        "path": "/secrets"
+        "command": "docker run --rm -v glacier-data:/data alpine:3.20 sh -c 'cd /data && sha256sum -c MANIFEST.sha256'",
+        "output_contains": "core-0003.dat: OK"
       },
-      "description": "container=secure-app, path=/secrets"
+      "description": "Every file in `glacier-data` passes the manifest (`sha256sum -c MANIFEST.sha256`)"
     },
     {
-      "type": "file_in_container",
+      "type": "workspace_file",
       "params": {
-        "container": "secure-app",
-        "path": "/secrets/token.txt"
+        "path": "incoming/glacier.tar.gz"
       },
-      "description": "container=secure-app, path=/secrets/token.txt"
+      "description": "The delivered tarball `incoming/glacier.tar.gz` is still in place"
     }
   ],
-  "initialState": {
-    "summary": "Clean Docker environment",
-    "workspaceFiles": []
-  }
+  "solution": [
+    "docker volume create glacier-data",
+    "docker run --rm -v glacier-data:/data -v /workspace/incoming:/incoming:ro alpine:3.20 tar xzf /incoming/glacier.tar.gz -C /data"
+  ],
+  "debrief": "Restoring a volume is just extracting an archive into it through a helper container; the volume does not care how its files arrived. Pro tip: verify a restore with a checksum manifest, because a tarball that extracts without error can still be incomplete."
 }

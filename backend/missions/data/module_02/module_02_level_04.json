@@ -2,45 +2,69 @@
   "id": "module_02_level_04",
   "moduleId": 2,
   "levelId": 4,
-  "title": "ADD vs COPY",
-  "moduleTitle": "Images & Dockerfile",
+  "title": "Celsius or Fahrenheit",
+  "moduleTitle": "Instrument Images",
   "difficulty": "medium",
   "xp": 100,
-  "story": "Your app needs its source code inside the image. Use COPY to add `app.py` from the build context into `/app/app.py` in the image.",
+  "concepts": [
+    "ENTRYPOINT",
+    "CMD",
+    "default arguments"
+  ],
+  "story": "NORA: UNIT MISMATCH. SENSOR GRID REPORTS CELSIUS. LEGACY DISPLAYS EXPECT FAHRENHEIT. FOURTEEN DISPLAYS SHOWING GARBAGE. CONVERTER SCRIPT FOUND AT /WORKSPACE/CONVERT.SH. NO IMAGE FOUND. NO OWNER FOUND.\n\nAmara's script takes a Celsius value as its first argument and defaults to 0. Package it as `kestrel/converter:1.0` so the image behaves like a command: `docker run kestrel/converter:1.0 100` must print `212.0 F`, and with no argument at all it must convert the default 0 and print `32.0 F`.\n\nThe trick is making the arguments replace the default instead of being appended to it.",
   "objectives": [
-    "Write a Dockerfile using `FROM python:3.11-alpine`, `COPY app.py /app/app.py`, `CMD [\"python\", \"/app/app.py\"]`",
-    "Build as `pyapp:v1`"
+    "Build `kestrel/converter:1.0` from `alpine:3.20` containing `convert.sh`",
+    "`docker run kestrel/converter:1.0` prints `32.0 F` (default argument 0)",
+    "`docker run kestrel/converter:1.0 100` prints `212.0 F` (argument replaces the default)"
   ],
+  "startingState": "`/workspace/convert.sh` exists and is executable. No Dockerfile has been written.",
   "hints": [
-    "`COPY <src> <dest>` copies files from build context to image",
-    "Dockerfile with FROM, COPY, CMD; build with `docker build -t pyapp:v1 /workspace`",
-    "Write the Dockerfile, then `docker build -t pyapp:v1 /workspace`"
+    "Two Dockerfile instructions control what runs at start: one fixes the program itself, the other supplies default arguments that anything after the image name replaces.",
+    "Put the script in `ENTRYPOINT` using the JSON (exec) form, and the default value in `CMD`, also in JSON form. Whatever you type after the image name replaces `CMD` only.",
+    "```bash\ncat > Dockerfile <<'EOF'\nFROM alpine:3.20\nCOPY convert.sh /app/convert.sh\nENTRYPOINT [\"/app/convert.sh\"]\nCMD [\"0\"]\nEOF\ndocker build -t kestrel/converter:1.0 .\ndocker run --rm kestrel/converter:1.0 100\n```"
   ],
+  "setup": {
+    "files": [
+      {
+        "path": "convert.sh",
+        "content": "#!/bin/sh\nawk -v c=\"${1:-0}\" 'BEGIN { printf \"%.1f F\\n\", c * 9 / 5 + 32 }'\n"
+      }
+    ],
+    "commands": [
+      "chmod +x convert.sh"
+    ]
+  },
   "validation": [
     {
-      "type": "image_exists",
+      "type": "image_inspect",
       "params": {
-        "name": "pyapp",
-        "tag": "v1"
+        "ref": "kestrel/converter:1.0",
+        "path": "Config.Entrypoint",
+        "exists": true
       },
-      "description": "name=pyapp, tag=v1"
+      "description": "`kestrel/converter:1.0` defines an ENTRYPOINT"
     },
     {
-      "type": "file_in_image",
+      "type": "image_run",
       "params": {
-        "image": "pyapp:v1",
-        "path": "/app/app.py"
+        "ref": "kestrel/converter:1.0",
+        "output_contains": "32.0 F"
       },
-      "description": "image=pyapp:v1, path=/app/app.py"
+      "description": "With no arguments the image prints `32.0 F`"
+    },
+    {
+      "type": "image_run",
+      "params": {
+        "ref": "kestrel/converter:1.0",
+        "args": "100",
+        "output_contains": "212.0 F"
+      },
+      "description": "With the argument `100` the image prints `212.0 F`"
     }
   ],
-  "initialState": {
-    "summary": "`/workspace/app.py` pre-created with `print(\"hello docker\")`",
-    "workspaceFiles": [
-      {
-        "path": "app.py",
-        "content": "print(\"hello docker\")\n"
-      }
-    ]
-  }
+  "solution": [
+    "cat > Dockerfile <<'EOF'\nFROM alpine:3.20\nCOPY convert.sh /app/convert.sh\nENTRYPOINT [\"/app/convert.sh\"]\nCMD [\"0\"]\nEOF",
+    "docker build -t kestrel/converter:1.0 ."
+  ],
+  "debrief": "`ENTRYPOINT` is the fixed program and `CMD` is its default arguments, which `docker run IMAGE args` replaces. Pro tip: `docker run --entrypoint sh` overrides the entrypoint itself when you need to debug an image."
 }

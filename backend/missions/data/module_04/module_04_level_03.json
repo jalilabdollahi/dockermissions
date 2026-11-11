@@ -2,42 +2,92 @@
   "id": "module_04_level_03",
   "moduleId": 4,
   "levelId": 3,
-  "title": "Data Survives Container Death",
-  "moduleTitle": "Volumes & Storage",
+  "title": "Scratch Paper",
+  "moduleTitle": "Ice-Core Archive",
   "difficulty": "medium",
-  "xp": 100,
-  "story": "Prove that data in a volume outlives its container. The `writer` container has been removed. Run a new container `reader` on the same volume and confirm the file still exists.",
+  "xp": 125,
+  "concepts": [
+    "tmpfs mount",
+    "--tmpfs",
+    "size limit"
+  ],
+  "story": "decoder[1]: writing /scratch/frame.tmp (412 MB)\ndecoder[1]: writing /scratch/frame.tmp (412 MB)\nkernel: overlayfs: no space left on device\nNORA: DISK 98 PERCENT. SNAPSHOT JOB ABORTED.\n\nAmara Okafor's signal decoder dumps huge throwaway frames every minute. Overnight they filled the disk that holds the station's snapshots. Temporary files belong in RAM, and the amount should be capped so a runaway decoder cannot eat the machine's memory either.\n\nThe script is in `/workspace/decoder`. It refuses to start unless `/scratch` is RAM-backed.",
   "objectives": [
-    "Run container `reader` from `alpine` mounting `app-data` at `/data`",
-    "Read `/data/record.txt` and confirm content is `mission=complete`"
+    "Run `decoder` from `alpine:3.20` with the command `sh /opt/decoder/decode.sh`",
+    "Bind-mount `/workspace/decoder` at `/opt/decoder` (read-only is fine)",
+    "Mount a `tmpfs` at `/scratch` limited to 16 MB",
+    "The decoder's logs must show that it started and wrote its frame"
   ],
+  "startingState": "`/workspace/decoder/decode.sh` exists. No containers are running.",
   "hints": [
-    "Mount the same volume in a new container",
-    "`docker run -d --name reader -v app-data:/data alpine sleep 3600`",
-    "`docker exec reader cat /data/record.txt` should show `mission=complete`"
+    "Docker can mount an in-memory filesystem into a container; nothing is written to disk and it disappears when the container stops. This is a `docker run` option, and it takes a size parameter.",
+    "Use `--tmpfs /scratch:rw,size=16m` for the RAM mount and `-v /workspace/decoder:/opt/decoder:ro` to bring in the script. Then give the command `sh /opt/decoder/decode.sh`.",
+    "```bash\ndocker run -d --name decoder \\\n  --tmpfs /scratch:rw,size=16m \\\n  -v /workspace/decoder:/opt/decoder:ro \\\n  alpine:3.20 sh /opt/decoder/decode.sh\ndocker logs decoder\n```"
   ],
+  "setup": {
+    "files": [
+      {
+        "path": "decoder/decode.sh",
+        "content": "#!/bin/sh\nif ! grep -q ' /scratch tmpfs ' /proc/mounts; then\n  echo \"REFUSING TO START: /scratch is not RAM-backed\" >&2\n  exit 3\nfi\necho \"frame-0001\" > /scratch/frame.tmp\necho \"SCRATCH IS RAM: decoder ready\"\nexec sleep infinity\n"
+      }
+    ],
+    "commands": []
+  },
   "validation": [
     {
-      "type": "volume_mounted",
+      "type": "container_running",
       "params": {
-        "container": "reader",
-        "volume": "app-data",
-        "path": "/data"
+        "name": "decoder",
+        "image": "alpine:3.20"
       },
-      "description": "container=reader, volume=app-data, path=/data"
+      "description": "Container `decoder` is running from `alpine:3.20`"
     },
     {
-      "type": "file_content",
+      "type": "container_exec",
       "params": {
-        "container": "reader",
-        "path": "/data/record.txt",
-        "contains": "mission=complete"
+        "name": "decoder",
+        "command": "grep -q ' /scratch tmpfs ' /proc/mounts"
       },
-      "description": "container=reader, path=/data/record.txt, contains=mission=complete"
+      "description": "`/scratch` is a tmpfs (RAM-backed) mount"
+    },
+    {
+      "type": "container_exec",
+      "params": {
+        "name": "decoder",
+        "command": "grep ' /scratch tmpfs ' /proc/mounts",
+        "output_contains": "size=16384k"
+      },
+      "description": "`/scratch` is capped at 16 MB"
+    },
+    {
+      "type": "mount",
+      "params": {
+        "name": "decoder",
+        "destination": "/opt/decoder",
+        "type": "bind",
+        "source": "/workspace/decoder"
+      },
+      "description": "`/workspace/decoder` is bind-mounted at `/opt/decoder`"
+    },
+    {
+      "type": "container_logs",
+      "params": {
+        "name": "decoder",
+        "contains": "SCRATCH IS RAM"
+      },
+      "description": "The decoder reports `SCRATCH IS RAM` in its logs"
+    },
+    {
+      "type": "container_exec",
+      "params": {
+        "name": "decoder",
+        "command": "test -s /scratch/frame.tmp"
+      },
+      "description": "The decoder wrote `/scratch/frame.tmp`"
     }
   ],
-  "initialState": {
-    "summary": "- Volume `app-data` exists with `/data/record.txt` containing `mission=complete` - Container `writer` has been removed",
-    "workspaceFiles": []
-  }
+  "solution": [
+    "docker run -d --name decoder --tmpfs /scratch:rw,size=16m -v /workspace/decoder:/opt/decoder:ro alpine:3.20 sh /opt/decoder/decode.sh"
+  ],
+  "debrief": "A tmpfs mount keeps temporary data in memory, never touches the disk, and vanishes when the container stops. Pro tip: always set a size, because an unbounded tmpfs can grow until it competes with your applications for RAM."
 }

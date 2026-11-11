@@ -2,56 +2,82 @@
   "id": "module_03_level_01",
   "moduleId": 3,
   "levelId": 1,
-  "title": "Default Bridge Network",
-  "moduleTitle": "Docker Networking",
+  "title": "Names on the Wire",
+  "moduleTitle": "Station Network",
   "difficulty": "easy",
-  "xp": 50,
-  "story": "By default, containers join the `bridge` network. Run two alpine containers and observe that they can't resolve each other by name on the default bridge.",
+  "xp": 75,
+  "concepts": [
+    "user-defined bridge network",
+    "container DNS"
+  ],
+  "story": "NORA: WEATHER-CACHE UNREACHABLE. FORECASTER LOOKUP FAILED: HOST NOT FOUND.\nNORA: RETRY 41 OF 41. GIVING UP.\n\nAmara Okafor left a note under the alert. The forecaster hard-codes the cache's IP address, and that address changes every time the cache restarts. \"Give them a network where names just work,\" the note says. \"The default bridge will not.\"\n\nBuild the wire: a network called `station-net`, a Redis cache named `weather-cache`, and a `forecaster` container that can reach the cache by its name.",
   "objectives": [
-    "Run container `alpha` from `alpine` (detached, `sleep 3600`)",
-    "Run container `beta` from `alpine` (detached, `sleep 3600`)",
-    "Try to ping `beta` from `alpha` — observe it fails (expected)",
-    "Confirm both containers are on the `bridge` network"
+    "Create a user-defined bridge network named `station-net`",
+    "Run `weather-cache` from `redis:7-alpine` on `station-net`",
+    "Run `forecaster` from `alpine:3.20` (kept alive with `sleep infinity`) on `station-net`",
+    "From inside `forecaster`, `ping weather-cache` must succeed"
   ],
+  "startingState": "A clean engine: no custom networks and no containers. The forecaster's config still says the cache host is `weather-cache`.",
   "hints": [
-    "Default containers use the `bridge` network automatically",
-    "`docker run -d --name alpha alpine sleep 3600`",
-    "DNS-based name resolution only works on user-defined networks"
+    "Containers on the default bridge cannot resolve each other by name. A network you create yourself has built-in DNS. Look at the `docker network` command family.",
+    "Create the network with `docker network create <name>`, then attach each container at start time with `docker run --network <name> ...`. The container name is the DNS name.",
+    "```bash\ndocker network create station-net\ndocker run -d --name weather-cache --network station-net redis:7-alpine\ndocker run -d --name forecaster --network station-net alpine:3.20 sleep infinity\ndocker exec forecaster ping -c 1 weather-cache\n```"
   ],
+  "setup": {
+    "files": [
+      {
+        "path": "forecaster/config.env",
+        "content": "CACHE_HOST=weather-cache\nCACHE_PORT=6379\n"
+      }
+    ],
+    "commands": []
+  },
   "validation": [
     {
-      "type": "container_running",
+      "type": "network_exists",
       "params": {
-        "name": "alpha"
+        "name": "station-net",
+        "driver": "bridge"
       },
-      "description": "name=alpha"
+      "description": "Network `station-net` exists and uses the bridge driver"
     },
     {
       "type": "container_running",
       "params": {
-        "name": "beta"
+        "name": "weather-cache",
+        "image": "redis:7-alpine"
       },
-      "description": "name=beta"
+      "description": "Container `weather-cache` is running from `redis:7-alpine`"
     },
     {
       "type": "container_on_network",
       "params": {
-        "container": "alpha",
-        "network": "bridge"
+        "name": "weather-cache",
+        "network": "station-net"
       },
-      "description": "container=alpha, network=bridge"
+      "description": "`weather-cache` is attached to `station-net`"
     },
     {
       "type": "container_on_network",
       "params": {
-        "container": "beta",
-        "network": "bridge"
+        "name": "forecaster",
+        "network": "station-net"
       },
-      "description": "container=beta, network=bridge"
+      "description": "`forecaster` is attached to `station-net`"
+    },
+    {
+      "type": "container_exec",
+      "params": {
+        "name": "forecaster",
+        "command": "ping -c 1 -W 2 weather-cache"
+      },
+      "description": "Inside `forecaster`, the name `weather-cache` resolves and answers a ping"
     }
   ],
-  "initialState": {
-    "summary": "Clean Docker environment",
-    "workspaceFiles": []
-  }
+  "solution": [
+    "docker network create station-net",
+    "docker run -d --name weather-cache --network station-net redis:7-alpine",
+    "docker run -d --name forecaster --network station-net alpine:3.20 sleep infinity"
+  ],
+  "debrief": "On a user-defined network Docker runs an embedded DNS server, so every container is reachable by its name and IPs stop mattering. Pro tip: put each group of cooperating services on its own network instead of sharing the default bridge."
 }
