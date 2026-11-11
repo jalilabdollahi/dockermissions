@@ -4,58 +4,95 @@ import { randomUUID } from "node:crypto";
 import { env } from "../config/env.js";
 import { Mission } from "../missions/types.js";
 import { ensureDir } from "../utils/fs.js";
-import { execCommand } from "../utils/exec.js";
+import { SandboxRuntime } from "./SandboxRuntime.js";
 
 export interface SandboxSession {
   id: string;
   missionId: string;
   createdAt: number;
   expiresAt: number;
+  /** Session directory on the host (contains workspace/, bashrc, commands.log). */
+  hostDir: string;
+  /** The player's /workspace, as a host path. */
   workspaceDir: string;
-  mode: "docker-host" | "local-shell";
+  /** rcfile path inside the sandbox. */
+  rcFileInSandbox: string;
+  commandLogFile: string;
   commandLog: string[];
   commandBuffer: string;
-  commandLogFile: string;
+  setupErrors: string[];
 }
+
+type SessionListener = (sessionId: string) => void;
 
 export class SandboxManager {
   private sessions = new Map<string, SandboxSession>();
+  private destroyListeners = new Set<SessionListener>();
+  /** Missions share one sandbox engine, so session creation is serialized. */
+  private queue: Promise<unknown> = Promise.resolve();
 
-  constructor() {
+  constructor(readonly runtime: SandboxRuntime) {
     ensureDir(env.sessionRoot);
     setInterval(() => this.cleanupExpiredSessions(), 60_000).unref();
   }
 
-  async createSession(mission: Mission): Promise<SandboxSession> {
-    const id = randomUUID();
-    const workspaceDir = path.join(env.sessionRoot, id, "workspace");
-    ensureDir(workspaceDir);
-    for (const file of mission.initialState.workspaceFiles) {
-      const target = path.join(workspaceDir, file.path);
-      ensureDir(path.dirname(target));
-      fs.writeFileSync(target, file.content, "utf8");
+  onDestroy(listener: SessionListener) {
+    this.destroyListeners.add(listener);
+  }
+
+  createSession(mission: Mission): Promise<SandboxSession> {
+    const run = this.queue.then(() => this.createSessionNow(mission));
+    this.queue = run.catch(() => undefined);
+    return run;
+  }
+
+  private async createSessionNow(mission: Mission): Promise<SandboxSession> {
+    await this.runtime.ensureRunning();
+
+    // Only one mission can own the sandbox engine at a time.
+    for (const sessionId of Array.from(this.sessions.keys())) {
+      this.destroySession(sessionId);
     }
 
-    this.ensureCommonWorkspaceLayout(workspaceDir);
+    const id = randomUUID();
+    const hostDir = path.join(env.sessionRoot, id);
+    const workspaceDir = path.join(hostDir, "workspace");
+    ensureDir(workspaceDir);
 
-    const hasDocker = await this.hasDocker();
     const session: SandboxSession = {
       id,
       missionId: mission.id,
       createdAt: Date.now(),
       expiresAt: Date.now() + env.sessionTtlMinutes * 60_000,
+      hostDir,
       workspaceDir,
-      mode: hasDocker ? "docker-host" : "local-shell",
+      rcFileInSandbox: `${this.runtime.sessionPathInSandbox(id)}/bashrc`,
+      commandLogFile: path.join(hostDir, "commands.log"),
       commandLog: [],
       commandBuffer: "",
-      commandLogFile: path.join(workspaceDir, ".dockermissions_commands.log")
+      setupErrors: []
     };
 
     fs.writeFileSync(session.commandLogFile, "", "utf8");
+    fs.writeFileSync(path.join(hostDir, "bashrc"), this.buildRcFile(id), "utf8");
+
+    for (const file of mission.setup.files) {
+      const target = this.resolveWorkspacePath(session, file.path);
+      ensureDir(path.dirname(target));
+      fs.writeFileSync(target, file.content, "utf8");
+    }
+
+    await this.runtime.resetForSession(id);
+    for (const command of mission.setup.commands) {
+      const result = await this.runtime.shell(command, { timeoutMs: 300_000 });
+      if (result.exitCode !== 0) {
+        const message = `setup command failed (${result.exitCode}): ${command}\n${result.stderr.trim()}`;
+        session.setupErrors.push(message);
+        console.error(`[sandbox] ${mission.id} ${message}`);
+      }
+    }
 
     this.sessions.set(id, session);
-    this.mountWorkspaceAlias(session);
-    await this.seedInitialState(session, mission);
     return session;
   }
 
@@ -68,9 +105,11 @@ export class SandboxManager {
     if (!session) {
       return false;
     }
-
     this.sessions.delete(sessionId);
-    fs.rmSync(path.dirname(session.workspaceDir), { recursive: true, force: true });
+    for (const listener of this.destroyListeners) {
+      listener(sessionId);
+    }
+    fs.rmSync(session.hostDir, { recursive: true, force: true });
     return true;
   }
 
@@ -81,35 +120,33 @@ export class SandboxManager {
     }
   }
 
-  appendCommand(sessionId: string, input: string) {
+  /** Track keystrokes as a fallback command log (history-based logging is the primary source). */
+  appendInput(sessionId: string, input: string) {
     const session = this.sessions.get(sessionId);
     if (!session) {
       return;
     }
-
+    if (input.startsWith("\x1b")) {
+      // Arrow keys / escape sequences: the line buffer can no longer be trusted.
+      session.commandBuffer = "";
+      return;
+    }
     for (const char of input) {
       if (char === "\r" || char === "\n") {
         const command = session.commandBuffer.trim();
         if (command) {
           session.commandLog.push(command);
-          if (session.commandLog.length > 200) {
-            session.commandLog.shift();
-          }
+          if (session.commandLog.length > 200) session.commandLog.shift();
         }
         session.commandBuffer = "";
-        continue;
-      }
-
-      if (char === "\u007f" || char === "\b") {
+      } else if (char === "\u007f" || char === "\b") {
         session.commandBuffer = session.commandBuffer.slice(0, -1);
-        continue;
-      }
-
-      if (char >= " " || char === "\t") {
+      } else if (char === "\u0003" || char === "\u0015") {
+        session.commandBuffer = "";
+      } else if (char >= " " || char === "\t") {
         session.commandBuffer += char;
       }
     }
-
     this.touch(sessionId);
   }
 
@@ -118,16 +155,38 @@ export class SandboxManager {
     if (!session) {
       return [];
     }
-
-    const fileCommands = fs.existsSync(session.commandLogFile)
-      ? fs
-          .readFileSync(session.commandLogFile, "utf8")
-          .split("\n")
-          .map((line) => line.trim())
-          .filter(Boolean)
+    const fromHistory = fs.existsSync(session.commandLogFile)
+      ? fs.readFileSync(session.commandLogFile, "utf8").split("\n").map((line) => line.trim()).filter(Boolean)
       : [];
+    return Array.from(new Set([...fromHistory, ...session.commandLog]));
+  }
 
-    return [...session.commandLog, ...fileCommands];
+  /** Map a mission path ("app/x", "/workspace/app/x") to the host path inside the session workspace. */
+  resolveWorkspacePath(session: SandboxSession, rawPath: string) {
+    const relative = rawPath.replace(/^\/workspace\/?/, "").replace(/^\/+/, "");
+    const resolved = path.resolve(session.workspaceDir, relative);
+    if (resolved !== session.workspaceDir && !resolved.startsWith(session.workspaceDir + path.sep)) {
+      throw new Error(`Path escapes the workspace: ${rawPath}`);
+    }
+    return resolved;
+  }
+
+  private buildRcFile(sessionId: string) {
+    const logPath = `${this.runtime.sessionPathInSandbox(sessionId)}/commands.log`;
+    return [
+      "[ -f /etc/dockermissions/bashrc ] && . /etc/dockermissions/bashrc",
+      "__dm_last=''",
+      "__dm_log() {",
+      "  local cmd",
+      "  cmd=$(HISTTIMEFORMAT= history 1 | sed -E 's/^ *[0-9]+\\*? *//')",
+      "  if [ -n \"$cmd\" ] && [ \"$cmd\" != \"$__dm_last\" ]; then",
+      `    printf '%s\\n' "$cmd" >> '${logPath}'`,
+      "    __dm_last=\"$cmd\"",
+      "  fi",
+      "}",
+      "PROMPT_COMMAND=__dm_log",
+      "cd /workspace"
+    ].join("\n") + "\n";
   }
 
   private cleanupExpiredSessions() {
@@ -136,153 +195,6 @@ export class SandboxManager {
       if (session.expiresAt < now) {
         this.destroySession(sessionId);
       }
-    }
-  }
-
-  private async hasDocker() {
-    const result = await execCommand("docker", ["version", "--format", "{{.Server.Version}}"]);
-    return result.exitCode === 0;
-  }
-
-  private ensureCommonWorkspaceLayout(workspaceDir: string) {
-    ensureDir(path.join(workspaceDir, "html"));
-    ensureDir(path.join(workspaceDir, ".git"));
-    ensureDir(path.join(workspaceDir, "node_modules"));
-  }
-
-  private mountWorkspaceAlias(session: SandboxSession) {
-    for (const [aliasPath, target] of [
-      ["/workspace", session.workspaceDir],
-      ["/backup", path.join(session.workspaceDir, "backup")]
-    ] as const) {
-      try {
-        ensureDir(path.dirname(target));
-        if (fs.existsSync(aliasPath)) {
-          fs.rmSync(aliasPath, { recursive: true, force: true });
-        }
-        fs.symlinkSync(target, aliasPath);
-      } catch {
-        // Ignore when the host/container filesystem does not allow a global alias.
-      }
-    }
-  }
-
-  private async dockerRun(args: string[], cwd: string) {
-    await execCommand("docker", ["run", ...args], cwd);
-  }
-
-  private async dockerBuild(args: string[], cwd: string) {
-    await execCommand("docker", ["build", ...args], cwd);
-  }
-
-  private async writeFile(workspaceDir: string, relativePath: string, content: string) {
-    const target = path.join(workspaceDir, relativePath);
-    ensureDir(path.dirname(target));
-    fs.writeFileSync(target, content, "utf8");
-  }
-
-  private async seedInitialState(session: SandboxSession, mission: Mission) {
-    const summary = mission.initialState.summary.toLowerCase();
-    await this.seedWorkspaceArtifacts(session.workspaceDir, summary);
-    if (summary.includes("host directory `/backup` exists and is writable")) {
-      ensureDir(path.join(session.workspaceDir, "backup"));
-    }
-
-    if (session.mode !== "docker-host" || summary.includes("clean docker environment")) {
-      return;
-    }
-
-    if (summary.includes("container `mission-agent`")) {
-      await this.dockerRun(["-d", "--rm", "--name", "mission-agent", "alpine", "sleep", "3600"], session.workspaceDir);
-    }
-    if (summary.includes("container `old-service`")) {
-      await this.dockerRun(["-d", "--rm", "--name", "old-service", "nginx"], session.workspaceDir);
-    }
-    if (summary.includes("container `debug-box`")) {
-      await this.dockerRun(["-d", "--rm", "--name", "debug-box", "ubuntu:22.04", "sleep", "3600"], session.workspaceDir);
-    }
-    if (summary.includes("container `log-service`")) {
-      await this.dockerRun(["-d", "--rm", "--name", "log-service", "alpine", "sh", "-lc", 'echo "SECRET_CODE=DOCKER42"; sleep 3600'], session.workspaceDir);
-    }
-    if (summary.includes("image `busybox:latest`")) {
-      await execCommand("docker", ["pull", "busybox:latest"], session.workspaceDir);
-    }
-    if (summary.includes("network `mission-net`")) {
-      await execCommand("docker", ["network", "create", "mission-net"], session.workspaceDir);
-    }
-    if (summary.includes("container `late-joiner`")) {
-      await this.dockerRun(["-d", "--rm", "--name", "late-joiner", "alpine", "sleep", "3600"], session.workspaceDir);
-    }
-    if (summary.includes("volume `app-data` pre-created")) {
-      await execCommand("docker", ["volume", "create", "app-data"], session.workspaceDir);
-    }
-    if (summary.includes("volume `app-data` exists with `/data/record.txt` containing `mission=complete`")) {
-      await execCommand("docker", ["volume", "create", "app-data"], session.workspaceDir);
-      await this.dockerRun(["--rm", "-v", "app-data:/data", "alpine", "sh", "-lc", "echo mission=complete > /data/record.txt"], session.workspaceDir);
-    }
-    if (summary.includes("volume `app-data` with files pre-created")) {
-      await execCommand("docker", ["volume", "create", "app-data"], session.workspaceDir);
-      await this.dockerRun(["--rm", "-v", "app-data:/data", "alpine", "sh", "-lc", "echo backup > /data/seed.txt"], session.workspaceDir);
-    }
-    if (summary.includes("`legacy-app:v1` pre-built")) {
-      await this.dockerBuild(["-t", "legacy-app:v1", session.workspaceDir], session.workspaceDir);
-    }
-    if (summary.includes("`myapp:latest` image pre-built")) {
-      await this.writeFile(session.workspaceDir, "Dockerfile", "FROM alpine:3.18\nCMD [\"sh\", \"-lc\", \"echo registry app\"]\n");
-      await this.dockerBuild(["-t", "myapp:latest", session.workspaceDir], session.workspaceDir);
-    }
-    if (summary.includes("local registry running on port 5000")) {
-      await this.dockerRun(["-d", "--rm", "--name", "registry", "-p", "5000:5000", "registry:2"], session.workspaceDir);
-      await this.writeFile(session.workspaceDir, "Dockerfile", "FROM alpine:3.18\nCMD [\"sh\", \"-lc\", \"echo registry app\"]\n");
-      await this.dockerBuild(["-t", "myapp:latest", session.workspaceDir], session.workspaceDir);
-      await execCommand("docker", ["tag", "myapp:latest", "localhost:5000/myapp:v1"], session.workspaceDir);
-    }
-    if (summary.includes("many stopped containers, unused images, and dangling volumes pre-created")) {
-      await this.dockerRun(["--name", "stopped-alpha", "alpine", "sh", "-lc", "echo done"], session.workspaceDir);
-      await this.writeFile(session.workspaceDir, "Dockerfile", "FROM alpine:3.18\nRUN echo stale\n");
-      await this.dockerBuild(["-t", "unused-image:latest", session.workspaceDir], session.workspaceDir);
-      await execCommand("docker", ["volume", "create", "dangling-seed"], session.workspaceDir);
-    }
-  }
-
-  private async seedWorkspaceArtifacts(workspaceDir: string, summary: string) {
-    if (summary.includes("/workspace/html/index.html")) {
-      await this.writeFile(workspaceDir, "html/index.html", "<h1>DockerMissions</h1>\n");
-    }
-    if (summary.includes("/workspace/default-seccomp.json")) {
-      await this.writeFile(workspaceDir, "default-seccomp.json", '{ "defaultAction": "SCMP_ACT_ERRNO", "architectures": [], "syscalls": [] }\n');
-    }
-    if (summary.includes("`legacy-app:v1` pre-built")) {
-      await this.writeFile(
-        workspaceDir,
-        "Dockerfile",
-        ["FROM ubuntu:18.04", "RUN apt-get update", "RUN apt-get install -y curl", "RUN apt-get install -y wget", 'CMD ["bash", "-lc", "sleep 3600"]'].join("\n") + "\n"
-      );
-    }
-    if (summary.includes("`myapp:v1` pre-built")) {
-      await this.writeFile(
-        workspaceDir,
-        "Dockerfile",
-        [
-          "FROM ubuntu:22.04",
-          "RUN apt-get update",
-          "RUN apt-get install -y curl",
-          "RUN apt-get install -y wget",
-          "RUN apt-get install -y git",
-          'CMD ["bash", "-lc", "echo mission ready"]'
-        ].join("\n") + "\n"
-      );
-    }
-    if (summary.includes("/workspace` with dockerfile and source files")) {
-      await this.writeFile(workspaceDir, "Dockerfile", "FROM nginx:latest\nCOPY index.html /usr/share/nginx/html/index.html\n");
-      await this.writeFile(workspaceDir, "index.html", "<h1>Cache me if you can</h1>\n");
-    }
-    if (summary.includes("/workspace/dockerfile` with plain `run apt-get install")) {
-      await this.writeFile(workspaceDir, "Dockerfile", "FROM ubuntu:22.04\nRUN apt-get update && apt-get install -y curl\n");
-    }
-    if (summary.includes("nginx-based")) {
-      await this.writeFile(workspaceDir, "Dockerfile", "FROM nginx:latest\nCOPY index.html /usr/share/nginx/html/index.html\n");
-      await this.writeFile(workspaceDir, "index.html", "<h1>healthy nginx</h1>\n");
     }
   }
 }

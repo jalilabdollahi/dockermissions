@@ -1,20 +1,21 @@
 export type MissionDifficulty = "easy" | "medium" | "hard";
 
+export type CheckParamValue = string | number | boolean;
+
 export interface ValidationCheck {
   type: string;
-  params: Record<string, string | number | boolean>;
+  params: Record<string, CheckParamValue>;
   description: string;
 }
 
-export interface InitialWorkspaceFile {
+export interface MissionFile {
   path: string;
   content: string;
 }
 
-export interface InitialState {
-  summary: string;
-  workspaceFiles: InitialWorkspaceFile[];
-  rawLines: string[];
+export interface MissionSetup {
+  files: MissionFile[];
+  commands: string[];
 }
 
 export interface Mission {
@@ -25,12 +26,22 @@ export interface Mission {
   moduleTitle: string;
   difficulty: MissionDifficulty;
   xp: number;
+  concepts: string[];
   story: string;
   objectives: string[];
+  startingState: string;
   hints: string[];
+  setup: MissionSetup;
   validation: ValidationCheck[];
-  initialState: InitialState;
+  /** Reference solution used by the test harness; never sent to the browser. */
+  solution: string[];
+  debrief: string;
 }
+
+/** What the browser receives for a mission: no setup commands, no solution. */
+export type PublicMission = Omit<Mission, "setup" | "solution" | "validation"> & {
+  validation: Array<Pick<ValidationCheck, "description">>;
+};
 
 export interface ModuleSummary {
   id: number;
@@ -45,4 +56,3 @@ export interface MissionCatalog {
   missions: Mission[];
   byId: Map<string, Mission>;
 }
-

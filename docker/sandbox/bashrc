@@ -1,0 +1,6 @@
+# Shared shell setup for DockerMissions terminals (sourced by the per-session rcfile).
+[ -f /usr/share/bash-completion/bash_completion ] && . /usr/share/bash-completion/bash_completion
+export PS1='\[\e[38;5;71m\]kestrel\[\e[0m\]:\[\e[38;5;75m\]\w\[\e[0m\]\$ '
+export HISTCONTROL=ignoredups
+alias ll='ls -la'
+alias d='docker'

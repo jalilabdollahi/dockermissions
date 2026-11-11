@@ -1,816 +1,512 @@
 import fs from "node:fs";
-import path from "node:path";
-import { Mission, ValidationCheck } from "../missions/types.js";
-import { SandboxSession } from "../sandbox/SandboxManager.js";
-import { execCommand } from "../utils/exec.js";
+import { CheckParamValue, Mission, ValidationCheck } from "../missions/types.js";
+import { SandboxManager, SandboxSession } from "../sandbox/SandboxManager.js";
+import { SandboxRuntime } from "../sandbox/SandboxRuntime.js";
+import { analyzeCommands } from "./commandAnalysis.js";
+
+export interface CheckResult {
+  description: string;
+  passed: boolean;
+  /** Diagnostic detail for logs and the test harness (not shown to players). */
+  detail?: string;
+}
 
 export interface ValidationResult {
   passed: boolean;
+  checks: CheckResult[];
   failedChecks: string[];
   message: string;
+  debrief?: string;
 }
 
-function tryParseFirst(json: string): Record<string, any> | null {
-  try {
-    const parsed = JSON.parse(json);
-    return Array.isArray(parsed) ? (parsed[0] ?? null) : parsed;
-  } catch {
-    return null;
-  }
+type Params = Record<string, CheckParamValue>;
+type Outcome = { passed: boolean; detail?: string };
+
+const pass = (detail?: string): Outcome => ({ passed: true, detail });
+const fail = (detail?: string): Outcome => ({ passed: false, detail });
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+/** Single-quote a value for bash. */
+function q(value: string) {
+  return `'${value.replace(/'/g, `'\\''`)}'`;
 }
 
-async function inspectContainer(name: string) {
-  const result = await execCommand("docker", ["inspect", name]);
-  if (result.exitCode !== 0) return null;
-  return tryParseFirst(result.stdout);
+function str(params: Params, key: string, fallback = "") {
+  const value = params[key];
+  return value === undefined || value === null ? fallback : String(value);
 }
 
-async function inspectImage(name: string) {
-  const result = await execCommand("docker", ["image", "inspect", name]);
-  if (result.exitCode !== 0) return null;
-  return tryParseFirst(result.stdout);
+function has(params: Params, key: string) {
+  return params[key] !== undefined && params[key] !== null && params[key] !== "";
 }
 
-async function inspectNetwork(name: string) {
-  const result = await execCommand("docker", ["network", "inspect", name]);
-  if (result.exitCode !== 0) return null;
-  return tryParseFirst(result.stdout);
+function bool(value: CheckParamValue | undefined) {
+  return value === true || value === "true" || value === 1 || value === "1";
 }
 
-async function listContainers(all = true) {
-  const args = ["ps", "--format", "{{.Names}}"];
-  if (all) {
-    args.splice(1, 0, "-a");
-  }
-  const result = await execCommand("docker", args);
-  if (result.exitCode !== 0) {
-    return [];
-  }
-  return result.stdout.split("\n").map((line) => line.trim()).filter(Boolean);
+function normalizeRef(ref: string) {
+  const lastSegment = ref.split("/").pop() ?? ref;
+  return ref.includes("@") || lastSegment.includes(":") ? ref : `${ref}:latest`;
 }
 
-function wildcardToRegExp(input: string) {
-  const escaped = input.replace(/[.*+?^${}()|[\]\\]/g, "\\$&").replace(/\\\*/g, ".*");
-  return new RegExp(`^${escaped}$`);
+function stripDockerHubPrefix(ref: string) {
+  return ref.replace(/^docker\.io\/library\//, "").replace(/^docker\.io\//, "");
 }
 
-function fileForWorkspace(session: SandboxSession, rawPath: string) {
-  return path.join(session.workspaceDir, rawPath.replace(/^\/workspace\/?/, ""));
-}
-
-// Flags that belong to `docker run` itself (before the image name)
-const DOCKER_RUN_FLAGS = new Set([
-  "--name", "-e", "--env", "-p", "--publish", "-v", "--volume",
-  "--network", "--net", "-d", "--detach", "-it", "-i", "-t",
-  "--rm", "--user", "-u", "--memory", "-m", "--cpus", "--read-only",
-  "--tmpfs", "--init", "--cap-add", "--cap-drop", "--security-opt",
-  "--entrypoint", "--workdir", "-w", "--label", "-l", "--hostname",
-  "--restart", "--env-file", "--link", "--privileged", "--pid",
-  "--mount", "--platform"
-]);
-
-function analyzeCommands(commandLog: string[]): string[] {
-  const hints: string[] = [];
-
-  for (const raw of commandLog.slice(-20)) {
-    const cmd = raw.trim();
-
-    // ── docker run analysis ──────────────────────────────────────
-    if (/^docker\s+run\b/.test(cmd)) {
-      const tokens: string[] = cmd.match(/(?:[^\s"']+|"[^"]*"|'[^']*')+/g) ?? [];
-      // tokens[0]="docker" tokens[1]="run"
-      const imageIndex = findImageIndex(tokens);
-      if (imageIndex !== -1) {
-        // Check for docker flags placed after the image
-        const afterImage = tokens.slice(imageIndex + 1);
-        const misplacedFlags = afterImage.filter((t) => DOCKER_RUN_FLAGS.has(t.replace(/=.*$/, "")));
-        if (misplacedFlags.length > 0) {
-          hints.push(
-            `Flags after the image name are passed to the container, not Docker.` +
-            `\n  You wrote:  ${cmd}` +
-            `\n  Move ${misplacedFlags.join(", ")} before the image name.` +
-            `\n  Example:    docker run ${tokens.slice(2, imageIndex).join(" ")} ${misplacedFlags.join(" ")} ${tokens[imageIndex]}`
-          );
-        }
-
-        // Check -p / --publish format issues
-        const portFlagIdx = tokens.findIndex((t) => t === "-p" || t === "--publish");
-        if (portFlagIdx !== -1 && portFlagIdx < imageIndex) {
-          const portVal = tokens[portFlagIdx + 1] ?? "";
-          if (portVal && !/^\d+:\d+$/.test(portVal.replace(/^-p=/, ""))) {
-            hints.push(
-              `Port mapping format should be  -p HOST:CONTAINER  (e.g.  -p 8080:80).` +
-              `\n  Got: ${portVal}`
-            );
-          }
-        }
-
-        // Check missing -d when container exits immediately
-        const hasDetach = tokens.includes("-d") || tokens.includes("--detach");
-        if (!hasDetach) {
-          hints.push(
-            `Missing  -d  flag — without it the container runs in the foreground and blocks.` +
-            `\n  Add  -d  after  docker run  to detach.`
-          );
-        }
+/** Resolve a dot path; keys that themselves contain dots (labels like com.docker.compose.project) are supported. */
+export function resolvePath(value: unknown, dotPath: string): unknown {
+  if (!dotPath) return value;
+  const parts = dotPath.split(".");
+  const walk = (current: unknown, rest: string[]): unknown => {
+    if (rest.length === 0) return current;
+    if (current === null || typeof current !== "object") return undefined;
+    const record = current as Record<string, unknown>;
+    for (let i = rest.length; i >= 1; i--) {
+      const key = rest.slice(0, i).join(".");
+      if (Object.prototype.hasOwnProperty.call(record, key)) {
+        const found = walk(record[key], rest.slice(i));
+        if (found !== undefined) return found;
       }
     }
-
-    // ── docker exec analysis ─────────────────────────────────────
-    if (/^docker\s+exec\b/.test(cmd) && !/\s-it?\b|-ti?\b/.test(cmd) && /\bbash\b|\bsh\b/.test(cmd)) {
-      hints.push(
-        `Opening an interactive shell with  docker exec  requires  -it  flags.` +
-        `\n  Try:  ${cmd.replace("docker exec ", "docker exec -it ")}`
-      );
+    if (Array.isArray(current) && /^\d+$/.test(rest[0])) {
+      return walk(current[Number(rest[0])], rest.slice(1));
     }
-
-    // ── docker build missing -t ──────────────────────────────────
-    if (/^docker\s+build\b/.test(cmd) && !/-t\b|--tag\b/.test(cmd)) {
-      hints.push(
-        `docker build  without  -t  creates an untagged image that's hard to reference.` +
-        `\n  Add  -t yourimage:tag  to name the image.`
-      );
-    }
-  }
-
-  return [...new Set(hints)]; // deduplicate
+    return undefined;
+  };
+  return walk(value, parts);
 }
 
-/** Find the index of the image token in a docker run command (first non-flag positional after "run"). */
-function findImageIndex(tokens: string[]): number {
-  let i = 2; // skip "docker" "run"
-  while (i < tokens.length) {
-    const t = tokens[i];
-    if (t.startsWith("-")) {
-      // Skip value of flags that take an argument
-      if (DOCKER_RUN_FLAGS.has(t) && !t.includes("=") &&
-          !["--rm", "-d", "--detach", "-i", "-t", "-it", "-ti",
-            "--read-only", "--init", "--privileged"].includes(t)) {
-        i += 2; // flag + value
-      } else {
-        i += 1; // boolean flag
-      }
-    } else {
-      return i; // this token is the image
-    }
+function asComparable(value: unknown) {
+  return value !== null && typeof value === "object" ? JSON.stringify(value) : String(value);
+}
+
+function containsValue(actual: unknown, expected: CheckParamValue) {
+  if (actual === undefined || actual === null) return false;
+  if (Array.isArray(actual)) {
+    return actual.some((element) => asComparable(element) === String(expected));
   }
-  return -1;
+  if (typeof actual === "object") {
+    return Object.prototype.hasOwnProperty.call(actual, String(expected));
+  }
+  return String(actual).includes(String(expected));
+}
+
+/** Shared comparison for *_inspect checks: equals / not_equals / contains / not_contains / exists. */
+export function compareValue(actual: unknown, params: Params): Outcome {
+  const shown = actual === undefined ? "<missing>" : asComparable(actual).slice(0, 200);
+  const present = actual !== undefined && actual !== null;
+  let compared = false;
+
+  if (has(params, "exists")) {
+    compared = true;
+    if (present !== bool(params.exists)) return fail(`exists=${present}`);
+  }
+  if (has(params, "equals")) {
+    compared = true;
+    if (!present || asComparable(actual) !== String(params.equals)) return fail(`value ${shown}`);
+  }
+  if (has(params, "not_equals")) {
+    compared = true;
+    if (present && asComparable(actual) === String(params.not_equals)) return fail(`value ${shown}`);
+  }
+  if (has(params, "contains")) {
+    compared = true;
+    if (!containsValue(actual, params.contains)) return fail(`value ${shown}`);
+  }
+  if (has(params, "not_contains")) {
+    compared = true;
+    if (containsValue(actual, params.not_contains)) return fail(`value ${shown}`);
+  }
+  if (!compared && !present) return fail("value missing");
+  return pass(`value ${shown}`);
+}
+
+function checkOutput(output: string, exitCode: number, params: Params, defaultExit = 0): Outcome {
+  const expectedExit = has(params, "exit_code") ? Number(params.exit_code) : defaultExit;
+  const trimmed = output.trim();
+  const snippet = trimmed.slice(0, 300);
+  if (exitCode !== expectedExit) return fail(`exit ${exitCode}, output: ${snippet}`);
+  if (has(params, "output_equals") && trimmed !== str(params, "output_equals").trim()) return fail(`output: ${snippet}`);
+  if (has(params, "output_contains") && !output.includes(str(params, "output_contains"))) return fail(`output: ${snippet}`);
+  if (has(params, "output_not_contains") && output.includes(str(params, "output_not_contains"))) return fail(`output: ${snippet}`);
+  return pass(`exit ${exitCode}`);
 }
 
 export class ValidationEngine {
+  constructor(private runtime: SandboxRuntime, private sandboxManager: SandboxManager) {}
+
   async validate(session: SandboxSession, mission: Mission): Promise<ValidationResult> {
-    if (session.mode !== "docker-host") {
+    try {
+      await this.runtime.ensureRunning();
+    } catch (error) {
       return {
         passed: false,
-        failedChecks: ["docker unavailable"],
-        message: "Docker is not available on the host, so runtime validation is disabled in this environment."
+        checks: [],
+        failedChecks: ["sandbox unavailable"],
+        message: `The Docker sandbox is not running: ${error instanceof Error ? error.message : String(error)}`
       };
     }
 
-    const failedChecks: string[] = [];
+    const checks: CheckResult[] = [];
     for (const check of mission.validation) {
-      const passed = await this.runCheck(session, mission, check);
-      if (!passed) {
-        failedChecks.push(check.description || check.type);
+      let outcome: Outcome;
+      try {
+        outcome = await this.runCheck(session, check);
+      } catch (error) {
+        outcome = fail(error instanceof Error ? error.message : String(error));
       }
+      checks.push({ description: check.description || check.type, passed: outcome.passed, detail: outcome.detail });
     }
 
-    if (failedChecks.length > 0) {
-      const hints = analyzeCommands(session.commandLog);
-      return {
-        passed: false,
-        failedChecks,
-        message: hints.length > 0
-          ? `Command issue detected:\n${hints.join("\n")}`
-          : "Some objectives still need work."
-      };
+    const failedChecks = checks.filter((check) => !check.passed).map((check) => check.description);
+    if (failedChecks.length === 0) {
+      return { passed: true, checks, failedChecks, message: "Mission complete.", debrief: mission.debrief };
     }
 
-    return { passed: true, failedChecks: [], message: "Mission complete." };
+    const failedTypes = new Set(mission.validation.filter((_, index) => !checks[index].passed).map((check) => check.type));
+    const tips = analyzeCommands(this.sandboxManager.getExecutedCommands(session.id), failedTypes);
+    let message = tips.length > 0
+      ? `Not there yet. A recent command looks off:\n\n${tips.join("\n\n")}`
+      : `${failedChecks.length} of ${checks.length} requirement${checks.length === 1 ? "" : "s"} still open.`;
+    if (session.setupErrors.length > 0) {
+      message += "\n\n(Mission setup reported problems — try reselecting the mission to rebuild the sandbox.)";
+    }
+    return { passed: false, checks, failedChecks, message };
   }
 
-  private async runCheck(session: SandboxSession, mission: Mission, check: ValidationCheck) {
+  async runCheck(session: SandboxSession, check: ValidationCheck): Promise<Outcome> {
+    const p = check.params ?? {};
     switch (check.type) {
-      case "container_running":
-        return this.containerRunning(check);
-      case "container_not_exists":
-        return this.containerNotExists(check);
-      case "container_stopped":
-        return this.containerStopped(check);
-      case "image_exists":
-        return this.imageExists(check);
-      case "image_not_exists":
-        return this.imageNotExists(check);
-      case "image_label":
-        return this.imageLabel(check);
-      case "port_exposed":
-        return this.portExposed(check);
-      case "env_var_set":
-        return this.envVarSet(check);
-      case "network_exists":
-        return this.networkExists(check);
-      case "container_on_network":
-        return this.containerOnNetwork(check);
-      case "container_network_mode":
-        return this.containerNetworkMode(check);
-      case "file_in_container":
-        return this.fileInContainer(check);
-      case "file_exists":
-        return this.fileExists(session, check);
-      case "command_run":
-        return this.commandRun(session, check);
-      case "http_responds":
-        return this.httpResponds(check);
-      case "volume_exists":
-        return this.volumeExists(check);
-      case "volume_mounted":
-        return this.volumeMounted(check);
-      case "ping_succeeds":
-        return this.pingSucceeds(check);
-      case "dockerignore_excludes":
-        return this.dockerignoreExcludes(session, check);
-      case "file_content":
-        return this.fileContent(check);
-      case "file_exists_on_host":
-        return this.fileExistsOnHost(session, check);
-      case "tar_valid":
-        return this.tarValid(session, check);
-      case "bind_mount":
-        return this.bindMount(session, check);
-      case "tmpfs_mounted":
-        return this.tmpfsMounted(check);
-      case "no_root":
-        return this.noRoot(check);
-      case "readonly_rootfs":
-        return this.readonlyRootfs(check);
-      case "cap_dropped_all":
-        return this.capDroppedAll(check);
-      case "cap_added":
-        return this.capAdded(check);
-      case "seccomp_applied":
-        return this.seccompApplied(check);
-      case "memory_limit":
-        return this.memoryLimit(check);
-      case "cpu_limit":
-        return this.cpuLimit(check);
-      case "image_in_registry":
-        return this.imageInRegistry(check);
-      case "container_ran":
-        return this.containerRan(session, check);
-      case "Container runs successfully":
-        return this.containerRunsSuccessfully(session, mission);
-      case "fewer_layers":
-        return this.fewerLayers(check);
-      case "build_used_cache":
-        return this.buildUsedCache(session, check);
-      case "dockerfile_uses_cache_mount":
-        return this.dockerfileUsesCacheMount(session, check);
-      case "uses_init":
-        return this.usesInit(check);
-      case "context_exists":
-        return this.contextExists(check);
-      case "context_host":
-        return this.contextHost(check);
-      case "dockerfile_has_healthcheck":
-        return this.dockerfileHasHealthcheck(session, check);
-      case "container_health_healthy":
-        return this.containerHealthHealthy(check);
-      case "swarm_active":
-        return this.swarmActive(check);
-      case "swarm_service_running":
-        return this.swarmServiceRunning(check);
-      case "no_stopped_containers":
-        return this.noStoppedContainers();
-      case "no_dangling_images":
-        return this.noDanglingImages();
-      case "no_unused_volumes":
-        return this.noUnusedVolumes();
-      case "service_on_network":
-        return this.serviceOnNetwork(check, true);
-      case "service_not_on_network":
-        return this.serviceOnNetwork(check, false);
-      case "service_has_healthcheck":
-        return this.serviceHasHealthcheck(check);
-      case "depends_on_healthy":
-        return this.dependsOnHealthy(session, check);
-      case "scan_critical_cves_zero":
-        return this.scanCriticalCvesZero(session, check);
-      case "file_in_image":
-      case "binary_in_image":
-      case "env_var_in_image":
-      case "workdir_in_image":
-      case "image_size_under":
-      case "compose_service_running":
-      case "service_replicas":
-      case "no_external_network":
-        return this.bestEffortDockerCheck(check);
+      case "container_running": return this.containerRunning(p);
+      case "container_exited": return this.containerExited(p);
+      case "container_absent": return this.containerAbsent(p);
+      case "container_inspect": return this.containerInspect(p);
+      case "container_logs": return this.containerLogs(p);
+      case "container_exec": return this.containerExec(p);
+      case "image_exists": return this.imageExists(p, true);
+      case "image_absent": return this.imageExists(p, false);
+      case "image_inspect": return this.imageInspect(p);
+      case "image_run": return this.imageRun(p);
+      case "image_size_under": return this.imageSizeUnder(p);
+      case "image_history": return this.imageHistory(p);
+      case "network_exists": return this.networkExists(p);
+      case "network_absent": return this.networkAbsent(p);
+      case "network_inspect": return this.networkInspect(p);
+      case "container_on_network": return this.containerOnNetwork(p, true);
+      case "container_not_on_network": return this.containerOnNetwork(p, false);
+      case "volume_exists": return this.volumeExists(p, true);
+      case "volume_absent": return this.volumeExists(p, false);
+      case "mount": return this.mount(session, p);
+      case "http": return this.http(p);
+      case "workspace_file": return this.workspaceFile(session, p);
+      case "command_used": return this.commandUsed(session, p);
+      case "compose_service": return this.composeService(p);
+      case "health": return this.health(p);
+      case "swarm_service": return this.swarmService(p);
+      case "shell": return this.shell(p);
       default:
-        return false;
+        return fail(`unknown check type "${check.type}"`);
     }
   }
 
-  private async containerRunning(check: ValidationCheck) {
-    const target = String(check.params.name ?? "");
-    const image = String(check.params.image ?? "");
-    const result = await execCommand("docker", ["ps", "--format", "{{.Names}}|{{.Image}}"]);
-    if (result.exitCode !== 0) {
-      return false;
-    }
-    const nameRegex = target.includes("*") ? wildcardToRegExp(target) : null;
-    return result.stdout.split("\n").some((line) => {
-      const parts = line.split("|");
-      if (parts.length < 2) return false;
-      const [nameValue, imageValue] = parts;
-      const nameOk = target ? (nameRegex ? nameRegex.test(nameValue) : nameValue === target) : true;
-      const imageOk = image ? (imageValue ?? "").startsWith(image) : true;
-      return nameOk && imageOk;
-    });
-  }
+  // ── inspect helpers ─────────────────────────────────────────────
 
-  private async containerNotExists(check: ValidationCheck) {
-    const container = await inspectContainer(String(check.params.name));
-    return !container;
-  }
-
-  private async containerStopped(check: ValidationCheck) {
-    const container = await inspectContainer(String(check.params.name));
-    return Boolean(container) && !container?.State?.Running;
-  }
-
-  private async imageExists(check: ValidationCheck) {
-    const name = String(check.params.name ?? check.params.image ?? "");
-    const tag = String(check.params.tag ?? "latest");
-    return Boolean(await inspectImage(`${name}:${tag}`));
-  }
-
-  private async imageNotExists(check: ValidationCheck) {
-    const name = String(check.params.name ?? "");
-    const tag = String(check.params.tag ?? "latest");
-    return !(await inspectImage(`${name}:${tag}`));
-  }
-
-  private async imageLabel(check: ValidationCheck) {
-    const imageName = String(check.params.image ?? `${check.params.name}:${check.params.tag ?? "latest"}`);
-    const image = await inspectImage(imageName);
-    const key = String(check.params.key ?? "");
-    const value = String(check.params.value ?? "");
-    return image?.Config?.Labels?.[key] === value;
-  }
-
-  private async portExposed(check: ValidationCheck) {
-    const containerName = await this.resolveContainerName(String(check.params.container ?? check.params.service));
-    const container = containerName ? await inspectContainer(containerName) : null;
-    const hostPort = String(check.params.host_port ?? "");
-    const containerPort = `${String(check.params.container_port ?? "")}/tcp`;
-    const ports = container?.NetworkSettings?.Ports ?? {};
-    const binding = ports[containerPort]?.[0];
-    return binding?.HostPort === hostPort;
-  }
-
-  private async envVarSet(check: ValidationCheck) {
-    const containerName = String(check.params.container ?? "");
-    if (containerName.includes("*")) {
-      const regex = wildcardToRegExp(containerName);
-      const names = await listContainers(true);
-      for (const name of names.filter((value) => regex.test(value))) {
-        const container = await inspectContainer(name);
-        const envVars = container?.Config?.Env ?? [];
-        if (envVars.includes(`${String(check.params.key ?? "")}=${String(check.params.value ?? "")}`)) {
-          return true;
-        }
-      }
-      return false;
-    }
-    const container = await inspectContainer(containerName);
-    const key = String(check.params.key ?? "");
-    const value = String(check.params.value ?? "");
-    const envVars = container?.Config?.Env ?? [];
-    return envVars.includes(`${key}=${value}`);
-  }
-
-  private async networkExists(check: ValidationCheck) {
-    const networkName = String(check.params.name ?? check.params.network);
-    if (networkName.includes("*")) {
-      const result = await execCommand("docker", ["network", "ls", "--format", "{{.Name}}|{{.Driver}}"]);
-      if (result.exitCode !== 0) {
-        return false;
-      }
-      const regex = wildcardToRegExp(networkName);
-      return result.stdout.split("\n").some((line) => {
-        const [name, driver] = line.split("|");
-        return regex.test(name) && (!check.params.driver || driver === String(check.params.driver));
-      });
-    }
-    const network = await inspectNetwork(networkName);
-    const driver = check.params.driver ? String(check.params.driver) : null;
-    return Boolean(network) && (!driver || network?.Driver === driver);
-  }
-
-  private async containerOnNetwork(check: ValidationCheck) {
-    const container = await inspectContainer(String(check.params.container));
-    return Boolean(container?.NetworkSettings?.Networks?.[String(check.params.network)]);
-  }
-
-  private async containerNetworkMode(check: ValidationCheck) {
-    const container = await inspectContainer(String(check.params.container));
-    return container?.HostConfig?.NetworkMode === String(check.params.mode);
-  }
-
-  private async fileInContainer(check: ValidationCheck) {
-    const result = await execCommand("docker", [
-      "exec",
-      String(check.params.container),
-      "sh",
-      "-lc",
-      `test -f ${String(check.params.path)}`
-    ]);
-    return result.exitCode === 0;
-  }
-
-  private async fileExists(session: SandboxSession, check: ValidationCheck) {
-    const targetPath = fileForWorkspace(session, String(check.params.path));
-    return fs.existsSync(targetPath);
-  }
-
-  private async commandRun(session: SandboxSession, check: ValidationCheck) {
-    const pattern = String(check.params.command ?? check.description).replace(/ executed$/i, "").trim();
-    const executedCommands = this.getExecutedCommands(session);
-    return executedCommands.some((command) => command.includes(pattern));
-  }
-
-  private async httpResponds(check: ValidationCheck) {
-    const body = await execCommand("curl", ["-s", String(check.params.url)]);
-    if (body.exitCode !== 0) {
-      return false;
-    }
-
-    const requiredStatus = check.params.status ? String(check.params.status) : null;
-    if (requiredStatus) {
-      const statusResult = await execCommand("curl", ["-s", "-o", "/dev/null", "-w", "%{http_code}", String(check.params.url)]);
-      if (statusResult.stdout.trim() !== requiredStatus) {
-        return false;
-      }
-    }
-
-    const bodyContains = check.params.body_contains ? String(check.params.body_contains) : null;
-    return bodyContains ? body.stdout.includes(bodyContains) : true;
-  }
-
-  private async volumeExists(check: ValidationCheck) {
-    const name = String(check.params.name ?? "");
-    if (name.includes("*")) {
-      const result = await execCommand("docker", ["volume", "ls", "--format", "{{.Name}}"]);
-      if (result.exitCode !== 0) {
-        return false;
-      }
-      const regex = wildcardToRegExp(name);
-      return result.stdout.split("\n").some((entry) => regex.test(entry));
-    }
-    const result = await execCommand("docker", ["volume", "inspect", name]);
-    return result.exitCode === 0;
-  }
-
-  private async volumeMounted(check: ValidationCheck) {
-    const containerName = await this.resolveContainerName(String(check.params.container ?? check.params.service ?? ""));
-    const container = containerName ? await inspectContainer(containerName) : null;
-    const pathValue = String(check.params.path ?? "");
-    const volumeHint = String(check.params.volume ?? "");
-    const mounts = container?.Mounts ?? [];
-    return mounts.some((mount: Record<string, any>) => {
-      const destinationOk = mount.Destination === pathValue;
-      const volumeOk = volumeHint ? String(mount.Name ?? "").includes(volumeHint.replace(/\*/g, "")) : true;
-      return destinationOk && volumeOk;
-    });
-  }
-
-  private async pingSucceeds(check: ValidationCheck) {
-    const result = await execCommand("docker", [
-      "exec",
-      String(check.params.from),
-      "sh",
-      "-lc",
-      `ping -c 1 ${String(check.params.to)}`
-    ]);
-    return result.exitCode === 0;
-  }
-
-  private async dockerignoreExcludes(session: SandboxSession, check: ValidationCheck) {
-    const dockerignorePath = path.join(session.workspaceDir, ".dockerignore");
-    if (!fs.existsSync(dockerignorePath)) {
-      return false;
-    }
-    const contents = fs.readFileSync(dockerignorePath, "utf8");
-    const entries = String(check.params.entries ?? "")
-      .replace(/^\[|\]$/g, "")
-      .split(",")
-      .map((entry) => entry.trim())
-      .filter(Boolean);
-    return entries.every((entry) => contents.includes(entry));
-  }
-
-  private async bestEffortDockerCheck(check: ValidationCheck) {
-    if (check.type === "image_size_under") {
-      const image = await inspectImage(String(check.params.image));
-      const maxMb = Number(check.params.max_mb ?? 0);
-      return image ? image.Size / (1024 * 1024) < maxMb : false;
-    }
-
-    if (check.type === "compose_service_running") {
-      const service = String(check.params.service ?? "");
-      const names = await listContainers(true);
-      return names.some((name) => name.includes(`-${service}-`) || name.includes(`_${service}_`));
-    }
-
-    if (check.type === "service_replicas") {
-      const service = String(check.params.service ?? "");
-      const count = Number(check.params.count ?? 0);
-      const names = await listContainers(true);
-      const matches = names.filter((name) => name.includes(`-${service}-`) || name.includes(`_${service}_`));
-      return matches.length === count;
-    }
-
-    if (check.type === "file_in_image") {
-      const image = String(check.params.image ?? "");
-      const filePath = String(check.params.path ?? "");
-      const result = await execCommand("docker", ["run", "--rm", image, "sh", "-lc", `test -f ${filePath}`]);
-      return result.exitCode === 0;
-    }
-
-    if (check.type === "binary_in_image") {
-      const image = String(check.params.image ?? "");
-      const binary = String(check.params.binary ?? "");
-      const result = await execCommand("docker", ["run", "--rm", image, "sh", "-lc", `command -v ${binary}`]);
-      return result.exitCode === 0;
-    }
-
-    if (check.type === "env_var_in_image") {
-      const image = await inspectImage(String(check.params.image ?? ""));
-      const key = String(check.params.key ?? "");
-      const value = String(check.params.value ?? "");
-      return (image?.Config?.Env ?? []).includes(`${key}=${value}`);
-    }
-
-    if (check.type === "workdir_in_image") {
-      const image = await inspectImage(String(check.params.image ?? ""));
-      return image?.Config?.WorkingDir === String(check.params.path ?? "");
-    }
-
-    if (check.type === "no_external_network") {
-      const container = await inspectContainer(String(check.params.container ?? ""));
-      const networks = Object.keys(container?.NetworkSettings?.Networks ?? {});
-      return container?.HostConfig?.NetworkMode === "none" || (networks.length === 0);
-    }
-
-    return false;
-  }
-
-  private async resolveContainerName(hint: string) {
-    if (!hint) {
+  private async inspect(kind: "container" | "image" | "network" | "volume" | "service", name: string) {
+    if (!name) return null;
+    const args = kind === "container" ? ["inspect", "--type", "container", name] : [kind, "inspect", name];
+    const result = await this.runtime.docker(args);
+    if (result.exitCode !== 0) return null;
+    try {
+      const parsed = JSON.parse(result.stdout);
+      return (Array.isArray(parsed) ? parsed[0] : parsed) as Record<string, any>;
+    } catch {
       return null;
     }
-    const names = await listContainers(true);
-    if (!hint.includes("*")) {
-      if (names.includes(hint)) {
-        return hint;
+  }
+
+  // ── containers ──────────────────────────────────────────────────
+
+  private async containerRunning(p: Params) {
+    const container = await this.inspect("container", str(p, "name"));
+    if (!container) return fail("container not found");
+    if (!container.State?.Running) return fail(`state ${container.State?.Status}`);
+    if (has(p, "image")) {
+      const actual = stripDockerHubPrefix(String(container.Config?.Image ?? ""));
+      const expected = stripDockerHubPrefix(str(p, "image"));
+      if (actual !== expected && actual !== normalizeRef(expected) && normalizeRef(actual) !== expected) {
+        return fail(`image ${actual}`);
       }
-      return names.find((name) => name.includes(`-${hint}-`) || name.includes(`_${hint}_`) || name.endsWith(`-${hint}-1`) || name.endsWith(`_${hint}_1`)) ?? null;
     }
-    const regex = wildcardToRegExp(hint);
-    return names.find((name) => regex.test(name)) ?? null;
+    return pass();
   }
 
-  private async fileContent(check: ValidationCheck) {
-    const result = await execCommand("docker", [
-      "exec",
-      String(check.params.container),
-      "sh",
-      "-lc",
-      `cat ${String(check.params.path)}`
+  private async containerExited(p: Params) {
+    const container = await this.inspect("container", str(p, "name"));
+    if (!container) return fail("container not found");
+    if (container.State?.Running) return fail("still running");
+    if (has(p, "exit_code") && Number(container.State?.ExitCode) !== Number(p.exit_code)) {
+      return fail(`exit code ${container.State?.ExitCode}`);
+    }
+    return pass();
+  }
+
+  private async containerAbsent(p: Params) {
+    const container = await this.inspect("container", str(p, "name"));
+    return container ? fail("container still exists") : pass();
+  }
+
+  private async containerInspect(p: Params) {
+    const container = await this.inspect("container", str(p, "name"));
+    if (!container) return fail("container not found");
+    return compareValue(resolvePath(container, str(p, "path")), p);
+  }
+
+  private async containerLogs(p: Params) {
+    const result = await this.runtime.docker(["logs", str(p, "name")]);
+    if (result.exitCode !== 0) return fail("cannot read logs");
+    const logs = result.stdout + result.stderr;
+    if (has(p, "contains") && !logs.includes(str(p, "contains"))) return fail("text not found in logs");
+    if (has(p, "not_contains") && logs.includes(str(p, "not_contains"))) return fail("unwanted text found in logs");
+    return pass();
+  }
+
+  private async containerExec(p: Params) {
+    const result = await this.runtime.exec(["docker", "exec", str(p, "name"), "sh", "-c", str(p, "command")], { timeoutMs: 20_000 });
+    return checkOutput(result.stdout + result.stderr, result.exitCode, p);
+  }
+
+  // ── images ──────────────────────────────────────────────────────
+
+  private async imageExists(p: Params, shouldExist: boolean) {
+    const ref = normalizeRef(str(p, "ref", str(p, "name")));
+    const image = await this.inspect("image", ref);
+    if (shouldExist) return image ? pass() : fail(`${ref} not found`);
+    return image ? fail(`${ref} still exists`) : pass();
+  }
+
+  private async imageInspect(p: Params) {
+    const image = await this.inspect("image", normalizeRef(str(p, "ref")));
+    if (!image) return fail("image not found");
+    return compareValue(resolvePath(image, str(p, "path")), p);
+  }
+
+  private async imageRun(p: Params) {
+    const ref = normalizeRef(str(p, "ref"));
+    if (!(await this.inspect("image", ref))) return fail("image not found");
+    const entrypoint = has(p, "entrypoint") ? ` --entrypoint ${q(str(p, "entrypoint"))}` : "";
+    const command = `docker run --rm${entrypoint} ${q(ref)} ${str(p, "args")}`;
+    const result = await this.runtime.shell(command, { timeoutMs: 30_000 });
+    return checkOutput(result.stdout + result.stderr, result.exitCode, p);
+  }
+
+  private async imageSizeUnder(p: Params) {
+    const image = await this.inspect("image", normalizeRef(str(p, "ref")));
+    if (!image) return fail("image not found");
+    const sizeMb = Number(image.Size ?? 0) / 1_000_000;
+    return sizeMb < Number(p.mb) ? pass(`${sizeMb.toFixed(1)} MB`) : fail(`${sizeMb.toFixed(1)} MB`);
+  }
+
+  private async imageHistory(p: Params) {
+    const result = await this.runtime.docker(["history", "--no-trunc", "--format", "{{.CreatedBy}}", normalizeRef(str(p, "ref"))]);
+    if (result.exitCode !== 0) return fail("image not found");
+    const rows = result.stdout.split("\n").filter((line) => line.trim() !== "");
+    if (has(p, "max_layers") && rows.length > Number(p.max_layers)) return fail(`${rows.length} history rows`);
+    if (has(p, "not_contains") && rows.some((row) => row.includes(str(p, "not_contains")))) return fail("history contains forbidden text");
+    return pass(`${rows.length} history rows`);
+  }
+
+  // ── networks ────────────────────────────────────────────────────
+
+  private async networkExists(p: Params) {
+    const network = await this.inspect("network", str(p, "name"));
+    if (!network) return fail("network not found");
+    if (has(p, "driver") && network.Driver !== str(p, "driver")) return fail(`driver ${network.Driver}`);
+    if (has(p, "internal") && Boolean(network.Internal) !== bool(p.internal)) return fail(`internal ${network.Internal}`);
+    if (has(p, "subnet")) {
+      const subnets = (network.IPAM?.Config ?? []).map((config: Record<string, string>) => config.Subnet);
+      if (!subnets.includes(str(p, "subnet"))) return fail(`subnets ${subnets.join(",")}`);
+    }
+    return pass();
+  }
+
+  private async networkAbsent(p: Params) {
+    return (await this.inspect("network", str(p, "name"))) ? fail("network still exists") : pass();
+  }
+
+  private async networkInspect(p: Params) {
+    const network = await this.inspect("network", str(p, "name"));
+    if (!network) return fail("network not found");
+    return compareValue(resolvePath(network, str(p, "path")), p);
+  }
+
+  private async containerOnNetwork(p: Params, shouldBeAttached: boolean) {
+    const container = await this.inspect("container", str(p, "name"));
+    if (!container) return fail("container not found");
+    const endpoint = container.NetworkSettings?.Networks?.[str(p, "network")];
+    if (!shouldBeAttached) return endpoint ? fail("still attached") : pass();
+    if (!endpoint) return fail(`attached to ${Object.keys(container.NetworkSettings?.Networks ?? {}).join(", ") || "nothing"}`);
+    if (has(p, "alias")) {
+      const names = [...(endpoint.Aliases ?? []), ...(endpoint.DNSNames ?? [])];
+      if (!names.includes(str(p, "alias"))) return fail(`aliases ${names.join(", ")}`);
+    }
+    if (has(p, "ip")) {
+      const ips = [endpoint.IPAddress, endpoint.IPAMConfig?.IPv4Address].filter(Boolean);
+      if (!ips.includes(str(p, "ip"))) return fail(`ip ${ips.join(", ")}`);
+    }
+    return pass();
+  }
+
+  // ── storage ─────────────────────────────────────────────────────
+
+  private async volumeExists(p: Params, shouldExist: boolean) {
+    const volume = await this.inspect("volume", str(p, "name"));
+    if (shouldExist) return volume ? pass() : fail("volume not found");
+    return volume ? fail("volume still exists") : pass();
+  }
+
+  private async mount(session: SandboxSession, p: Params) {
+    const container = await this.inspect("container", str(p, "name"));
+    if (!container) return fail("container not found");
+    const mounts = (container.Mounts ?? []) as Array<Record<string, any>>;
+    // `--tmpfs /path` mounts only show up in HostConfig.Tmpfs, not in .Mounts.
+    for (const [tmpfsPath, options] of Object.entries((container.HostConfig?.Tmpfs ?? {}) as Record<string, string>)) {
+      if (!mounts.some((entry) => entry.Destination === tmpfsPath)) {
+        mounts.push({ Type: "tmpfs", Destination: tmpfsPath, RW: !/(^|,)ro(,|$)/.test(options), Source: "" });
+      }
+    }
+    const destination = str(p, "destination");
+    const mount = mounts.find((entry) => entry.Destination === destination);
+    if (!mount) return fail(`no mount at ${destination}`);
+    if (has(p, "type") && mount.Type !== str(p, "type")) return fail(`type ${mount.Type}`);
+    if (has(p, "rw") && Boolean(mount.RW) !== bool(p.rw)) return fail(`rw ${mount.RW}`);
+    if (has(p, "source")) {
+      const expected = str(p, "source");
+      if (mount.Type === "volume") {
+        if (mount.Name !== expected) return fail(`volume ${mount.Name}`);
+      } else {
+        const workspaceInSandbox = `${this.runtime.sessionPathInSandbox(session.id)}/workspace`;
+        const normalize = (value: string) =>
+          value.replace(workspaceInSandbox, "/workspace").replace(/\/+$/, "").replace(/^(?!\/)/, "/workspace/");
+        if (normalize(String(mount.Source ?? "")) !== normalize(expected)) return fail(`source ${mount.Source}`);
+      }
+    }
+    return pass();
+  }
+
+  // ── network reachability ────────────────────────────────────────
+
+  private async http(p: Params) {
+    const url = str(p, "url");
+    let last: Outcome = fail("not attempted");
+    for (let attempt = 0; attempt < 5; attempt++) {
+      last = has(p, "from") ? await this.httpFromContainer(p, url) : await this.httpFromSandbox(p, url);
+      if (last.passed) return last;
+      await sleep(1000);
+    }
+    return last;
+  }
+
+  private async httpFromSandbox(p: Params, url: string): Promise<Outcome> {
+    const result = await this.runtime.exec(["curl", "-s", "--max-time", "4", "-w", "\n__DM_STATUS__%{http_code}", url], { timeoutMs: 10_000 });
+    const marker = result.stdout.lastIndexOf("\n__DM_STATUS__");
+    const body = marker >= 0 ? result.stdout.slice(0, marker) : result.stdout;
+    const status = marker >= 0 ? result.stdout.slice(marker + "\n__DM_STATUS__".length).trim() : "000";
+    const expectedStatus = str(p, "status", "200");
+    if (status !== expectedStatus) return fail(`HTTP ${status}`);
+    if (has(p, "body_contains") && !body.includes(str(p, "body_contains"))) return fail("body does not contain expected text");
+    return pass(`HTTP ${status}`);
+  }
+
+  private async httpFromContainer(p: Params, url: string): Promise<Outcome> {
+    const result = await this.runtime.exec(["docker", "exec", str(p, "from"), "wget", "-qO-", "-T", "4", url], { timeoutMs: 10_000 });
+    if (result.exitCode !== 0) return fail(`wget exit ${result.exitCode}: ${result.stderr.trim().slice(0, 200)}`);
+    if (has(p, "body_contains") && !result.stdout.includes(str(p, "body_contains"))) return fail("body does not contain expected text");
+    return pass();
+  }
+
+  // ── workspace & commands ────────────────────────────────────────
+
+  private async workspaceFile(session: SandboxSession, p: Params) {
+    const filePath = this.sandboxManager.resolveWorkspacePath(session, str(p, "path"));
+    const exists = fs.existsSync(filePath) && fs.statSync(filePath).isFile();
+    const shouldExist = has(p, "exists") ? bool(p.exists) : true;
+    if (!shouldExist) return exists ? fail("file exists") : pass();
+    if (!exists) return fail("file not found");
+    const content = fs.readFileSync(filePath, "utf8");
+    if (has(p, "contains") && !content.includes(str(p, "contains"))) return fail("expected text missing");
+    if (has(p, "not_contains") && content.includes(str(p, "not_contains"))) return fail("forbidden text present");
+    if (has(p, "matches") && !new RegExp(str(p, "matches"), "m").test(content)) return fail("pattern not matched");
+    return pass();
+  }
+
+  private async commandUsed(session: SandboxSession, p: Params) {
+    const pattern = new RegExp(str(p, "pattern"));
+    const commands = this.sandboxManager.getExecutedCommands(session.id);
+    return commands.some((command) => pattern.test(command)) ? pass() : fail("no matching command typed");
+  }
+
+  // ── compose, health, swarm ──────────────────────────────────────
+
+  private async composeService(p: Params) {
+    const result = await this.runtime.docker([
+      "ps",
+      "--filter", `label=com.docker.compose.project=${str(p, "project")}`,
+      "--filter", `label=com.docker.compose.service=${str(p, "service")}`,
+      "--format", "{{.Names}}"
     ]);
-    return result.exitCode === 0 && result.stdout.includes(String(check.params.contains ?? ""));
-  }
-
-  private async fileExistsOnHost(session: SandboxSession, check: ValidationCheck) {
-    const rawPath = String(check.params.path ?? "");
-    const mappedPath = rawPath.startsWith("/backup/") ? path.join(session.workspaceDir, rawPath.replace(/^\/backup\/?/, "backup/")) : rawPath;
-    return fs.existsSync(mappedPath);
-  }
-
-  private async tarValid(session: SandboxSession, check: ValidationCheck) {
-    const rawPath = String(check.params.path ?? "");
-    const mappedPath = rawPath.startsWith("/backup/") ? path.join(session.workspaceDir, rawPath.replace(/^\/backup\/?/, "backup/")) : rawPath;
-    const result = await execCommand("tar", ["tzf", mappedPath]);
-    return result.exitCode === 0;
-  }
-
-  private async bindMount(session: SandboxSession, check: ValidationCheck) {
-    const container = await inspectContainer(String(check.params.container));
-    const expectedSource = String(check.params.host_path).startsWith("/workspace")
-      ? fileForWorkspace(session, String(check.params.host_path))
-      : String(check.params.host_path);
-    const expectedDestination = String(check.params.container_path);
-    const rawSource = String(check.params.host_path);
-    return (container?.Mounts ?? []).some(
-      (mount: Record<string, any>) =>
-        mount.Type === "bind" &&
-        mount.Destination === expectedDestination &&
-        (mount.Source === expectedSource || mount.Source === rawSource)
-    );
-  }
-
-  private async tmpfsMounted(check: ValidationCheck) {
-    const container = await inspectContainer(String(check.params.container));
-    return (container?.HostConfig?.Tmpfs && String(check.params.path) in container.HostConfig.Tmpfs) || (container?.Mounts ?? []).some((mount: Record<string, any>) => mount.Type === "tmpfs" && mount.Destination === String(check.params.path));
-  }
-
-  private async noRoot(check: ValidationCheck) {
-    const container = await inspectContainer(String(check.params.container));
-    const user = String(container?.Config?.User ?? "");
-    return user !== "" && user !== "0" && user !== "root";
-  }
-
-  private async readonlyRootfs(check: ValidationCheck) {
-    const container = await inspectContainer(String(check.params.container));
-    return container?.HostConfig?.ReadonlyRootfs === true;
-  }
-
-  private async capDroppedAll(check: ValidationCheck) {
-    const container = await inspectContainer(String(check.params.container));
-    const caps = container?.HostConfig?.CapDrop ?? [];
-    return caps.includes("ALL");
-  }
-
-  private async capAdded(check: ValidationCheck) {
-    const container = await inspectContainer(String(check.params.container));
-    const caps = container?.HostConfig?.CapAdd ?? [];
-    return caps.includes(String(check.params.cap));
-  }
-
-  private async seccompApplied(check: ValidationCheck) {
-    const container = await inspectContainer(String(check.params.container));
-    const securityOpt = container?.HostConfig?.SecurityOpt ?? [];
-    return securityOpt.some((value: string) => value.startsWith("seccomp="));
-  }
-
-  private async memoryLimit(check: ValidationCheck) {
-    const container = await inspectContainer(String(check.params.container));
-    return Number(container?.HostConfig?.Memory ?? 0) === Number(check.params.limit ?? 0);
-  }
-
-  private async cpuLimit(check: ValidationCheck) {
-    const container = await inspectContainer(String(check.params.container));
-    const expected = Number(check.params.cpus ?? 0);
-    const nanoCpus = Number(container?.HostConfig?.NanoCpus ?? 0);
-    return nanoCpus === expected * 1_000_000_000;
-  }
-
-  private async imageInRegistry(check: ValidationCheck) {
-    const url = `http://${String(check.params.registry)}/v2/${String(check.params.name)}/manifests/${String(check.params.tag)}`;
-    const result = await execCommand("curl", ["-s", "-o", "/dev/null", "-w", "%{http_code}", "-H", "Accept: application/vnd.docker.distribution.manifest.v2+json", url]);
-    return result.stdout.trim() === "200";
-  }
-
-  private async containerRan(session: SandboxSession, check: ValidationCheck) {
-    const image = String(check.params.image ?? "");
-    const executedCommands = this.getExecutedCommands(session);
-    return executedCommands.some((command) => command.includes("docker run") && command.includes(image));
-  }
-
-  private async containerRunsSuccessfully(session: SandboxSession, mission: Mission) {
-    const imageCheck = mission.validation.find((check) => check.type === "image_exists");
-    const imageName = imageCheck ? `${String(imageCheck.params.name)}:${String(imageCheck.params.tag ?? "latest")}` : "";
-    const executedCommands = this.getExecutedCommands(session);
-    return imageName ? executedCommands.some((command) => command.includes("docker run") && command.includes(imageName)) : false;
-  }
-
-  private async fewerLayers(check: ValidationCheck) {
-    const inspectHistory = async (image: string) => {
-      const result = await execCommand("docker", ["history", image, "--format", "{{.CreatedBy}}"]);
-      return result.exitCode === 0 ? result.stdout.split("\n").filter(Boolean).length : Number.MAX_SAFE_INTEGER;
-    };
-    const a = await inspectHistory(String(check.params.image_a));
-    const b = await inspectHistory(String(check.params.image_b));
-    return a < b;
-  }
-
-  private async buildUsedCache(session: SandboxSession, check: ValidationCheck) {
-    const image = String(check.params.image ?? "");
-    const executedCommands = this.getExecutedCommands(session);
-    const builtTwice = executedCommands.filter((command) => command.includes("docker build") && command.includes("cached-app:")).length >= 2;
-    const usedBuildKit = executedCommands.some((command) => command.includes("DOCKER_BUILDKIT=1"));
-    const imageExists = await inspectImage(image);
-    return Boolean(imageExists) && builtTwice && usedBuildKit;
-  }
-
-  private getExecutedCommands(session: SandboxSession) {
-    return Array.from(new Set([...session.commandLog, ...fs
-      .readFileSync(session.commandLogFile, "utf8")
-      .split("\n")
-      .map((line) => line.trim())
-      .filter(Boolean)]));
-  }
-
-  private async dockerfileUsesCacheMount(session: SandboxSession, check: ValidationCheck) {
-    const dockerfilePath = fileForWorkspace(session, String(check.params.path ?? "/workspace/Dockerfile"));
-    return fs.existsSync(dockerfilePath) && fs.readFileSync(dockerfilePath, "utf8").includes("--mount=type=cache");
-  }
-
-  private async usesInit(check: ValidationCheck) {
-    const container = await inspectContainer(String(check.params.container));
-    return Boolean(container?.HostConfig?.Init);
-  }
-
-  private async contextExists(check: ValidationCheck) {
-    const result = await execCommand("docker", ["context", "inspect", String(check.params.name)]);
-    return result.exitCode === 0;
-  }
-
-  private async contextHost(check: ValidationCheck) {
-    const result = await execCommand("docker", ["context", "inspect", String(check.params.name)]);
-    if (result.exitCode !== 0) {
-      return false;
+    if (result.exitCode !== 0) return fail("docker ps failed");
+    const running = result.stdout.split("\n").filter((line) => line.trim() !== "").length;
+    if (has(p, "count")) return running === Number(p.count) ? pass(`${running} running`) : fail(`${running} running`);
+    if (has(p, "running") && !bool(p.running) && Number(p.running) === 0) {
+      return running === 0 ? pass() : fail(`${running} running`);
     }
-    const context = JSON.parse(result.stdout)[0];
-    return context?.Endpoints?.docker?.Host === String(check.params.host);
+    const minimum = has(p, "running") && Number(p.running) > 1 ? Number(p.running) : 1;
+    return running >= minimum ? pass(`${running} running`) : fail(`${running} running`);
   }
 
-  private async dockerfileHasHealthcheck(session: SandboxSession, check: ValidationCheck) {
-    const dockerfilePath = fileForWorkspace(session, String(check.params.path ?? "/workspace/Dockerfile"));
-    return fs.existsSync(dockerfilePath) && /HEALTHCHECK/i.test(fs.readFileSync(dockerfilePath, "utf8"));
-  }
-
-  private async containerHealthHealthy(check: ValidationCheck) {
-    const containerName = await this.resolveContainerName(String(check.params.name ?? ""));
-    if (!containerName) {
-      return false;
+  private async health(p: Params) {
+    const expected = str(p, "status", "healthy");
+    let status = "";
+    for (let attempt = 0; attempt < 10; attempt++) {
+      const container = await this.inspect("container", str(p, "name"));
+      if (!container) return fail("container not found");
+      status = String(container.State?.Health?.Status ?? "none");
+      if (status === expected) return pass();
+      if (status !== "starting") break;
+      await sleep(1500);
     }
-    const container = await inspectContainer(containerName);
-    return container?.State?.Health?.Status === "healthy";
+    return fail(`health ${status}`);
   }
 
-  private async swarmActive(check: ValidationCheck) {
-    const result = await execCommand("docker", ["info", "--format", "{{.Swarm.LocalNodeState}}"]);
-    return result.exitCode === 0 && result.stdout.trim() === String(check.params.mode ?? "active");
-  }
-
-  private async swarmServiceRunning(check: ValidationCheck) {
-    const result = await execCommand("docker", ["service", "inspect", String(check.params.name), "--format", "{{.Spec.Mode.Replicated.Replicas}}"]);
-    return result.exitCode === 0 && Number(result.stdout.trim()) === Number(check.params.replicas ?? 0);
-  }
-
-  private async noStoppedContainers() {
-    const result = await execCommand("docker", ["ps", "-a", "--filter", "status=exited", "--format", "{{.Names}}"]);
-    return result.exitCode === 0 && result.stdout.trim() === "";
-  }
-
-  private async noDanglingImages() {
-    const result = await execCommand("docker", ["images", "-f", "dangling=true", "-q"]);
-    return result.exitCode === 0 && result.stdout.trim() === "";
-  }
-
-  private async noUnusedVolumes() {
-    const result = await execCommand("docker", ["volume", "ls", "-qf", "dangling=true"]);
-    return result.exitCode === 0 && result.stdout.trim() === "";
-  }
-
-  private async serviceOnNetwork(check: ValidationCheck, shouldExist: boolean) {
-    const names = await listContainers(true);
-    const service = String(check.params.service ?? "");
-    const match = names.find((name) => name.includes(`-${service}-`) || name.includes(`_${service}_`));
-    if (!match) {
-      return false;
+  private async swarmService(p: Params) {
+    const service = await this.inspect("service", str(p, "name"));
+    if (!service) return fail("service not found");
+    if (has(p, "replicas")) {
+      const replicas = service.Spec?.Mode?.Replicated?.Replicas;
+      if (Number(replicas) !== Number(p.replicas)) return fail(`replicas ${replicas}`);
     }
-    const container = await inspectContainer(match);
-    const exists = Boolean(container?.NetworkSettings?.Networks?.[String(check.params.network)]);
-    return shouldExist ? exists : !exists;
+    if (has(p, "image_contains")) {
+      const image = String(service.Spec?.TaskTemplate?.ContainerSpec?.Image ?? "");
+      if (!image.includes(str(p, "image_contains"))) return fail(`image ${image.split("@")[0]}`);
+    }
+    if (has(p, "running")) {
+      let running = 0;
+      for (let attempt = 0; attempt < 10; attempt++) {
+        const tasks = await this.runtime.docker(["service", "ps", str(p, "name"), "--filter", "desired-state=running", "--format", "{{.CurrentState}}"]);
+        running = tasks.stdout.split("\n").filter((line) => line.startsWith("Running")).length;
+        if (running >= Number(p.running)) return pass(`${running} running`);
+        await sleep(1500);
+      }
+      return fail(`${running} running tasks`);
+    }
+    return pass();
   }
 
-  private async serviceHasHealthcheck(check: ValidationCheck) {
-    const names = await listContainers(true);
-    const service = String(check.params.service ?? "");
-    const match = names.find((name) => name.includes(`-${service}-`) || name.includes(`_${service}_`));
-    if (!match) {
-      return false;
+  private async shell(p: Params) {
+    const result = await this.runtime.shell(str(p, "command"), { timeoutMs: 20_000 });
+    if (has(p, "output_equals")) {
+      return checkOutput(result.stdout, result.exitCode, p);
     }
-    const container = await inspectContainer(match);
-    return Boolean(container?.Config?.Healthcheck);
-  }
-
-  private async dependsOnHealthy(session: SandboxSession, check: ValidationCheck) {
-    const composePath = path.join(session.workspaceDir, "docker-compose.yml");
-    if (!fs.existsSync(composePath)) {
-      return false;
-    }
-    const contents = fs.readFileSync(composePath, "utf8");
-    return contents.includes(String(check.params.depends_on)) && contents.includes("service_healthy");
-  }
-
-  private async scanCriticalCvesZero(session: SandboxSession, check: ValidationCheck) {
-    const dockerfilePath = path.join(session.workspaceDir, "Dockerfile");
-    if (!fs.existsSync(dockerfilePath)) {
-      return false;
-    }
-    const contents = fs.readFileSync(dockerfilePath, "utf8");
-    return contents.includes("ubuntu:22.04") && Boolean(await inspectImage(String(check.params.image)));
+    return checkOutput(result.stdout + result.stderr, result.exitCode, p);
   }
 }

@@ -1,4 +1,5 @@
 import { MissionDetail } from "../api/missions";
+import { RichText } from "./RichText";
 
 export function MissionBriefing({ mission }: { mission: MissionDetail }) {
   return (
@@ -13,19 +14,31 @@ export function MissionBriefing({ mission }: { mission: MissionDetail }) {
       </div>
 
       <h1>{mission.title}</h1>
-      <p className="story">{mission.story}</p>
+      <div className="story">
+        <RichText text={mission.story} block />
+      </div>
 
       <div className="mission-tags">
         <span className={`tag tag-${mission.difficulty}`}>{mission.difficulty}</span>
         <span className="tag tag-xp">+{mission.xp} XP</span>
+        {mission.concepts.map((concept) => (
+          <span className="tag tag-concept" key={concept}>{concept}</span>
+        ))}
       </div>
+
+      {mission.startingState && (
+        <div className="starting-state">
+          <span className="starting-state-label">Starting state</span>
+          <RichText text={mission.startingState} />
+        </div>
+      )}
 
       <p className="objectives-title">Objectives</p>
       <ul className="objectives-list">
-        {mission.objectives.map((obj, i) => (
+        {mission.objectives.map((objective, i) => (
           <li key={i}>
             <span className="obj-check">○</span>
-            <span>{obj}</span>
+            <RichText text={objective} />
           </li>
         ))}
       </ul>

@@ -93,7 +93,7 @@ export function createApp(deps: {
       res.status(404).json({ message: "Mission not found" });
       return;
     }
-    res.json(mission);
+    res.json(deps.missionLoader.toPublic(mission));
   });
 
   app.post("/api/sandbox/create", async (req, res) => {
@@ -103,14 +103,21 @@ export function createApp(deps: {
       return;
     }
 
-    const session = await deps.sandboxManager.createSession(mission);
-    res.status(201).json({
-      sessionId: session.id,
-      missionId: mission.id,
-      mode: session.mode,
-      workspaceDir: session.workspaceDir,
-      wsUrl: `/ws/terminal?sessionId=${session.id}`
-    });
+    try {
+      const session = await deps.sandboxManager.createSession(mission);
+      res.status(201).json({
+        sessionId: session.id,
+        missionId: mission.id,
+        mode: "sandbox",
+        setupErrors: session.setupErrors.length,
+        wsUrl: `/ws/terminal?sessionId=${session.id}`
+      });
+    } catch (error) {
+      console.error("[sandbox] create failed:", error);
+      res.status(503).json({
+        message: `Could not prepare the Docker sandbox. Is Docker running? ${error instanceof Error ? error.message : ""}`.trim()
+      });
+    }
   });
 
   app.get("/api/sandbox/:sessionId/status", (req, res) => {
@@ -122,7 +129,6 @@ export function createApp(deps: {
     res.json({
       status: "alive",
       missionId: session.missionId,
-      mode: session.mode,
       expiresAt: session.expiresAt
     });
   });
@@ -139,14 +145,15 @@ export function createApp(deps: {
       return;
     }
 
-    const mission = deps.missionLoader.getMission(req.body.missionId ?? session.missionId);
+    const mission = deps.missionLoader.getMission(session.missionId);
     if (!mission) {
       res.status(404).json({ message: "Mission not found" });
       return;
     }
 
     try {
-      const result = await deps.validationEngine.validate(session, mission);
+      const fullResult = await deps.validationEngine.validate(session, mission);
+      const result = { ...fullResult, checks: fullResult.checks.map(({ description, passed }) => ({ description, passed })) };
       const authUser = (req as express.Request & { authUser?: { id: string } }).authUser;
       if (authUser) {
         const reward = deps.dataStore.recordValidation(authUser.id, mission, {
@@ -161,6 +168,7 @@ export function createApp(deps: {
       console.error("[validate] error:", err);
       res.json({
         passed: false,
+        checks: [],
         failedChecks: ["validation engine error"],
         message: err instanceof Error ? err.message : "Validation failed unexpectedly."
       });
