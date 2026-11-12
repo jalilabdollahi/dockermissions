@@ -107,21 +107,19 @@ container; `docker volume rm dockermissions-docker-cache` drops the cache.
 
 ## 🛡️ Smart Error Detection
 
-When validation fails, DockerMissions analyses the commands you typed and flags common mistakes:
+When validation fails, DockerMissions looks at the commands you typed and points out common
+mistakes — but only ones related to the checks that actually failed:
 
 ```
-Command issue detected:
-Flags after the image name are passed to the container, not Docker.
-  You wrote:  docker run -d nginx --name webserver
-  Move --name before the image name.
-  Example:    docker run -d --name webserver nginx
+Options after the image name are passed to the container, not to Docker.
+  You ran:   docker run -d httpd:2.4-alpine --name noticeboard -p 8081:80
+  Move --name, -p before `httpd:2.4-alpine`.
 ```
 
 Detected patterns include:
 - Docker flags placed after the image name
 - Wrong `-p HOST:CONTAINER` format
-- Missing `-d` flag when detached mode is required
-- `docker exec` without `-it` when opening a shell
+- `docker exec` into a shell without `-it`
 - `docker build` without a `-t` tag
 
 ---
