@@ -2,32 +2,109 @@
   "id": "module_05_level_07",
   "moduleId": 5,
   "levelId": 7,
-  "title": "Scale a Service",
-  "moduleTitle": "Docker Compose",
-  "difficulty": "hard",
-  "xp": 200,
-  "story": "Traffic is spiking. Scale the `web` service to 3 replicas using Docker Compose.",
+  "title": "Settings Without Edits",
+  "moduleTitle": "The Station Stack",
+  "difficulty": "medium",
+  "xp": 140,
+  "concepts": [
+    ".env interpolation",
+    "profiles"
+  ],
+  "story": "**From:** Amara Okafor\n**Subject:** lab-bench, again\n\nThree people edited `compose.yaml` this week just to change a port, and Kip's `toolbox` debug container has been running on the bench for days eating CPU.\n\nPlease move the tunables into a `.env` file next to `compose.yaml`: `DESK_PORT=8130` and `DESK_TAG=1.27-alpine`, and make the `desk` service use them. `toolbox` should only exist when somebody asks for the `debug` profile. Project name stays `lab-bench`.\n\nThanks!! -- A.",
   "objectives": [
-    "Scale the `web` service to 3 replicas",
-    "Confirm 3 containers for the `web` service are running"
+    "Create `/workspace/.env` with `DESK_PORT=8130` and `DESK_TAG=1.27-alpine`",
+    "In `compose.yaml`, build the `desk` image name and host port from `${DESK_TAG}` and `${DESK_PORT}`",
+    "Put `toolbox` in the profile `debug`, and make sure no `toolbox` container is running",
+    "Project `lab-bench` serves http://localhost:8130 from `nginx:1.27-alpine`"
   ],
+  "startingState": "Project `lab-bench` is running with hard-coded values: `desk` on `nginx:alpine` (port 8000) and an always-on `toolbox`.",
   "hints": [
-    "`docker compose up --scale web=3 -d` scales a service",
-    "Or add `deploy.replicas: 3` in the Compose file (requires Swarm or Compose v3 with deploy)",
-    "`docker compose up --scale web=3 -d`"
+    "Compose reads a file named `.env` in the project folder and substitutes `${VARIABLE}` references inside `compose.yaml`. Separately, a service can be tagged with `profiles`, which keeps it out of a plain `docker compose up` until that profile is requested.",
+    "In `.env` write one `KEY=value` per line. In the YAML use `nginx:${DESK_TAG}` and `\"${DESK_PORT}:80\"`, and add `profiles: [\"debug\"]` under `toolbox`. Editing the file does not stop the toolbox that is already running; remove it explicitly with `docker compose rm -sf toolbox`.",
+    "Put this into `.env`:\n\n```bash\nDESK_PORT=8130\nDESK_TAG=1.27-alpine\n```\n\nand edit `compose.yaml` so it reads:\n\n```yaml\nname: lab-bench\nservices:\n  desk:\n    image: nginx:${DESK_TAG}\n    ports:\n      - \"${DESK_PORT}:80\"\n  toolbox:\n    image: alpine:3.20\n    command: [\"sleep\", \"infinity\"]\n    profiles: [\"debug\"]\n```\n\nFinish with `docker compose rm -sf toolbox` and `docker compose up -d`."
   ],
+  "setup": {
+    "files": [
+      {
+        "path": "compose.yaml",
+        "content": "name: lab-bench\nservices:\n  desk:\n    image: nginx:alpine\n    ports:\n      - \"8000:80\"\n  toolbox:\n    image: alpine:3.20\n    command: [\"sleep\", \"infinity\"]\n"
+      }
+    ],
+    "commands": [
+      "docker compose up -d"
+    ]
+  },
   "validation": [
     {
-      "type": "service_replicas",
+      "type": "workspace_file",
       "params": {
-        "service": "web",
-        "count": 3
+        "path": ".env",
+        "contains": "DESK_PORT=8130"
       },
-      "description": "service=web, count=3"
+      "description": "`.env` sets `DESK_PORT=8130`"
+    },
+    {
+      "type": "workspace_file",
+      "params": {
+        "path": ".env",
+        "contains": "DESK_TAG=1.27-alpine"
+      },
+      "description": "`.env` sets `DESK_TAG=1.27-alpine`"
+    },
+    {
+      "type": "workspace_file",
+      "params": {
+        "path": "compose.yaml",
+        "contains": "${DESK_PORT"
+      },
+      "description": "`compose.yaml` references `${DESK_PORT}` instead of a hard-coded port"
+    },
+    {
+      "type": "workspace_file",
+      "params": {
+        "path": "compose.yaml",
+        "contains": "${DESK_TAG"
+      },
+      "description": "`compose.yaml` references `${DESK_TAG}` instead of a hard-coded tag"
+    },
+    {
+      "type": "shell",
+      "params": {
+        "command": "docker compose -p lab-bench config --services",
+        "output_not_contains": "toolbox"
+      },
+      "description": "`toolbox` is only part of the project when the `debug` profile is requested"
+    },
+    {
+      "type": "compose_service",
+      "params": {
+        "project": "lab-bench",
+        "service": "toolbox",
+        "count": 0
+      },
+      "description": "No `toolbox` container is running"
+    },
+    {
+      "type": "shell",
+      "params": {
+        "command": "docker ps --filter label=com.docker.compose.project=lab-bench --filter label=com.docker.compose.service=desk --format '{{.Image}}'",
+        "output_contains": "nginx:1.27-alpine"
+      },
+      "description": "`desk` runs from `nginx:1.27-alpine`"
+    },
+    {
+      "type": "http",
+      "params": {
+        "url": "http://localhost:8130"
+      },
+      "description": "http://localhost:8130 answers"
     }
   ],
-  "initialState": {
-    "summary": "Clean Docker environment",
-    "workspaceFiles": []
-  }
+  "solution": [
+    "printf 'DESK_PORT=8130\\nDESK_TAG=1.27-alpine\\n' > .env",
+    "cat > compose.yaml <<'EOF'\nname: lab-bench\nservices:\n  desk:\n    image: nginx:${DESK_TAG}\n    ports:\n      - \"${DESK_PORT}:80\"\n  toolbox:\n    image: alpine:3.20\n    command: [\"sleep\", \"infinity\"]\n    profiles: [\"debug\"]\nEOF",
+    "docker compose rm -sf toolbox",
+    "docker compose up -d"
+  ],
+  "debrief": "Keeping tunables in `.env` means a port or tag change is a one-line edit that never touches the structure of the stack, and a profile keeps tools like a debug toolbox off until someone asks for them. Pro tip: `docker compose --profile debug up -d toolbox` starts it on demand, and `${VAR:-default}` supplies a fallback when the variable is missing."
 }

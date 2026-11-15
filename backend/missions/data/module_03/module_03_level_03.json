@@ -2,49 +2,80 @@
   "id": "module_03_level_03",
   "moduleId": 3,
   "levelId": 3,
-  "title": "Connect Containers by Name",
-  "moduleTitle": "Docker Networking",
-  "difficulty": "easy",
-  "xp": 50,
-  "story": "Now that you have `mission-net`, connect two containers to it. They should be able to ping each other by name.",
+  "title": "Moving Day for the Printer",
+  "moduleTitle": "Station Network",
+  "difficulty": "medium",
+  "xp": 100,
+  "concepts": [
+    "docker network connect",
+    "docker network disconnect",
+    "live network changes"
+  ],
+  "story": "A sticky note on the lab printer, in marker: \"DO NOT UNPLUG. Halfway through printing the whole winter duty roster, 212 pages. Kip.\"\n\nUnderneath, in Ingrid Halvorsen's handwriting: \"The printer is the container `lab-printer`, and it still sits on the default bridge where nobody can find it by name. The lab machines live on `lab-net`. Move it. If the container restarts, the job restarts at page 1 and we lose the evening.\"\n\nPut `lab-printer` on `lab-net` and take it off the default bridge, without restarting it.",
   "objectives": [
-    "Run container `server` from `nginx` (detached) on network `mission-net`",
-    "Run container `client` from `alpine` (detached, `sleep 3600`) on network `mission-net`",
-    "Exec into `client` and ping `server` by name (must succeed)"
+    "`lab-printer` is attached to `lab-net`",
+    "`lab-printer` is no longer attached to the default `bridge` network",
+    "`lab-desk` can ping `lab-printer` by name",
+    "The print job survives: `/spool/job-started` inside `lab-printer` must still exist (no restart)"
   ],
+  "startingState": "Container `lab-printer` runs on the default bridge with a print job in its RAM spool. `lab-net` exists with `lab-desk` on it.",
   "hints": [
-    "Use `--network <name>` when running containers",
-    "`docker run -d --name server --network mission-net nginx`",
-    "`docker exec client ping -c 1 server` should succeed"
+    "A running container can be attached to and detached from networks without stopping it. Both actions live under `docker network`.",
+    "`docker network connect <network> <container>` adds a network, `docker network disconnect <network> <container>` removes one. The default network is literally named `bridge`.",
+    "```bash\ndocker network connect lab-net lab-printer\ndocker network disconnect bridge lab-printer\ndocker inspect -f '{{json .NetworkSettings.Networks}}' lab-printer\n```"
   ],
+  "setup": {
+    "files": [],
+    "commands": [
+      "docker network create lab-net",
+      "docker run -d --name lab-desk --network lab-net alpine:3.20 sleep infinity",
+      "docker run -d --name lab-printer --tmpfs /spool alpine:3.20 sh -c 'date +%s > /spool/job-started; sleep infinity'"
+    ]
+  },
   "validation": [
     {
-      "type": "container_on_network",
+      "type": "container_running",
       "params": {
-        "container": "server",
-        "network": "mission-net"
+        "name": "lab-printer"
       },
-      "description": "container=server, network=mission-net"
+      "description": "Container `lab-printer` is still running"
     },
     {
       "type": "container_on_network",
       "params": {
-        "container": "client",
-        "network": "mission-net"
+        "name": "lab-printer",
+        "network": "lab-net"
       },
-      "description": "container=client, network=mission-net"
+      "description": "`lab-printer` is attached to `lab-net`"
     },
     {
-      "type": "ping_succeeds",
+      "type": "container_not_on_network",
       "params": {
-        "from": "client",
-        "to": "server"
+        "name": "lab-printer",
+        "network": "bridge"
       },
-      "description": "from=client, to=server"
+      "description": "`lab-printer` is no longer on the default `bridge` network"
+    },
+    {
+      "type": "container_exec",
+      "params": {
+        "name": "lab-desk",
+        "command": "ping -c 1 -W 2 lab-printer"
+      },
+      "description": "`lab-desk` can reach `lab-printer` by name"
+    },
+    {
+      "type": "container_exec",
+      "params": {
+        "name": "lab-printer",
+        "command": "test -s /spool/job-started"
+      },
+      "description": "The print job is intact: `/spool/job-started` still exists, so the container was never restarted"
     }
   ],
-  "initialState": {
-    "summary": "`mission-net` network pre-created",
-    "workspaceFiles": []
-  }
+  "solution": [
+    "docker network connect lab-net lab-printer",
+    "docker network disconnect bridge lab-printer"
+  ],
+  "debrief": "Networks can be attached and detached while a container keeps running, so topology changes do not need downtime. Pro tip: connect to the new network before disconnecting from the old one so there is never a moment without a route."
 }

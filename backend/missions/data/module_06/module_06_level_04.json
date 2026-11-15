@@ -2,43 +2,81 @@
   "id": "module_06_level_04",
   "moduleId": 6,
   "levelId": 4,
-  "title": "Seccomp Profile",
-  "moduleTitle": "Docker Security",
+  "title": "Rationing",
+  "moduleTitle": "The Audit",
   "difficulty": "medium",
-  "xp": 100,
-  "story": "Seccomp filters which system calls a container can make. Apply the default Docker seccomp profile explicitly to lock down `syscall-test` container.",
+  "xp": 130,
+  "concepts": [
+    "resource limits",
+    "docker update"
+  ],
+  "story": "Sticky note on monitor 3, Amara's handwriting:\n\n\"cruncher went into a loop at 3am, spawned a few hundred processes and took the whole box with it. sorry!!\n\ncan you box it in? 256 MB of RAM, half a CPU, 64 processes max.\nDO NOT restart it -- the glacier job is 80% done and I wrote the checkpoint file by hand. -- A.\"\n\nBeneath it, in red pen, Wren has underlined \"whole box\" twice.",
   "objectives": [
-    "Run container `syscall-test` from `alpine` with the default seccomp profile applied explicitly",
-    "Run `sleep 3600` detached"
+    "Limit the running container `cruncher` to 256 MB of memory",
+    "Limit it to 0.5 CPUs",
+    "Limit it to at most 64 processes",
+    "Do not recreate it: `/tmp/checkpoint` inside the container must survive"
   ],
+  "startingState": "Container `cruncher` (alpine:3.20) runs with no limits at all, and holds a checkpoint in `/tmp/checkpoint`.",
   "hints": [
-    "`--security-opt seccomp=<path>` applies a seccomp profile",
-    "The profile is JSON file defining allowed syscalls",
-    "`docker run -d --name syscall-test --security-opt seccomp=/workspace/default-seccomp.json alpine sleep 3600`"
+    "Resource limits are not only for new containers; Docker can change them on a running one. Restarting or recreating `cruncher` would lose the checkpoint that only exists inside it, so look for a command that edits a live container.",
+    "`docker update` accepts `--memory`, `--cpus` and `--pids-limit`. When you set a memory limit on a container that had none, set `--memory-swap` to the same value so swap does not exceed it.",
+    "```bash\ndocker update --memory 256m --memory-swap 256m --cpus 0.5 --pids-limit 64 cruncher\ndocker inspect -f '{{.HostConfig.Memory}} {{.HostConfig.NanoCpus}} {{.HostConfig.PidsLimit}}' cruncher\n```"
   ],
+  "setup": {
+    "files": [],
+    "commands": [
+      "docker run -d --name cruncher alpine:3.20 sleep infinity",
+      "docker exec cruncher sh -c 'echo stage-8-of-10 > /tmp/checkpoint'"
+    ]
+  },
   "validation": [
     {
       "type": "container_running",
       "params": {
-        "name": "syscall-test"
+        "name": "cruncher"
       },
-      "description": "name=syscall-test"
+      "description": "Container `cruncher` is still running"
     },
     {
-      "type": "seccomp_applied",
+      "type": "container_inspect",
       "params": {
-        "container": "syscall-test"
+        "name": "cruncher",
+        "path": "HostConfig.Memory",
+        "equals": 268435456
       },
-      "description": "container=syscall-test"
+      "description": "Memory limit is 256 MB (268435456 bytes)"
+    },
+    {
+      "type": "container_inspect",
+      "params": {
+        "name": "cruncher",
+        "path": "HostConfig.NanoCpus",
+        "equals": 500000000
+      },
+      "description": "CPU limit is 0.5 CPUs"
+    },
+    {
+      "type": "container_inspect",
+      "params": {
+        "name": "cruncher",
+        "path": "HostConfig.PidsLimit",
+        "equals": 64
+      },
+      "description": "Process limit is 64"
+    },
+    {
+      "type": "container_exec",
+      "params": {
+        "name": "cruncher",
+        "command": "cat /tmp/checkpoint",
+        "output_contains": "stage-8-of-10"
+      },
+      "description": "The original container (with its checkpoint) was not recreated"
     }
   ],
-  "initialState": {
-    "summary": "`/workspace/default-seccomp.json` contains Docker's default seccomp profile",
-    "workspaceFiles": [
-      {
-        "path": "default-seccomp.json",
-        "content": "{ \"defaultAction\": \"SCMP_ACT_ERRNO\", \"architectures\": [], \"syscalls\": [] }\n"
-      }
-    ]
-  }
+  "solution": [
+    "docker update --memory 256m --memory-swap 256m --cpus 0.5 --pids-limit 64 cruncher"
+  ],
+  "debrief": "Memory, CPU and process limits keep one runaway container from starving everything else on the host, and `docker update` applies them live without touching the container's state. Pro tip: `--pids-limit` is the cheap defence against fork bombs, and `docker stats` shows whether a limit is actually being hit."
 }

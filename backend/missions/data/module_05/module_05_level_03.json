@@ -2,42 +2,85 @@
   "id": "module_05_level_03",
   "moduleId": 5,
   "levelId": 3,
-  "title": "Port Mapping in Compose",
-  "moduleTitle": "Docker Compose",
-  "difficulty": "easy",
-  "xp": 50,
-  "story": "Expose the nginx service on host port 8080.",
+  "title": "Build on Arrival",
+  "moduleTitle": "The Station Stack",
+  "difficulty": "medium",
+  "xp": 120,
+  "concepts": [
+    "compose build",
+    "image naming"
+  ],
+  "story": "```\n[nightly] 03:00:01 docker build -t ingest-dev ./ingest      OK\n[nightly] 03:00:09 docker run -d -p 8110:8000 kestrel/ingest:dev\n[nightly] 03:00:09 Unable to find image 'kestrel/ingest:dev' locally\n[nightly] 03:00:10 docker: pull access denied for kestrel/ingest\n[nightly] 03:00:10 FATAL: ingest bay is dark\n```\n\nIngrid pinned this above the coffee machine. Amara's nightly script builds one tag and runs another, so the ingest bay for the radiometer data has been dark for three nights. She wants build and run to stop disagreeing: a Compose project `ingest-bay` with one service `ingest`, built from the `./ingest` folder and tagged `kestrel/ingest:dev`.",
   "objectives": [
-    "Add `ports: [\"8080:80\"]` to the `web` service",
-    "Restart the stack",
-    "Confirm http://localhost:8080 responds"
+    "Create `/workspace/compose.yaml` for project `ingest-bay`",
+    "Service `ingest` builds from `./ingest` and is tagged `kestrel/ingest:dev`",
+    "It publishes host port 8110 to container port 8000",
+    "Run it so image `kestrel/ingest:dev` exists and http://localhost:8110 answers"
   ],
+  "startingState": "`/workspace/ingest/` holds a working Dockerfile and `app.py`; no image has been built.",
   "hints": [
-    "Use `ports:` key under the service",
-    "Format: `\"host:container\"`",
-    "`ports: [\"8080:80\"]`"
+    "A Compose service can carry a `build:` instruction instead of only pulling an image, so Compose builds it for you during `up`. If the service also has an `image:` key, that key becomes the name the built image receives.",
+    "Under the service use `build: ./ingest` (the folder containing the Dockerfile) together with `image: kestrel/ingest:dev`. Then `docker compose up -d --build` builds and starts it in one go.",
+    "Save this as `compose.yaml` and run `docker compose up -d --build`:\n\n```yaml\nname: ingest-bay\nservices:\n  ingest:\n    build: ./ingest\n    image: kestrel/ingest:dev\n    ports:\n      - \"8110:8000\"\n```"
   ],
+  "setup": {
+    "files": [
+      {
+        "path": "ingest/Dockerfile",
+        "content": "FROM python:3.12-alpine\nWORKDIR /srv\nCOPY app.py .\nEXPOSE 8000\nCMD [\"python\", \"app.py\"]\n"
+      },
+      {
+        "path": "ingest/app.py",
+        "content": "from http.server import BaseHTTPRequestHandler, HTTPServer\n\n\nclass Bay(BaseHTTPRequestHandler):\n    def do_GET(self):\n        self.send_response(200)\n        self.end_headers()\n        self.wfile.write(b\"INGEST READY: radiometer feed open\\n\")\n\n\nHTTPServer((\"0.0.0.0\", 8000), Bay).serve_forever()\n"
+      }
+    ],
+    "commands": []
+  },
   "validation": [
     {
-      "type": "port_exposed",
+      "type": "workspace_file",
       "params": {
-        "service": "web",
-        "host_port": 8080,
-        "container_port": 80
+        "path": "compose.yaml",
+        "matches": "name: ingest-bay[\\s\\S]*build:"
       },
-      "description": "service=web, host_port=8080, container_port=80"
+      "description": "`compose.yaml` declares `name: ingest-bay` and a `build:` section"
     },
     {
-      "type": "http_responds",
+      "type": "image_exists",
       "params": {
-        "url": "http://localhost:8080",
-        "status": 200
+        "ref": "kestrel/ingest:dev"
       },
-      "description": "url=http://localhost:8080, status=200"
+      "description": "Image `kestrel/ingest:dev` exists"
+    },
+    {
+      "type": "compose_service",
+      "params": {
+        "project": "ingest-bay",
+        "service": "ingest",
+        "running": 1
+      },
+      "description": "Service `ingest` is running in project `ingest-bay`"
+    },
+    {
+      "type": "shell",
+      "params": {
+        "command": "docker ps --filter label=com.docker.compose.project=ingest-bay --filter label=com.docker.compose.service=ingest --format '{{.Image}}'",
+        "output_contains": "kestrel/ingest:dev"
+      },
+      "description": "The running `ingest` container uses image `kestrel/ingest:dev`"
+    },
+    {
+      "type": "http",
+      "params": {
+        "url": "http://localhost:8110",
+        "body_contains": "INGEST READY"
+      },
+      "description": "http://localhost:8110 reports the ingest bay is ready"
     }
   ],
-  "initialState": {
-    "summary": "Clean Docker environment",
-    "workspaceFiles": []
-  }
+  "solution": [
+    "cat > compose.yaml <<'EOF'\nname: ingest-bay\nservices:\n  ingest:\n    build: ./ingest\n    image: kestrel/ingest:dev\n    ports:\n      - \"8110:8000\"\nEOF",
+    "docker compose up -d --build"
+  ],
+  "debrief": "With `build:` plus `image:`, Compose is the single source of truth for both how an image is made and what it is called, so scripts can no longer drift apart. Pro tip: `docker compose build` only builds, and `docker compose up -d --build` forces a rebuild after you edit code -- plain `up` reuses an existing image."
 }

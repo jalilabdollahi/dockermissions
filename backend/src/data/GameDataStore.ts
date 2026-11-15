@@ -2,6 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { randomUUID, scryptSync, timingSafeEqual } from "node:crypto";
 import { env } from "../config/env.js";
+import { MissionLoader } from "../missions/MissionLoader.js";
 import { Mission } from "../missions/types.js";
 import { ensureDir } from "../utils/fs.js";
 
@@ -50,10 +51,9 @@ export class GameDataStore {
   private dbPath: string;
   private moduleMissionCounts: Map<string, number>;
 
-  constructor() {
-    const dataDir = path.join(env.sessionRoot, "..", "data");
-    ensureDir(dataDir);
-    this.dbPath = path.join(dataDir, "game-data.json");
+  constructor(private missionLoader: MissionLoader) {
+    ensureDir(env.dataDir);
+    this.dbPath = path.join(env.dataDir, "game-data.json");
     this.moduleMissionCounts = this.loadModuleMissionCounts();
     if (!fs.existsSync(this.dbPath)) {
       this.writeDb({ users: [], progress: [], sessions: [] });
@@ -268,12 +268,7 @@ export class GameDataStore {
 
   private loadModuleMissionCounts() {
     const counts = new Map<string, number>();
-    const catalogPath = path.join(env.missionDataDir, "catalog.json");
-    if (!fs.existsSync(catalogPath)) {
-      return counts;
-    }
-    const catalog = JSON.parse(fs.readFileSync(catalogPath, "utf8")) as { modules: Array<{ id: number; missions: Array<{ id: string }> }> };
-    for (const module of catalog.modules) {
+    for (const module of this.missionLoader.getModules()) {
       counts.set(`module_${String(module.id).padStart(2, "0")}`, module.missions.length);
     }
     return counts;

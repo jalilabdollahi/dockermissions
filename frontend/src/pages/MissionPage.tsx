@@ -14,6 +14,7 @@ export function MissionPage() {
     setAuthUser, setHintsUsed, setLeaderboard, setMission, setProgress, setSession, setValidation
   } = useGameStore();
   const [loading, setLoading] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [validating, setValidating] = useState(false);
   const previousSessionRef = useRef<string | null>(null);
   // Keep a ref so handleValidate can read authUser without being in effect deps
@@ -34,6 +35,7 @@ export function MissionPage() {
     if (!authUser || !selectedMissionId) return;
     let cancelled = false;
     setLoading(true);
+    setLoadError(null);
     setValidation(null);
 
     Promise.all([missionApi.getMission(selectedMissionId), sandboxApi.create(selectedMissionId)])
@@ -46,6 +48,12 @@ export function MissionPage() {
           sandboxApi.destroy(prev).catch(() => null);
         }
         previousSessionRef.current = nextSession.sessionId;
+      })
+      .catch((error) => {
+        if (cancelled) return;
+        let message = error instanceof Error ? error.message : String(error);
+        try { message = JSON.parse(message).message ?? message; } catch { /* plain text */ }
+        setLoadError(message);
       })
       .finally(() => { if (!cancelled) setLoading(false); });
 
@@ -74,6 +82,7 @@ export function MissionPage() {
     } catch (error) {
       setValidation({
         passed: false,
+        checks: [],
         failedChecks: [],
         message: error instanceof Error ? error.message : "Validation failed unexpectedly."
       });
@@ -125,13 +134,26 @@ export function MissionPage() {
     );
   }
 
+  if (loadError && !loading) {
+    return (
+      <div className="mission-page" style={{ display: "flex" }}>
+        <div className="empty-state" style={{ flex: 1 }}>
+          <div className="empty-icon">⚠️</div>
+          <h1>Sandbox unavailable</h1>
+          <p>{loadError}</p>
+        </div>
+        <div style={{ flex: 1, background: "#010409" }} />
+      </div>
+    );
+  }
+
   if (loading || !mission || !session) {
     return (
       <div className="mission-page" style={{ display: "flex" }}>
         <div className="empty-state" style={{ flex: 1 }}>
           <div className="preparing-spinner" />
           <h1>Preparing sandbox</h1>
-          <p>Provisioning the mission workspace and terminal session…</p>
+          <p>Resetting the isolated Docker sandbox and staging this mission. The very first start builds the sandbox and can take a minute.</p>
         </div>
         <div style={{ flex: 1, background: "#010409" }} />
       </div>
@@ -143,7 +165,7 @@ export function MissionPage() {
       <div className="left-column">
         <MissionBriefing mission={mission} />
         <HintPanel hintsUsed={hintsUsed} mission={mission} onReveal={handleRevealHint} />
-        <ValidationPanel onValidate={handleValidate} result={validation} validating={validating} />
+        <ValidationPanel mission={mission} onValidate={handleValidate} result={validation} validating={validating} />
       </div>
       <Terminal wsUrl={session.wsUrl} mode={session.mode} />
     </div>

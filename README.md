@@ -8,7 +8,7 @@
 
 DockerMissions is a fully local, browser-based training game for Docker. Each mission gives you a live shell, a clear objective, and automatic validation. No cloud. No costs. No copy-pasting from a blog post.
 
-**54 progressive challenges across 8 modules — complete beginner to production patterns.**
+**54 progressive missions across 8 modules — one continuous story, from first `docker run` to Swarm rolling updates.**
 
 **Design and implementation by: Fatemeh**
 
@@ -17,6 +17,7 @@ DockerMissions is a fully local, browser-based training game for Docker. Each mi
 ## ✨ Features
 
 - 🐳 **54 missions** across 8 modules — containers, images, networks, volumes, Compose, security, registries, and advanced Docker
+- 🧪 **Isolated Docker-in-Docker sandbox** — missions can't touch your real containers, images or volumes
 - 🏆 **XP & progression system** — earn points, unlock levels, rise through operator tiers
 - 💡 **Progressive hints** — reveal only what you need, with XP deduction after the first hint
 - ✅ **Instant automated validation** — click Check Mission and get a real result in seconds
@@ -37,9 +38,6 @@ cd dockermissions
 # Install dependencies
 cd backend && npm install && cd ..
 cd frontend && npm install && cd ..
-
-# Generate mission data
-node scripts/generate-missions.mjs
 
 # Start both services
 ./start.sh
@@ -65,44 +63,63 @@ Open **http://localhost:5173**, enter a player name, and pick your first mission
 2. **Enter a player name** in the right panel to start your offline profile
 3. **Select a mission** from the campaign map on the left
 4. **Read the briefing** — understand the objective and starting state
-5. **Use the terminal** — run real Docker commands to complete the mission
-6. **Click `Check Mission`** — automated validation runs against the live Docker state
+5. **Use the terminal** — run real Docker commands inside the isolated sandbox
+6. **Click `Check Mission`** — every requirement is checked against the sandbox's live Docker state
 7. **Earn XP** and unlock the next level
 
 ---
 
-## 🗺️ Campaign — 8 Modules · 54 Levels · 4,550 XP
+## 🗺️ Campaign — Kestrel Point Research Station
 
-| # | Module | Levels | XP | Difficulty | Key Topics |
-|---|--------|--------|----|------------|------------|
-| 1 | 🟢 Docker Basics | 8 | 450 | Beginner | `docker run`, ports, env vars, exec, logs |
-| 2 | 🟢 Images & Dockerfile | 8 | 650 | Beginner | `FROM`, `RUN`, `COPY`, multi-stage, `.dockerignore` |
-| 3 | 🟡 Networking | 7 | 600 | Intermediate | Bridge, custom networks, DNS, host, none |
-| 4 | 🟡 Volumes & Storage | 6 | 500 | Intermediate | Named volumes, bind mounts, tmpfs, backups |
-| 5 | 🟡 Docker Compose | 7 | 600 | Intermediate | Multi-service stacks, health checks, scaling |
-| 6 | 🔴 Security | 6 | 750 | Advanced | Non-root, read-only rootfs, capabilities, seccomp |
-| 7 | 🔴 Registry & Distribution | 5 | 450 | Advanced | Tagging, local registry, push/pull, layer history |
-| 8 | ⚫ Advanced Docker | 7 | 1000 | Expert | BuildKit, Swarm, contexts, cache mounts, prune |
+One continuous story: you are the new platform engineer at a remote polar research station,
+moving everything into containers before the polar night cuts the station off from the mainland.
+Every level is a different incident with its own characters, starting state and checks.
+
+| # | Module | Levels | Difficulty | Key Topics |
+|---|--------|--------|------------|------------|
+| 1 | 🟢 Arrival | 8 | Beginner | `docker run`, detached/named, ports, env vars, logs, exec, lifecycle, restart policies |
+| 2 | 🟢 Instrument Images | 8 | Beginner → Advanced | pull/tag, Dockerfile basics, `RUN`, `ENTRYPOINT` vs `CMD`, metadata, `.dockerignore`, multi-stage, layer forensics |
+| 3 | 🟡 Station Network | 7 | Intermediate | user networks & DNS, aliases, connect/disconnect, internal networks, loopback-only ports, none/host, static IPs |
+| 4 | 🟡 Ice-Core Archive | 6 | Intermediate | named volumes, read-only bind mounts, tmpfs, volume backup & restore, shared volumes |
+| 5 | 🟡 The Station Stack | 7 | Intermediate | Compose: multi-service, build, healthchecks, scaling, network segmentation, `.env` & profiles |
+| 6 | 🔴 The Audit | 6 | Advanced | non-root, read-only rootfs, capabilities, resource limits, secrets as files, no-new-privileges |
+| 7 | 🔴 The Satellite Link | 5 | Advanced | local registry, push/pull, digests, save/load, semantic tags |
+| 8 | ⚫ Polar Night | 7 | Expert | BuildKit cache & secret mounts, graceful shutdown, contexts, Swarm services & rolling updates, targeted prune |
+
+---
+
+## 🧪 Isolated Sandbox
+
+Missions never touch your own Docker containers, images or volumes. The backend starts one
+privileged **Docker-in-Docker** container, `dockermissions-sandbox` (built from
+[`docker/sandbox/`](./docker/sandbox)), and everything happens inside it:
+
+- the browser terminal is a bash shell **inside the sandbox** (`/workspace` is the mission's directory),
+- before every mission `dm-reset` wipes containers, networks, volumes, contexts, swarm state and
+  non-base images, then the mission's `setup` stages its starting state,
+- validation inspects the sandbox's inner engine.
+
+Base images (alpine, nginx, redis, postgres, python, golang, registry …) are cached in the
+`dockermissions-docker-cache` volume, so resets are fast. `./stop.sh --sandbox` removes the sandbox
+container; `docker volume rm dockermissions-docker-cache` drops the cache.
 
 ---
 
 ## 🛡️ Smart Error Detection
 
-When validation fails, DockerMissions analyses the commands you typed and flags common mistakes:
+When validation fails, DockerMissions looks at the commands you typed and points out common
+mistakes — but only ones related to the checks that actually failed:
 
 ```
-Command issue detected:
-Flags after the image name are passed to the container, not Docker.
-  You wrote:  docker run -d nginx --name webserver
-  Move --name before the image name.
-  Example:    docker run -d --name webserver nginx
+Options after the image name are passed to the container, not to Docker.
+  You ran:   docker run -d httpd:2.4-alpine --name noticeboard -p 8081:80
+  Move --name, -p before `httpd:2.4-alpine`.
 ```
 
 Detected patterns include:
 - Docker flags placed after the image name
 - Wrong `-p HOST:CONTAINER` format
-- Missing `-d` flag when detached mode is required
-- `docker exec` without `-it` when opening a shell
+- `docker exec` into a shell without `-it`
 - `docker build` without a `-t` tag
 
 ---
@@ -112,7 +129,7 @@ Detected patterns include:
 | Script | What it does |
 |--------|-------------|
 | `./start.sh` | Start backend + frontend in the background |
-| `./stop.sh` | Stop both services |
+| `./stop.sh` | Stop both services (`--sandbox` also removes the sandbox container) |
 | `./restart.sh` | Stop then start |
 
 Logs go to `tmp/logs/backend.log` and `tmp/logs/frontend.log`.
@@ -125,49 +142,33 @@ Logs go to `tmp/logs/backend.log` and `tmp/logs/frontend.log`.
 dockermissions/
 ├── start.sh / stop.sh / restart.sh   ← service management
 ├── backend/
-│   ├── missions/data/                 ← generated mission JSON (54 levels)
+│   ├── missions/
+│   │   ├── AUTHORING.md               ← story bible, mission schema, check catalog, outline
+│   │   └── data/module_XX/            ← one JSON file per level (+ generated index/catalog)
 │   └── src/
 │       ├── data/                      ← offline player progress (JSON on disk)
-│       ├── missions/                  ← mission loader and parser
-│       ├── sandbox/                   ← session and workspace lifecycle
-│       ├── terminal/                  ← WebSocket PTY relay (node-pty)
-│       ├── validation/                ← mission validation + error analysis
+│       ├── missions/                  ← mission loader and types
+│       ├── sandbox/                   ← sandbox container runtime + session lifecycle
+│       ├── terminal/                  ← WebSocket PTY relay (node-pty → docker exec)
+│       ├── validation/                ← check engine + command analysis
+│       ├── tools/testMissions.ts      ← end-to-end mission test harness
 │       └── routes/                    ← Express API routes
-├── frontend/
-│   └── src/
-│       ├── components/                ← UI components (terminal, briefing, hints…)
-│       ├── api/                       ← typed API clients
-│       ├── pages/                     ← MissionPage layout
-│       ├── store/                     ← Zustand game state
-│       └── styles/                    ← global CSS (dark terminal theme)
-├── docker/
-│   └── sandbox/                       ← sandbox Dockerfile
-├── modules/                           ← source-of-truth mission specs (Markdown)
-│   ├── module_01_basics.md
-│   ├── module_02_images_dockerfile.md
-│   ├── module_03_networking.md
-│   ├── module_04_volumes_storage.md
-│   ├── module_05_docker_compose.md
-│   ├── module_06_security.md
-│   ├── module_07_registry.md
-│   └── module_08_advanced.md
-├── scripts/
-│   └── generate-missions.mjs          ← parse modules/ → backend/missions/data/
-├── GAME_PLAN.md                       ← full design document
-└── AI_IMPLEMENTATION_PROMPT.md        ← implementation spec for AI assistants
+├── frontend/src/                      ← React UI (terminal, briefing, hints, validation)
+├── docker/sandbox/                    ← sandbox image: Dockerfile, dm-reset, dm-prefetch, base image list
+└── scripts/build-catalog.mjs          ← validate missions + generate catalog.json
 ```
 
 ---
 
-## 🔄 Regenerating Mission Data
+## ✍️ Writing and Testing Missions
 
-After editing any file in `modules/`, regenerate the mission JSON:
-
-```bash
-node scripts/generate-missions.mjs
-```
-
-Then restart the backend to pick up the changes.
+1. Read [`backend/missions/AUTHORING.md`](./backend/missions/AUTHORING.md) — schema, check types, story rules.
+2. Edit or add `backend/missions/data/module_XX/module_XX_level_YY.json`.
+3. Validate and rebuild the catalog: `node scripts/build-catalog.mjs`
+4. Test for real (needs Docker): `cd backend && npm run test:missions -- module_03_level_02`
+   The harness stages the mission in the sandbox, confirms the checks fail, runs the mission's
+   reference `solution`, and confirms every check passes.
+5. Restart the backend to pick up the new catalog.
 
 ---
 
@@ -186,25 +187,17 @@ Then restart the backend to pick up the changes.
 - File-backed JSON store (no database required)
 
 ### Runtime
-- Host Docker socket for live container/image/network/volume validation
+- Docker-in-Docker sandbox (`docker:29-dind` + bash, curl, jq, compose, buildx)
 - Per-session workspace directories with automatic cleanup (30-minute TTL)
-- Command log with syntax analysis for actionable error messages
+- Command log (bash history) with analysis for actionable error messages
 
 ---
 
 ## 📖 Contributing
 
-**To add or change missions:**
-1. Edit the relevant file in [`modules/`](./modules)
-2. Regenerate: `node scripts/generate-missions.mjs`
-3. Test the mission flow in the UI
-
-**To change validation logic:**
-- Edit [`backend/src/validation/ValidationEngine.ts`](./backend/src/validation/ValidationEngine.ts)
-- All check types are documented in [`GAME_PLAN.md`](./GAME_PLAN.md)
-
-**To report a bug or suggest a new mission:**
-- Open an issue with the mission ID and what you expected vs. what happened
+- **Missions:** follow [`AUTHORING.md`](./backend/missions/AUTHORING.md); every mission needs a passing `solution`.
+- **Validation logic:** [`backend/src/validation/ValidationEngine.ts`](./backend/src/validation/ValidationEngine.ts); check types are documented in `AUTHORING.md`.
+- **Bugs / ideas:** open an issue with the mission ID and what you expected vs. what happened.
 
 ---
 

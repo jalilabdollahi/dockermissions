@@ -2,58 +2,73 @@
   "id": "module_08_level_01",
   "moduleId": 8,
   "levelId": 1,
-  "title": "BuildKit and Build Cache",
-  "moduleTitle": "Advanced Docker",
+  "title": "Don't Download Twice",
+  "moduleTitle": "Polar Night",
   "difficulty": "medium",
-  "xp": 100,
-  "story": "Docker BuildKit dramatically speeds up builds using intelligent caching and parallel execution. Enable BuildKit and rebuild an existing image to see cache hits.",
+  "xp": 125,
+  "concepts": [
+    "BuildKit cache mount",
+    "RUN --mount=type=cache",
+    "pip cache"
+  ],
+  "story": "**From:** Amara Okafor\n**Subject:** climate-fetch rebuilds are eating the satellite budget\n\nEvery time I touch one line of `requirements.txt`, pip downloads every package again. The Dockerfile even has `--no-cache-dir` in it, because someone once told me that keeps images small. Ten rebuilds a day over a metered link adds up fast.\n\nCan you make the build keep pip's download cache between builds, without baking the cache into the image? Build the result as `kestrel/climate-fetch:1.0`.",
   "objectives": [
-    "Set `DOCKER_BUILDKIT=1` environment variable",
-    "Build `cached-app:v1` from `/workspace/Dockerfile`",
-    "Modify only `index.html` (not the Dockerfile) and rebuild as `cached-app:v2`",
-    "Confirm the second build uses cache for unchanged layers"
+    "Edit `/workspace/Dockerfile` so the pip install step uses a BuildKit cache mount on `/root/.cache/pip`",
+    "Remove `--no-cache-dir` from the install step",
+    "Build the image as `kestrel/climate-fetch:1.0`; it must still run and print `climate-fetch ready`"
   ],
+  "startingState": "`/workspace` holds a working Dockerfile, `requirements.txt` and `fetch.py` for the climate-fetch tool, but nothing has been built yet.",
   "hints": [
-    "`DOCKER_BUILDKIT=1 docker build ...` enables BuildKit",
-    "Or set in Docker daemon config: `\"features\": {\"buildkit\": true}`",
-    "`DOCKER_BUILDKIT=1 docker build -t cached-app:v2 /workspace`"
+    "The build engine (BuildKit) can mount a directory that persists between builds but never becomes part of an image layer. That is exactly what a package manager's download cache needs.",
+    "Attach it to the install step with `RUN --mount=type=cache,target=DIR ...`. pip's cache lives in `/root/.cache/pip`, and `--no-cache-dir` would tell pip to ignore it, so it has to go.",
+    "```dockerfile\nFROM python:3.12-alpine\nWORKDIR /app\nCOPY requirements.txt .\nRUN --mount=type=cache,target=/root/.cache/pip \\\n    pip install -r requirements.txt\nCOPY fetch.py .\nCMD [\"python\", \"fetch.py\"]\n```\nThen `docker build -t kestrel/climate-fetch:1.0 .`"
   ],
-  "validation": [
-    {
-      "type": "image_exists",
-      "params": {
-        "name": "cached-app",
-        "tag": "v1"
-      },
-      "description": "name=cached-app, tag=v1"
-    },
-    {
-      "type": "image_exists",
-      "params": {
-        "name": "cached-app",
-        "tag": "v2"
-      },
-      "description": "name=cached-app, tag=v2"
-    },
-    {
-      "type": "build_used_cache",
-      "params": {
-        "image": "cached-app:v2"
-      },
-      "description": "image=cached-app:v2"
-    }
-  ],
-  "initialState": {
-    "summary": "`/workspace` with Dockerfile and source files",
-    "workspaceFiles": [
+  "setup": {
+    "files": [
       {
         "path": "Dockerfile",
-        "content": "FROM nginx:latest\nCOPY index.html /usr/share/nginx/html/index.html\n"
+        "content": "FROM python:3.12-alpine\nWORKDIR /app\nCOPY requirements.txt .\nRUN pip install --no-cache-dir -r requirements.txt\nCOPY fetch.py .\nCMD [\"python\", \"fetch.py\"]\n"
       },
       {
-        "path": "index.html",
-        "content": "<h1>Cache me if you can</h1>\n"
+        "path": "requirements.txt",
+        "content": "python-dateutil==2.9.0.post0\n"
+      },
+      {
+        "path": "fetch.py",
+        "content": "import dateutil.parser\nprint('climate-fetch ready', dateutil.parser.parse('2026-06-21').year)\n"
       }
-    ]
-  }
+    ],
+    "commands": []
+  },
+  "validation": [
+    {
+      "type": "workspace_file",
+      "params": {
+        "path": "Dockerfile",
+        "matches": "--mount=type=cache[^\\n]*/root/\\.cache/pip",
+        "not_contains": "--no-cache-dir"
+      },
+      "description": "The Dockerfile installs with `RUN --mount=type=cache,target=/root/.cache/pip` and without `--no-cache-dir`"
+    },
+    {
+      "type": "image_exists",
+      "params": {
+        "ref": "kestrel/climate-fetch:1.0"
+      },
+      "description": "The image `kestrel/climate-fetch:1.0` exists"
+    },
+    {
+      "type": "image_run",
+      "params": {
+        "ref": "kestrel/climate-fetch:1.0",
+        "output_contains": "climate-fetch ready"
+      },
+      "description": "`kestrel/climate-fetch:1.0` runs and prints `climate-fetch ready`"
+    }
+  ],
+  "solution": [
+    "cat > Dockerfile <<'EOF'\nFROM python:3.12-alpine\nWORKDIR /app\nCOPY requirements.txt .\nRUN --mount=type=cache,target=/root/.cache/pip \\\n    pip install -r requirements.txt\nCOPY fetch.py .\nCMD [\"python\", \"fetch.py\"]\nEOF",
+    "docker build -t kestrel/climate-fetch:1.0 ."
+  ],
+  "debrief": "The second build skipped the download because the cache mount survived between builds, and it never became part of a layer, so the image stays lean. Pro tip: the same trick works for `apk` (`/var/cache/apk`), Go (`/root/.cache/go-build`) and `npm`."
 }

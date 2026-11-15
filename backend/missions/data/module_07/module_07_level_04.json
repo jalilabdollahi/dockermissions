@@ -2,40 +2,81 @@
   "id": "module_07_level_04",
   "moduleId": 7,
   "levelId": 4,
-  "title": "Pull from Local Registry",
-  "moduleTitle": "Registry & Distribution",
+  "title": "Sneakernet",
+  "moduleTitle": "The Satellite Link",
   "difficulty": "medium",
-  "xp": 100,
-  "story": "The image was pushed. Now remove the local copy and re-pull it from the registry to prove the registry works.",
+  "xp": 125,
+  "concepts": [
+    "docker save",
+    "docker load",
+    "offline transfer"
+  ],
+  "story": "Radio, channel 9. Wind noise, then Captain Rafael Duarte of the *Petrel*:\n\n\"Kestrel Point, the relay is dead again and I sail at dawn. I can carry files. Put the ice-report image on a tar in the outbox and I will take it to the mainland. In return I have a tar from the mainland team with their patch kit. It is in your inbox already. Over.\"\n\nNo registry, no network: move the images the old way, as files.",
   "objectives": [
-    "Remove local image `localhost:5000/myapp:v1`",
-    "Pull it back from the registry",
-    "Run a container from it to verify"
+    "Save the local image `kestrel/ice-report:3.2` to the tar file `/workspace/outbox/ice-report.tar`",
+    "Load `/workspace/inbox/mainland-patchkit.tar` so that the image `mainland/patchkit:7` exists"
   ],
+  "startingState": "`/workspace/outbox/` is empty and `/workspace/inbox/mainland-patchkit.tar` has arrived. The image `kestrel/ice-report:3.2` is built locally; `mainland/patchkit:7` is not on this machine.",
   "hints": [
-    "`docker rmi` removes local image; `docker pull` re-downloads",
-    "`docker rmi localhost:5000/myapp:v1 && docker pull localhost:5000/myapp:v1`",
-    "Then `docker run --rm localhost:5000/myapp:v1`"
+    "Images can travel as plain files. One command writes an image and its layers into a tar archive, and its counterpart reads such an archive back into the local engine.",
+    "Use `docker save -o FILE.tar IMAGE:TAG` to export (do not gzip it) and `docker load -i FILE.tar` to import. Remember the outbox is `/workspace/outbox/` and the delivered tar sits in `/workspace/inbox/`.",
+    "```bash\ndocker save -o outbox/ice-report.tar kestrel/ice-report:3.2\ndocker load -i inbox/mainland-patchkit.tar\ndocker images mainland/patchkit\n```"
   ],
+  "setup": {
+    "files": [
+      {
+        "path": "src/ice/Dockerfile",
+        "content": "FROM alpine:3.20\nLABEL station=kestrel role=ice-report\nCMD [\"echo\", \"ICE REPORT 3.2\"]\n"
+      },
+      {
+        "path": "src/patch/Dockerfile",
+        "content": "FROM alpine:3.20\nLABEL origin=mainland\nCMD [\"echo\", \"PATCHKIT 7\"]\n"
+      }
+    ],
+    "commands": [
+      "mkdir -p outbox inbox",
+      "docker build -q -t kestrel/ice-report:3.2 src/ice",
+      "docker build -q -t mainland/patchkit:7 src/patch",
+      "docker save -o inbox/mainland-patchkit.tar mainland/patchkit:7",
+      "docker rmi mainland/patchkit:7"
+    ]
+  },
   "validation": [
+    {
+      "type": "workspace_file",
+      "params": {
+        "path": "outbox/ice-report.tar",
+        "exists": true
+      },
+      "description": "`/workspace/outbox/ice-report.tar` exists"
+    },
+    {
+      "type": "shell",
+      "params": {
+        "command": "tar -xOf /workspace/outbox/ice-report.tar manifest.json | grep -q 'kestrel/ice-report:3.2' && echo tar-ok",
+        "output_contains": "tar-ok"
+      },
+      "description": "The outbox tar is a Docker image archive containing `kestrel/ice-report:3.2`"
+    },
     {
       "type": "image_exists",
       "params": {
-        "name": "localhost:5000/myapp",
-        "tag": "v1 (after pull)"
+        "ref": "mainland/patchkit:7"
       },
-      "description": "name=localhost:5000/myapp, tag=v1 (after pull)"
+      "description": "The image `mainland/patchkit:7` has been loaded"
     },
     {
-      "type": "container_ran",
+      "type": "image_run",
       "params": {
-        "image": "localhost:5000/myapp:v1"
+        "ref": "mainland/patchkit:7",
+        "output_contains": "PATCHKIT 7"
       },
-      "description": "image=localhost:5000/myapp:v1"
+      "description": "`mainland/patchkit:7` runs and prints `PATCHKIT 7`"
     }
   ],
-  "initialState": {
-    "summary": "Clean Docker environment",
-    "workspaceFiles": []
-  }
+  "solution": [
+    "docker save -o outbox/ice-report.tar kestrel/ice-report:3.2",
+    "docker load -i inbox/mainland-patchkit.tar"
+  ],
+  "debrief": "`docker save` and `docker load` turn images into ordinary files, which is how images cross an air gap on a ship, a USB stick or anything else. Pro tip: pass several image names to one `docker save` to bundle them, and they share layers inside the tar."
 }

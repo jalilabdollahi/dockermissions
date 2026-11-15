@@ -1,0 +1,7 @@
+#!/bin/bash
+# Pull every base image that is not cached yet (runs in the background at sandbox start).
+while read -r ref; do
+  [ -z "$ref" ] && continue
+  docker image inspect "$ref" >/dev/null 2>&1 || docker pull -q "$ref" >/dev/null 2>&1
+done < /etc/dockermissions/base-images
+echo prefetch-done

@@ -2,47 +2,72 @@
   "id": "module_08_level_05",
   "moduleId": 8,
   "levelId": 5,
-  "title": "Healthcheck in Dockerfile",
-  "moduleTitle": "Advanced Docker",
+  "title": "A Swarm in the Dark",
+  "moduleTitle": "Polar Night",
   "difficulty": "medium",
-  "xp": 100,
-  "story": "Docker can monitor your container's health and restart it if it becomes unhealthy. Add a HEALTHCHECK to a Dockerfile for an HTTP service.",
+  "xp": 150,
+  "concepts": [
+    "docker swarm init",
+    "docker service create",
+    "replicas"
+  ],
+  "story": "The aurora forecast printout on the corkboard has a circled line in Tomasz's tidy handwriting:\n\n`KP index 8 tonight. Expect every screen on the station, plus the mainland, on the aurora page.`\n\nBeneath it Ingrid has added, in pen: \"One container will fall over. Three copies, spread by the engine, one front door for all of them. Use swarm.\"\n\nTurn this engine into a swarm and publish the `aurora-feed` service on port 8090, with three replicas of `nginx:alpine`.",
   "objectives": [
-    "Edit `/workspace/Dockerfile` (nginx-based) to add:",
-    "Build as `healthy-nginx:v1`",
-    "Run a container and confirm it reaches `healthy` status"
+    "Initialise Docker Swarm on this engine",
+    "Create the service `aurora-feed` from `nginx:alpine` with `3` replicas",
+    "Publish host port `8090` to container port `80` through the service",
+    "All three replicas are running and `http://localhost:8090` answers"
   ],
+  "startingState": "A plain engine, not part of any swarm. `nginx:alpine` is already on the machine.",
   "hints": [
-    "`HEALTHCHECK` is a Dockerfile instruction",
-    "The CMD must return 0 for healthy, 1 for unhealthy",
-    "Wait ~30 seconds after starting for the health status to be `healthy`"
+    "Swarm mode turns one engine into a cluster manager that schedules services rather than single containers. You first switch the mode on, and then describe the service you want kept alive.",
+    "`docker swarm init` enables it (add `--advertise-addr 127.0.0.1` if Docker complains about several addresses). Then `docker service create --name NAME --replicas N -p HOST:CONTAINER IMAGE`. `--detach=false` makes the command wait for convergence.",
+    "```bash\ndocker swarm init\ndocker service create --detach=false \\\n  --name aurora-feed \\\n  --replicas 3 \\\n  -p 8090:80 \\\n  nginx:alpine\ndocker service ls\n```"
   ],
+  "setup": {
+    "files": [],
+    "commands": []
+  },
   "validation": [
     {
-      "type": "image_exists",
+      "type": "shell",
       "params": {
-        "name": "healthy-nginx",
-        "tag": "v1"
+        "command": "docker info --format '{{.Swarm.LocalNodeState}}'",
+        "output_equals": "active"
       },
-      "description": "name=healthy-nginx, tag=v1"
+      "description": "Swarm mode is active on this engine"
     },
     {
-      "type": "dockerfile_has_healthcheck",
+      "type": "swarm_service",
       "params": {
-        "path": "/workspace/Dockerfile"
+        "name": "aurora-feed",
+        "replicas": 3,
+        "image_contains": "nginx:alpine",
+        "running": 3
       },
-      "description": "path=/workspace/Dockerfile"
+      "description": "Service `aurora-feed` has 3 replicas of `nginx:alpine`, all running"
     },
     {
-      "type": "container_health_healthy",
+      "type": "shell",
       "params": {
-        "name": "*healthy-nginx*"
+        "command": "docker service inspect aurora-feed --format '{{range .Endpoint.Ports}}{{.PublishedPort}}->{{.TargetPort}} {{end}}'",
+        "output_contains": "8090->80"
       },
-      "description": "name=*healthy-nginx*"
+      "description": "`aurora-feed` publishes port `8090` to container port `80`"
+    },
+    {
+      "type": "http",
+      "params": {
+        "url": "http://localhost:8090",
+        "status": 200,
+        "body_contains": "nginx"
+      },
+      "description": "`http://localhost:8090` answers with the nginx page"
     }
   ],
-  "initialState": {
-    "summary": "Clean Docker environment",
-    "workspaceFiles": []
-  }
+  "solution": [
+    "docker swarm init --advertise-addr 127.0.0.1 || docker swarm init",
+    "docker service create --detach=false --name aurora-feed --replicas 3 -p 8090:80 nginx:alpine"
+  ],
+  "debrief": "A service is a desired state, so swarm keeps replacing replicas until reality matches the number you declared. Pro tip: the published port works on every swarm node via the routing mesh, whichever node actually runs a replica."
 }

@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { MissionDetail } from "../api/missions";
+import { RichText } from "./RichText";
 
 export function HintPanel({
   mission,
@@ -48,7 +49,7 @@ export function HintPanel({
         {mission.hints.slice(0, revealed).map((hint, i) => (
           <li key={i} className="hint-item">
             <span className="hint-num">{i + 1}</span>
-            <span>{hint}</span>
+            <RichText text={hint} />
           </li>
         ))}
       </ol>

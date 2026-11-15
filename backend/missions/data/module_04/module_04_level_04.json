@@ -2,52 +2,70 @@
   "id": "module_04_level_04",
   "moduleId": 4,
   "levelId": 4,
-  "title": "Bind Mounts",
-  "moduleTitle": "Volumes & Storage",
+  "title": "Pack for the Ship",
+  "moduleTitle": "Ice-Core Archive",
   "difficulty": "medium",
-  "xp": 100,
-  "story": "Bind mounts link a host directory directly into a container — perfect for development. Mount the host directory `/workspace/html` into an nginx container at `/usr/share/nginx/html`.",
+  "xp": 125,
+  "concepts": [
+    "volume backup",
+    "tar",
+    "helper container"
+  ],
+  "story": "[RADIO] Petrel to Kestrel Point, Duarte here. We sail at dawn and the weather does not wait for paperwork. Tomasz wants the seismograph data on the mainland tonight, and the satellite link is not carrying that much. Put it in a single tarball in `/workspace/backups` and I will collect it from the dock.\n\nThe data lives in the volume `seismo-data`, and no container is using it right now. Create `/workspace/backups/seismo.tar.gz` holding the volume's files, using a throwaway container that mounts both the volume and the backups folder. Leave the volume as it is. Duarte out.",
   "objectives": [
-    "Run `nginx` container named `dev-web` with host path `/workspace/html` bind-mounted at `/usr/share/nginx/html`, publishing port 8080"
+    "Create the archive `/workspace/backups/seismo.tar.gz` (gzip-compressed tar)",
+    "It must contain the files of the volume `seismo-data`, including `readings-2026.csv` and `stations/north.csv`",
+    "Use a throwaway container (for example `alpine:3.20`) that mounts the volume and `/workspace/backups`",
+    "The volume `seismo-data` must still exist"
   ],
+  "startingState": "The volume `seismo-data` already holds seismograph readings. The folder `/workspace/backups` does not exist yet.",
   "hints": [
-    "Use `-v /host/path:/container/path` for bind mounts",
-    "Bind mounts use absolute host paths",
-    "`docker run -d --name dev-web -v /workspace/html:/usr/share/nginx/html -p 8080:80 nginx`"
+    "A volume has no file path on your shell, so to copy it out you run a helper container that mounts the volume and a host folder together, and let `tar` do the packing inside it.",
+    "Mount the volume at `/data` and a bind mount of `/workspace/backups` at `/backup`, then run `tar czf /backup/seismo.tar.gz -C /data .`. Add `--rm` so the helper disappears.",
+    "```bash\nmkdir -p backups\ndocker run --rm \\\n  -v seismo-data:/data \\\n  -v /workspace/backups:/backup \\\n  alpine:3.20 tar czf /backup/seismo.tar.gz -C /data .\ntar tzf backups/seismo.tar.gz\n```"
   ],
+  "setup": {
+    "files": [],
+    "commands": [
+      "docker volume create seismo-data",
+      "docker run --rm -v seismo-data:/data alpine:3.20 sh -c 'mkdir -p /data/stations && printf \"time,amplitude\\n00:00,0.12\\n00:01,0.15\\n\" > /data/readings-2026.csv && printf \"north,71.2,-8.4\\n\" > /data/stations/north.csv'"
+    ]
+  },
   "validation": [
     {
-      "type": "container_running",
+      "type": "workspace_file",
       "params": {
-        "name": "dev-web"
+        "path": "backups/seismo.tar.gz"
       },
-      "description": "name=dev-web"
+      "description": "File `backups/seismo.tar.gz` exists in the workspace"
     },
     {
-      "type": "bind_mount",
+      "type": "shell",
       "params": {
-        "container": "dev-web",
-        "host_path": "/workspace/html",
-        "container_path": "/usr/share/nginx/html"
+        "command": "tar tzf /workspace/backups/seismo.tar.gz",
+        "output_contains": "readings-2026.csv"
       },
-      "description": "container=dev-web, host_path=/workspace/html, container_path=/usr/share/nginx/html"
+      "description": "The archive is a valid gzip tar containing `readings-2026.csv`"
     },
     {
-      "type": "http_responds",
+      "type": "shell",
       "params": {
-        "url": "http://localhost:8080",
-        "body_contains": "DockerMissions"
+        "command": "tar tzf /workspace/backups/seismo.tar.gz",
+        "output_contains": "stations/north.csv"
       },
-      "description": "url=http://localhost:8080, body_contains=DockerMissions"
+      "description": "The archive contains `stations/north.csv`"
+    },
+    {
+      "type": "volume_exists",
+      "params": {
+        "name": "seismo-data"
+      },
+      "description": "Volume `seismo-data` still exists"
     }
   ],
-  "initialState": {
-    "summary": "`/workspace/html/index.html` pre-created with `<h1>DockerMissions</h1>`",
-    "workspaceFiles": [
-      {
-        "path": "html/index.html",
-        "content": "<h1>DockerMissions</h1>\n"
-      }
-    ]
-  }
+  "solution": [
+    "mkdir -p backups",
+    "docker run --rm -v seismo-data:/data -v /workspace/backups:/backup alpine:3.20 tar czf /backup/seismo.tar.gz -C /data ."
+  ],
+  "debrief": "Volumes have no export button; the trick is a throwaway helper container that mounts both the volume and a host folder and archives one into the other. Pro tip: `tar -C /data .` stores relative paths, so the archive restores cleanly anywhere."
 }

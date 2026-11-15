@@ -2,47 +2,95 @@
   "id": "module_06_level_03",
   "moduleId": 6,
   "levelId": 3,
-  "title": "Drop Linux Capabilities",
-  "moduleTitle": "Docker Security",
+  "title": "Fewer Keys on the Ring",
+  "moduleTitle": "The Audit",
   "difficulty": "medium",
-  "xp": 100,
-  "story": "Containers inherit too many Linux capabilities by default. Drop ALL capabilities from a container and add back only what's needed.",
+  "xp": 130,
+  "concepts": [
+    "--cap-drop",
+    "--cap-add",
+    "Linux capabilities"
+  ],
+  "story": "NORA: GATEKEEPER CAPABILITY COUNT 14\nNORA: GATEKEEPER REQUIRED CAPABILITIES 1\nNORA: AUDITOR WREN FLAGGED EXCESS PRIVILEGE\n\nThe `gatekeeper` container serves the crew login page on port 8150 and runs with Docker's default bundle of 14 Linux capabilities. Its only privileged act is binding to port 80 inside the container.\n\nWren's note, pinned beside the alert: \"Least privilege is not a suggestion. Take every key off the ring, then hand back the one it needs.\" Recreate `gatekeeper` that way.",
   "objectives": [
-    "Run container `minimal-caps` from `alpine` dropping ALL capabilities with `--cap-drop=ALL`",
-    "Add back only `NET_BIND_SERVICE` with `--cap-add`",
-    "Run `sleep 3600` detached"
+    "Replace container `gatekeeper` with one from `python:3.12-alpine`, publishing host port 8150 to container port 80",
+    "Run `python -m http.server 80 --directory /gate` with `/workspace/gate` mounted read-only at `/gate`",
+    "Drop ALL capabilities and add back only `NET_BIND_SERVICE`",
+    "The login page at http://localhost:8150 must still load"
   ],
+  "startingState": "Container `gatekeeper` is running with the default capability set; the login page lives in `/workspace/gate/`.",
   "hints": [
-    "`--cap-drop=ALL` drops every Linux capability",
-    "`--cap-add=<CAP>` adds individual capabilities back",
-    "`docker run -d --name minimal-caps --cap-drop=ALL --cap-add=NET_BIND_SERVICE alpine sleep 3600`"
+    "Linux splits root's powers into separate capabilities, and Docker gives each container a default set of 14. You can remove capabilities when creating a container, and add specific ones back. Binding a port below 1024 is one such capability.",
+    "`--cap-drop ALL` removes the whole default set, and `--cap-add NET_BIND_SERVICE` returns the single one the web server needs. The order of the flags does not matter, but the container has to be recreated.",
+    "```bash\ndocker rm -f gatekeeper\ndocker run -d --name gatekeeper \\\n  --cap-drop ALL --cap-add NET_BIND_SERVICE \\\n  -p 8150:80 -v /workspace/gate:/gate:ro \\\n  python:3.12-alpine python -m http.server 80 --directory /gate\ndocker inspect -f '{{.HostConfig.CapAdd}}' gatekeeper\n```"
   ],
+  "setup": {
+    "files": [
+      {
+        "path": "gate/index.html",
+        "content": "<h1>KESTREL POINT CREW LOGIN</h1>\n<p>Badge required.</p>\n"
+      }
+    ],
+    "commands": [
+      "docker run -d --name gatekeeper -p 8150:80 -v /workspace/gate:/gate:ro python:3.12-alpine python -m http.server 80 --directory /gate"
+    ]
+  },
   "validation": [
     {
       "type": "container_running",
       "params": {
-        "name": "minimal-caps"
+        "name": "gatekeeper",
+        "image": "python:3.12-alpine"
       },
-      "description": "name=minimal-caps"
+      "description": "Container `gatekeeper` is running from `python:3.12-alpine`"
     },
     {
-      "type": "cap_dropped_all",
+      "type": "container_inspect",
       "params": {
-        "container": "minimal-caps"
+        "name": "gatekeeper",
+        "path": "HostConfig.CapDrop",
+        "contains": "ALL"
       },
-      "description": "container=minimal-caps"
+      "description": "All default capabilities are dropped (`CapDrop` contains ALL)"
     },
     {
-      "type": "cap_added",
+      "type": "container_inspect",
       "params": {
-        "container": "minimal-caps",
-        "cap": "NET_BIND_SERVICE"
+        "name": "gatekeeper",
+        "path": "HostConfig.CapAdd",
+        "contains": "CAP_NET_BIND_SERVICE"
       },
-      "description": "container=minimal-caps, cap=NET_BIND_SERVICE"
+      "description": "`NET_BIND_SERVICE` is added back"
+    },
+    {
+      "type": "shell",
+      "params": {
+        "command": "docker inspect -f '{{len .HostConfig.CapAdd}}' gatekeeper",
+        "output_equals": "1"
+      },
+      "description": "`NET_BIND_SERVICE` is the only capability added"
+    },
+    {
+      "type": "container_exec",
+      "params": {
+        "name": "gatekeeper",
+        "command": "grep CapEff /proc/1/status",
+        "output_contains": "0000000000000400"
+      },
+      "description": "The main process holds only the bind-service capability"
+    },
+    {
+      "type": "http",
+      "params": {
+        "url": "http://localhost:8150",
+        "body_contains": "CREW LOGIN"
+      },
+      "description": "The crew login page still loads on port 8150"
     }
   ],
-  "initialState": {
-    "summary": "Clean Docker environment",
-    "workspaceFiles": []
-  }
+  "solution": [
+    "docker rm -f gatekeeper",
+    "docker run -d --name gatekeeper --cap-drop ALL --cap-add NET_BIND_SERVICE -p 8150:80 -v /workspace/gate:/gate:ro python:3.12-alpine python -m http.server 80 --directory /gate"
+  ],
+  "debrief": "Capabilities slice root into small privileges, and dropping ALL then adding back one by name is the strictest form of least privilege Docker offers. Pro tip: if a dropped container fails, its error message names what is missing, so add capabilities back one at a time rather than reaching for `--privileged`."
 }

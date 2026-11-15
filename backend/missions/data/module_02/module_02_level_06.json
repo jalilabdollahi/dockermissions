@@ -2,49 +2,86 @@
   "id": "module_02_level_06",
   "moduleId": 2,
   "levelId": 6,
-  "title": "ENV and WORKDIR",
-  "moduleTitle": "Images & Dockerfile",
+  "title": "Leave the Secrets Ashore",
+  "moduleTitle": "Instrument Images",
   "difficulty": "medium",
-  "xp": 100,
-  "story": "Well-structured images define their working directory and bake in environment configuration. Build an image with `WORKDIR /app` and `ENV NODE_ENV=production`.",
+  "xp": 125,
+  "concepts": [
+    ".dockerignore",
+    "build context",
+    "image size"
+  ],
+  "story": "RADIO, 11:58. Rafael Duarte, wind in the microphone.\n\n\"Engineer, the mainland lab pulls whatever image you hand me, and they scan it. Last time they found a credentials file inside and sent it straight back. Slow link, no second chances.\"\n\nThe `/workspace` folder holds the outbound report, a `secrets.env` full of credentials, and a 40 MB `raw/` folder of ice-dump data. The provided Dockerfile copies the whole folder with `COPY . /app`. Build `kestrel/outbound:1.0` from it so the report goes out and neither `secrets.env` nor `raw/` does. Do not change the Dockerfile.",
   "objectives": [
-    "Write a Dockerfile: `FROM node:18-alpine`, `WORKDIR /app`, `ENV NODE_ENV=production`, `CMD [\"node\", \"-e\", \"console.log(process.env.NODE_ENV)\"]`",
-    "Build as `node-app:v1`"
+    "Create `/workspace/.dockerignore` that excludes `secrets.env` and `raw`",
+    "Build the existing Dockerfile as `kestrel/outbound:1.0` (the image must be under 20 MB)",
+    "The image must contain `report.txt` but neither `secrets.env` nor `raw`"
   ],
+  "startingState": "`/workspace` contains a Dockerfile (`COPY . /app`), `report.txt`, `secrets.env` and `raw/ice-dump.bin` (40 MB).",
   "hints": [
-    "`WORKDIR` sets the working directory; `ENV` sets environment variables",
-    "Both are Dockerfile instructions, one per line",
-    "Write the Dockerfile with all four instructions, then build"
+    "`COPY .` sends everything in the build context into the image. A file named `.dockerignore` next to the Dockerfile tells Docker what to leave out of the context entirely.",
+    "`.dockerignore` lists one pattern per line, like a `.gitignore`. Name the credentials file and the data folder, then rebuild with `docker build -t NAME:TAG .`.",
+    "```bash\nprintf 'secrets.env\\nraw\\n' > .dockerignore\ndocker build -t kestrel/outbound:1.0 .\ndocker run --rm kestrel/outbound:1.0 ls /app\n```"
   ],
+  "setup": {
+    "files": [
+      {
+        "path": "Dockerfile",
+        "content": "FROM alpine:3.20\nWORKDIR /app\nCOPY . /app\nCMD [\"cat\", \"/app/report.txt\"]\n"
+      },
+      {
+        "path": "report.txt",
+        "content": "Kestrel Point weekly report: ice cores logged 14, generators nominal, morale cautious.\n"
+      },
+      {
+        "path": "secrets.env",
+        "content": "MAINLAND_API_KEY=kp-live-93f1c0a7\nMAINLAND_PASSWORD=hunter-two\n"
+      }
+    ],
+    "commands": [
+      "mkdir -p raw && head -c 40000000 /dev/zero > raw/ice-dump.bin"
+    ]
+  },
   "validation": [
     {
-      "type": "image_exists",
+      "type": "workspace_file",
       "params": {
-        "name": "node-app",
-        "tag": "v1"
+        "path": ".dockerignore",
+        "contains": "secrets.env"
       },
-      "description": "name=node-app, tag=v1"
+      "description": "`.dockerignore` excludes `secrets.env`"
     },
     {
-      "type": "env_var_in_image",
+      "type": "workspace_file",
       "params": {
-        "image": "node-app:v1",
-        "key": "NODE_ENV",
-        "value": "production"
+        "path": ".dockerignore",
+        "contains": "raw"
       },
-      "description": "image=node-app:v1, key=NODE_ENV, value=production"
+      "description": "`.dockerignore` excludes `raw`"
     },
     {
-      "type": "workdir_in_image",
+      "type": "image_size_under",
       "params": {
-        "image": "node-app:v1",
-        "path": "/app"
+        "ref": "kestrel/outbound:1.0",
+        "mb": 20
       },
-      "description": "image=node-app:v1, path=/app"
+      "description": "`kestrel/outbound:1.0` is smaller than 20 MB"
+    },
+    {
+      "type": "image_run",
+      "params": {
+        "ref": "kestrel/outbound:1.0",
+        "entrypoint": "ls",
+        "args": "/app",
+        "output_contains": "report.txt",
+        "output_not_contains": "secrets.env"
+      },
+      "description": "The image contains `report.txt` but no `secrets.env` and no `raw` folder"
     }
   ],
-  "initialState": {
-    "summary": "Clean Docker environment",
-    "workspaceFiles": []
-  }
+  "solution": [
+    "printf 'secrets.env\\nraw\\n' > .dockerignore",
+    "docker build -t kestrel/outbound:1.0 ."
+  ],
+  "debrief": "`.dockerignore` filters the build context before anything is sent to the builder, so excluded files cannot leak into any layer and builds get faster. Pro tip: ignore `.git`, `*.env` and bulk data by default in every project."
 }

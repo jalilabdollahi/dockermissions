@@ -2,39 +2,77 @@
   "id": "module_01_level_04",
   "moduleId": 1,
   "levelId": 4,
-  "title": "Port Mapping",
-  "moduleTitle": "Docker Basics",
+  "title": "Calibrate the Sensor",
+  "moduleTitle": "Arrival",
   "difficulty": "easy",
-  "xp": 50,
-  "story": "The web server is running but no one outside can reach it. Map port 8080 on the host to port 80 inside the container.",
+  "xp": 60,
+  "concepts": [
+    "environment variables",
+    "-e",
+    "container configuration"
+  ],
+  "story": "From: Amara Okafor\nSubject: sensor-sim needs real settings\n\nThe simulator reads its configuration from environment variables instead of a config file, because that is faster to tweak. It wants STATION, UNITS and INTERVAL. Without them it falls back to defaults and reports temperatures in furlongs. (Don't ask.)\n\nStart a container named `sensor-sim` in the background with STATION=kestrel, UNITS=metric and INTERVAL=30. Until my real image is done, use `alpine:3.20` and this stand-in command, which echoes the settings it sees: `sh -c 'echo calibrated $STATION/$UNITS/$INTERVAL; sleep infinity'`",
   "objectives": [
-    "Run an `nginx` container named `webserver` mapping host port 8080 to container port 80, in detached mode"
+    "Run `sensor-sim` detached from `alpine:3.20` with `STATION=kestrel`, `UNITS=metric` and `INTERVAL=30` set",
+    "Use the stand-in command `sh -c 'echo calibrated $STATION/$UNITS/$INTERVAL; sleep infinity'` so the log shows `calibrated kestrel/metric/30`"
   ],
+  "startingState": "No containers exist. Nothing is configured yet.",
   "hints": [
-    "Use `-p` flag for port mapping: `-p host:container`",
-    "`docker run -d --name webserver -p 8080:80 nginx`",
-    "`docker run -d --name webserver -p 8080:80 nginx`"
+    "Containers receive configuration through environment variables. You pass each one at `docker run` time, and the program inside sees it exactly as if it had been exported in a shell.",
+    "Use one `-e NAME=value` per variable, placed before the image name. Wrap the stand-in command in single quotes so your own shell does not expand `$STATION` first.",
+    "```bash\ndocker run -d --name sensor-sim \\\n  -e STATION=kestrel -e UNITS=metric -e INTERVAL=30 \\\n  alpine:3.20 sh -c 'echo calibrated $STATION/$UNITS/$INTERVAL; sleep infinity'\ndocker logs sensor-sim\n```"
   ],
+  "setup": {
+    "files": [],
+    "commands": []
+  },
   "validation": [
     {
       "type": "container_running",
       "params": {
-        "name": "webserver"
+        "name": "sensor-sim",
+        "image": "alpine:3.20"
       },
-      "description": "name=webserver"
+      "description": "Container `sensor-sim` is running from `alpine:3.20`"
     },
     {
-      "type": "port_exposed",
+      "type": "container_inspect",
       "params": {
-        "container": "webserver",
-        "host_port": 8080,
-        "container_port": 80
+        "name": "sensor-sim",
+        "path": "Config.Env",
+        "contains": "STATION=kestrel"
       },
-      "description": "container=webserver, host_port=8080, container_port=80"
+      "description": "`STATION=kestrel` is set in the container"
+    },
+    {
+      "type": "container_inspect",
+      "params": {
+        "name": "sensor-sim",
+        "path": "Config.Env",
+        "contains": "UNITS=metric"
+      },
+      "description": "`UNITS=metric` is set in the container"
+    },
+    {
+      "type": "container_inspect",
+      "params": {
+        "name": "sensor-sim",
+        "path": "Config.Env",
+        "contains": "INTERVAL=30"
+      },
+      "description": "`INTERVAL=30` is set in the container"
+    },
+    {
+      "type": "container_logs",
+      "params": {
+        "name": "sensor-sim",
+        "contains": "calibrated kestrel/metric/30"
+      },
+      "description": "The log of `sensor-sim` shows `calibrated kestrel/metric/30`"
     }
   ],
-  "initialState": {
-    "summary": "Clean Docker environment",
-    "workspaceFiles": []
-  }
+  "solution": [
+    "docker run -d --name sensor-sim -e STATION=kestrel -e UNITS=metric -e INTERVAL=30 alpine:3.20 sh -c 'echo calibrated $STATION/$UNITS/$INTERVAL; sleep infinity'"
+  ],
+  "debrief": "Environment variables let one image behave differently per deployment without rebuilding it. Pro tip: `docker inspect -f '{{.Config.Env}}' sensor-sim` shows exactly what a container was started with."
 }

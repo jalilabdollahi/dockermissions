@@ -2,31 +2,63 @@
   "id": "module_03_level_02",
   "moduleId": 3,
   "levelId": 2,
-  "title": "Create a Custom Network",
-  "moduleTitle": "Docker Networking",
+  "title": "Answer to an Old Name",
+  "moduleTitle": "Station Network",
   "difficulty": "easy",
-  "xp": 50,
-  "story": "User-defined networks give you DNS resolution between containers. Create a network named `mission-net` of type `bridge`.",
+  "xp": 75,
+  "concepts": [
+    "network alias",
+    "--network-alias"
+  ],
+  "story": "From: Tomasz Wierzba\nSubject: The archive has moved, the scripts have not\n\nEvery 2019 field script fetches `http://archive/`. That machine no longer exists. Amara's replacement is called `archive-v2`, and I will not edit forty scripts by hand: one typo and a season of readings lands in the wrong place.\n\nThe network `legacy-net` already exists and `old-script` is running on it, still asking for the old name. Start `archive-v2` on that network so that the name `archive` reaches it. Confirm before the evening shift. I would like to sleep.",
   "objectives": [
-    "Create a Docker network named `mission-net` with driver `bridge`"
+    "Run `archive-v2` from `nginx:alpine` on the network `legacy-net`",
+    "Give `archive-v2` the network alias `archive` on `legacy-net`",
+    "From inside `old-script`, `http://archive/` must return the archive's web page"
   ],
+  "startingState": "Network `legacy-net` exists and container `old-script` (alpine) is running on it. Nothing answers to `archive` yet.",
   "hints": [
-    "`docker network create <name>` creates a network",
-    "Use `--driver bridge` (bridge is the default anyway)",
-    "`docker network create --driver bridge mission-net`"
+    "A container can carry extra DNS names on a network besides its own name. Check the options of `docker run` that mention the network.",
+    "Use `--network legacy-net` together with `--network-alias <name>`. The alias only exists on the network it was given for.",
+    "```bash\ndocker run -d --name archive-v2 \\\n  --network legacy-net --network-alias archive \\\n  nginx:alpine\ndocker exec old-script wget -qO- http://archive/\n```"
   ],
+  "setup": {
+    "files": [],
+    "commands": [
+      "docker network create legacy-net",
+      "docker run -d --name old-script --network legacy-net alpine:3.20 sleep infinity"
+    ]
+  },
   "validation": [
     {
-      "type": "network_exists",
+      "type": "container_running",
       "params": {
-        "name": "mission-net",
-        "driver": "bridge"
+        "name": "archive-v2",
+        "image": "nginx:alpine"
       },
-      "description": "name=mission-net, driver=bridge"
+      "description": "Container `archive-v2` is running from `nginx:alpine`"
+    },
+    {
+      "type": "container_on_network",
+      "params": {
+        "name": "archive-v2",
+        "network": "legacy-net",
+        "alias": "archive"
+      },
+      "description": "`archive-v2` is on `legacy-net` with the alias `archive`"
+    },
+    {
+      "type": "http",
+      "params": {
+        "url": "http://archive/",
+        "from": "old-script",
+        "body_contains": "Welcome to nginx"
+      },
+      "description": "`old-script` can fetch `http://archive/` and gets the nginx page"
     }
   ],
-  "initialState": {
-    "summary": "Clean Docker environment",
-    "workspaceFiles": []
-  }
+  "solution": [
+    "docker run -d --name archive-v2 --network legacy-net --network-alias archive nginx:alpine"
+  ],
+  "debrief": "Old scripts keep working because the new container answers to the old hostname, and nobody had to touch a single client. Pro tip: aliases belong to one network, so the same container can go by different names on different networks."
 }

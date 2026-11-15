@@ -19,13 +19,13 @@ export interface MissionDetail extends MissionSummary {
   moduleId: number;
   moduleTitle: string;
   levelId: number;
+  concepts: string[];
   story: string;
   objectives: string[];
+  startingState: string;
   hints: string[];
-  validation: Array<{ type: string; params: Record<string, string | number | boolean>; description: string }>;
-  initialState: {
-    summary: string;
-  };
+  validation: Array<{ description: string }>;
+  debrief: string;
 }
 
 export const missionApi = {

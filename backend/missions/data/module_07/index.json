@@ -1,215 +1,407 @@
 {
   "id": 7,
-  "title": "Registry & Distribution",
-  "theme": "Sharing images",
+  "title": "The Satellite Link",
+  "theme": "Ship images over a tiny, unreliable link",
   "totalLevels": 5,
   "missions": [
     {
       "id": "module_07_level_01",
       "moduleId": 7,
       "levelId": 1,
-      "title": "Tag an Image",
-      "moduleTitle": "Registry & Distribution",
+      "title": "A Depot on the Ice",
+      "moduleTitle": "The Satellite Link",
       "difficulty": "easy",
       "xp": 50,
-      "story": "Before pushing to a registry, images must be tagged with the destination. Tag the local image `myapp:latest` to target the local registry at `localhost:5000/myapp:v1`.",
+      "concepts": [
+        "registry:2",
+        "named volume",
+        "port publishing"
+      ],
+      "story": "A yellow sticky note is taped to the server rack, in Ingrid Halvorsen's square handwriting:\n\n\"Satellite link: eleven minutes a day, billed by the megabyte. Every image we pull from the mainland gets paid for once, never twice. We need a depot here on the ice so that what we have already paid for stays on the station. It must survive a reboot, so keep its data on a named volume. - I.H.\"\n\nStand the depot up on port 5000.",
       "objectives": [
-        "Tag `myapp:latest` as `localhost:5000/myapp:v1`"
+        "Run a detached container named `depot` from `registry:2`",
+        "Publish host port `5000` to container port `5000`",
+        "Keep the registry's data in the named volume `depot-data`, mounted at `/var/lib/registry`",
+        "The registry API answers at `http://localhost:5000/v2/`"
       ],
+      "startingState": "A clean engine. The `registry:2` image is already on the machine.",
       "hints": [
-        "`docker tag <source> <destination>` creates a new tag pointing to the same image",
-        "`docker tag myapp:latest localhost:5000/myapp:v1`",
-        "`docker tag myapp:latest localhost:5000/myapp:v1`"
+        "A registry is just another container: the official `registry:2` image speaks the same API as Docker Hub. You need a detached run, a published port, and somewhere durable for its data.",
+        "The registry stores everything under `/var/lib/registry`. Mount a named volume there with `-v NAME:/var/lib/registry`, publish the port with `-p 5000:5000`, and give the container the name `depot` with `--name`.",
+        "```bash\ndocker run -d --name depot \\\n  -p 5000:5000 \\\n  -v depot-data:/var/lib/registry \\\n  registry:2\n\ncurl http://localhost:5000/v2/\n```"
       ],
+      "setup": {
+        "files": [],
+        "commands": []
+      },
       "validation": [
         {
-          "type": "image_exists",
+          "type": "container_running",
           "params": {
-            "name": "localhost:5000/myapp",
-            "tag": "v1"
+            "name": "depot",
+            "image": "registry:2"
           },
-          "description": "name=localhost:5000/myapp, tag=v1"
+          "description": "Container `depot` is running from `registry:2`"
+        },
+        {
+          "type": "mount",
+          "params": {
+            "name": "depot",
+            "destination": "/var/lib/registry",
+            "type": "volume",
+            "source": "depot-data"
+          },
+          "description": "Volume `depot-data` is mounted at `/var/lib/registry` in `depot`"
+        },
+        {
+          "type": "shell",
+          "params": {
+            "command": "docker port depot 5000/tcp",
+            "output_contains": ":5000"
+          },
+          "description": "Host port 5000 is published to container port 5000 of `depot`"
+        },
+        {
+          "type": "http",
+          "params": {
+            "url": "http://localhost:5000/v2/",
+            "status": 200
+          },
+          "description": "The registry answers on http://localhost:5000/v2/"
         }
       ],
-      "initialState": {
-        "summary": "`myapp:latest` image pre-built",
-        "workspaceFiles": []
-      }
+      "solution": [
+        "docker run -d --name depot -p 5000:5000 -v depot-data:/var/lib/registry registry:2",
+        "sleep 2"
+      ],
+      "debrief": "A registry stores image layers in one directory, so a volume under `/var/lib/registry` is all it takes to make the depot outlive its container. Pro tip: `curl http://localhost:5000/v2/_catalog` lists everything the depot holds."
     },
     {
       "id": "module_07_level_02",
       "moduleId": 7,
       "levelId": 2,
-      "title": "Run a Local Registry",
-      "moduleTitle": "Registry & Distribution",
+      "title": "First Shipment",
+      "moduleTitle": "The Satellite Link",
       "difficulty": "easy",
-      "xp": 50,
-      "story": "You don't always need Docker Hub. Run a local Docker registry on port 5000.",
+      "xp": 75,
+      "concepts": [
+        "docker tag",
+        "docker push",
+        "registry address"
+      ],
+      "story": "NORA: `OUTBOUND QUEUE: 0 IMAGES. DEPOT: ONLINE. kestrel/beacon:1.0: LOCAL ONLY.`\n\nThe depot is up on port 5000, but the beacon image Amara built exists only on this one machine's disk. If the disk goes, the image goes with it, and Ingrid wants every instrument host to fetch its images from the depot instead.\n\nPublish `kestrel/beacon:1.0` to the depot, under the registry's own address, so anyone on the station can pull it.",
       "objectives": [
-        "Run a local registry container named `registry` from `registry:2` on port 5000 (detached)"
+        "Tag `kestrel/beacon:1.0` as `localhost:5000/kestrel/beacon:1.0`",
+        "Push `localhost:5000/kestrel/beacon:1.0` to the depot",
+        "The depot's catalog lists the repository `kestrel/beacon` with the tag `1.0`"
       ],
+      "startingState": "The `depot` registry is running on port 5000 and the image `kestrel/beacon:1.0` is built locally. The depot is empty.",
       "hints": [
-        "The official `registry:2` image runs a Docker-compatible registry",
-        "`docker run -d --name registry -p 5000:5000 registry:2`",
-        "`docker run -d --name registry -p 5000:5000 registry:2`"
+        "Docker decides where to push by reading the registry host out of the image name. An image called `kestrel/beacon` means Docker Hub; to reach the depot, the same image needs a second name that starts with the registry's address.",
+        "Add the name with `docker tag SOURCE TARGET`, where TARGET is `HOST:PORT/repo/name:tag`. Then `docker push TARGET`. You can read back what the depot holds at `http://localhost:5000/v2/_catalog`.",
+        "```bash\ndocker tag kestrel/beacon:1.0 localhost:5000/kestrel/beacon:1.0\ndocker push localhost:5000/kestrel/beacon:1.0\n\ncurl http://localhost:5000/v2/kestrel/beacon/tags/list\n```"
       ],
+      "setup": {
+        "files": [
+          {
+            "path": "beacon/Dockerfile",
+            "content": "FROM nginx:alpine\nLABEL station=kestrel role=beacon\nCOPY index.html /usr/share/nginx/html/index.html\n"
+          },
+          {
+            "path": "beacon/index.html",
+            "content": "<h1>KESTREL POINT BEACON</h1>\n"
+          }
+        ],
+        "commands": [
+          "docker run -d --name depot -p 5000:5000 registry:2",
+          "sleep 2",
+          "docker build -q -t kestrel/beacon:1.0 beacon"
+        ]
+      },
       "validation": [
         {
-          "type": "container_running",
+          "type": "image_exists",
           "params": {
-            "name": "registry"
+            "ref": "localhost:5000/kestrel/beacon:1.0"
           },
-          "description": "name=registry"
+          "description": "The image is tagged `localhost:5000/kestrel/beacon:1.0`"
         },
         {
-          "type": "port_exposed",
+          "type": "shell",
           "params": {
-            "container": "registry",
-            "host_port": 5000,
-            "container_port": 5000
+            "command": "curl -s http://localhost:5000/v2/_catalog",
+            "output_contains": "kestrel/beacon"
           },
-          "description": "container=registry, host_port=5000, container_port=5000"
+          "description": "The depot's catalog lists `kestrel/beacon`"
         },
         {
-          "type": "http_responds",
+          "type": "shell",
           "params": {
-            "url": "http://localhost:5000/v2/",
-            "status": 200
+            "command": "curl -s http://localhost:5000/v2/kestrel/beacon/tags/list",
+            "output_contains": "\"1.0\""
           },
-          "description": "url=http://localhost:5000/v2/, status=200"
+          "description": "The depot has the tag `1.0` for `kestrel/beacon`"
+        },
+        {
+          "type": "shell",
+          "params": {
+            "command": "curl -s -o /dev/null -w '%{http_code}' -H 'Accept: application/vnd.oci.image.index.v1+json, application/vnd.oci.image.manifest.v1+json, application/vnd.docker.distribution.manifest.v2+json' http://localhost:5000/v2/kestrel/beacon/manifests/1.0",
+            "output_equals": "200"
+          },
+          "description": "The manifest for `kestrel/beacon:1.0` can be fetched from the depot"
         }
       ],
-      "initialState": {
-        "summary": "Clean Docker environment",
-        "workspaceFiles": []
-      }
+      "solution": [
+        "docker tag kestrel/beacon:1.0 localhost:5000/kestrel/beacon:1.0",
+        "docker push localhost:5000/kestrel/beacon:1.0"
+      ],
+      "debrief": "The registry host is part of an image's name, so pushing somewhere new always starts with `docker tag`. Pro tip: a tag is only a pointer, so tagging costs nothing and the push uploads each layer once."
     },
     {
       "id": "module_07_level_03",
       "moduleId": 7,
       "levelId": 3,
-      "title": "Push to Local Registry",
-      "moduleTitle": "Registry & Distribution",
+      "title": "Round Trip",
+      "moduleTitle": "The Satellite Link",
       "difficulty": "medium",
       "xp": 100,
-      "story": "Your local registry is running. Push `localhost:5000/myapp:v1` to it.",
+      "concepts": [
+        "docker pull",
+        "image digest",
+        "verification"
+      ],
+      "story": "Station chat, 06:40.\n\n**Tomasz:** The core-index image went up to the depot last night, and then Amara wiped the build machine. Before I stake the winter's index on that copy I need to know it is intact.\n\n**Tomasz:** Pull it back from the depot. Then write its digest into `/workspace/digest.txt`, the sha256 exactly as the registry reports it, so I can compare it against my logbook. Precision, please.",
       "objectives": [
-        "Push the image `localhost:5000/myapp:v1` to the local registry"
+        "Pull `localhost:5000/kestrel/core-index:1.0` from the depot",
+        "Write the image's `sha256:...` digest into `/workspace/digest.txt`, matching what the depot reports"
       ],
+      "startingState": "The depot holds `kestrel/core-index:1.0`, but no copy of it is on this machine any more.",
       "hints": [
-        "`docker push <image>` pushes to the registry encoded in the image name",
-        "`docker push localhost:5000/myapp:v1`",
-        "`docker push localhost:5000/myapp:v1`"
+        "An image you have pushed lives on in the registry even when your local copy is gone. Pulling brings it back, and a digest is the content hash that proves it is the same bytes.",
+        "Pull with the full registry name. Afterwards `docker images --digests` shows the digest column, and `docker inspect --format '{{index .RepoDigests 0}}'` prints `name@sha256:...`. Only the part starting at `sha256:` belongs in the file.",
+        "```bash\ndocker pull localhost:5000/kestrel/core-index:1.0\ndocker inspect --format '{{index .RepoDigests 0}}' \\\n  localhost:5000/kestrel/core-index:1.0 | cut -d@ -f2 > digest.txt\ncat digest.txt\n```"
       ],
+      "setup": {
+        "files": [
+          {
+            "path": "core-index/Dockerfile",
+            "content": "FROM alpine:3.20\nLABEL station=kestrel role=core-index\nCMD [\"echo\", \"CORE INDEX 1.0 READY\"]\n"
+          }
+        ],
+        "commands": [
+          "docker run -d --name depot -p 5000:5000 registry:2",
+          "sleep 2",
+          "docker build -q -t localhost:5000/kestrel/core-index:1.0 core-index",
+          "docker push localhost:5000/kestrel/core-index:1.0",
+          "docker rmi localhost:5000/kestrel/core-index:1.0"
+        ]
+      },
       "validation": [
         {
-          "type": "image_in_registry",
+          "type": "image_exists",
           "params": {
-            "registry": "localhost:5000",
-            "name": "myapp",
-            "tag": "v1"
+            "ref": "localhost:5000/kestrel/core-index:1.0"
           },
-          "description": "registry=localhost:5000, name=myapp, tag=v1"
+          "description": "The image `localhost:5000/kestrel/core-index:1.0` is present locally again"
+        },
+        {
+          "type": "image_inspect",
+          "params": {
+            "ref": "localhost:5000/kestrel/core-index:1.0",
+            "path": "Config.Labels.role",
+            "equals": "core-index"
+          },
+          "description": "The local image is the `core-index` image from the depot (label `role=core-index`)"
+        },
+        {
+          "type": "workspace_file",
+          "params": {
+            "path": "digest.txt",
+            "matches": "sha256:[0-9a-f]{64}"
+          },
+          "description": "`/workspace/digest.txt` contains a `sha256:` digest"
+        },
+        {
+          "type": "shell",
+          "params": {
+            "command": "d=$(tr -d ' \\r\\n' < /workspace/digest.txt); r=$(curl -sI -H 'Accept: application/vnd.oci.image.index.v1+json, application/vnd.oci.image.manifest.v1+json, application/vnd.docker.distribution.manifest.v2+json' http://localhost:5000/v2/kestrel/core-index/manifests/1.0 | tr -d '\\r' | awk -F': ' 'tolower($1)==\"docker-content-digest\"{print $2}'); [ -n \"$r\" ] && echo \"$d\" | grep -qF \"$r\" && echo digest-matches",
+            "output_contains": "digest-matches"
+          },
+          "description": "The digest in `digest.txt` equals the manifest digest the depot reports for `kestrel/core-index:1.0`"
         }
       ],
-      "initialState": {
-        "summary": "- Local registry running on port 5000 - `localhost:5000/myapp:v1` image tagged locally",
-        "workspaceFiles": [
-          {
-            "path": "Dockerfile",
-            "content": "FROM ubuntu:22.04\nRUN apt-get update\nRUN apt-get install -y curl\nRUN apt-get install -y wget\nRUN apt-get install -y git\nCMD [\"bash\", \"-lc\", \"echo mission ready\"]\n"
-          }
-        ]
-      }
+      "solution": [
+        "docker pull localhost:5000/kestrel/core-index:1.0",
+        "docker inspect --format '{{index .RepoDigests 0}}' localhost:5000/kestrel/core-index:1.0 | cut -d@ -f2 > digest.txt"
+      ],
+      "debrief": "Tags can move, but a digest names exactly one set of bytes, so recording it is how you prove a transfer was faithful. Pro tip: pull or run `name@sha256:...` to pin an image to that exact digest, whatever the tag does later."
     },
     {
       "id": "module_07_level_04",
       "moduleId": 7,
       "levelId": 4,
-      "title": "Pull from Local Registry",
-      "moduleTitle": "Registry & Distribution",
+      "title": "Sneakernet",
+      "moduleTitle": "The Satellite Link",
       "difficulty": "medium",
-      "xp": 100,
-      "story": "The image was pushed. Now remove the local copy and re-pull it from the registry to prove the registry works.",
+      "xp": 125,
+      "concepts": [
+        "docker save",
+        "docker load",
+        "offline transfer"
+      ],
+      "story": "Radio, channel 9. Wind noise, then Captain Rafael Duarte of the *Petrel*:\n\n\"Kestrel Point, the relay is dead again and I sail at dawn. I can carry files. Put the ice-report image on a tar in the outbox and I will take it to the mainland. In return I have a tar from the mainland team with their patch kit. It is in your inbox already. Over.\"\n\nNo registry, no network: move the images the old way, as files.",
       "objectives": [
-        "Remove local image `localhost:5000/myapp:v1`",
-        "Pull it back from the registry",
-        "Run a container from it to verify"
+        "Save the local image `kestrel/ice-report:3.2` to the tar file `/workspace/outbox/ice-report.tar`",
+        "Load `/workspace/inbox/mainland-patchkit.tar` so that the image `mainland/patchkit:7` exists"
       ],
+      "startingState": "`/workspace/outbox/` is empty and `/workspace/inbox/mainland-patchkit.tar` has arrived. The image `kestrel/ice-report:3.2` is built locally; `mainland/patchkit:7` is not on this machine.",
       "hints": [
-        "`docker rmi` removes local image; `docker pull` re-downloads",
-        "`docker rmi localhost:5000/myapp:v1 && docker pull localhost:5000/myapp:v1`",
-        "Then `docker run --rm localhost:5000/myapp:v1`"
+        "Images can travel as plain files. One command writes an image and its layers into a tar archive, and its counterpart reads such an archive back into the local engine.",
+        "Use `docker save -o FILE.tar IMAGE:TAG` to export (do not gzip it) and `docker load -i FILE.tar` to import. Remember the outbox is `/workspace/outbox/` and the delivered tar sits in `/workspace/inbox/`.",
+        "```bash\ndocker save -o outbox/ice-report.tar kestrel/ice-report:3.2\ndocker load -i inbox/mainland-patchkit.tar\ndocker images mainland/patchkit\n```"
       ],
+      "setup": {
+        "files": [
+          {
+            "path": "src/ice/Dockerfile",
+            "content": "FROM alpine:3.20\nLABEL station=kestrel role=ice-report\nCMD [\"echo\", \"ICE REPORT 3.2\"]\n"
+          },
+          {
+            "path": "src/patch/Dockerfile",
+            "content": "FROM alpine:3.20\nLABEL origin=mainland\nCMD [\"echo\", \"PATCHKIT 7\"]\n"
+          }
+        ],
+        "commands": [
+          "mkdir -p outbox inbox",
+          "docker build -q -t kestrel/ice-report:3.2 src/ice",
+          "docker build -q -t mainland/patchkit:7 src/patch",
+          "docker save -o inbox/mainland-patchkit.tar mainland/patchkit:7",
+          "docker rmi mainland/patchkit:7"
+        ]
+      },
       "validation": [
+        {
+          "type": "workspace_file",
+          "params": {
+            "path": "outbox/ice-report.tar",
+            "exists": true
+          },
+          "description": "`/workspace/outbox/ice-report.tar` exists"
+        },
+        {
+          "type": "shell",
+          "params": {
+            "command": "tar -xOf /workspace/outbox/ice-report.tar manifest.json | grep -q 'kestrel/ice-report:3.2' && echo tar-ok",
+            "output_contains": "tar-ok"
+          },
+          "description": "The outbox tar is a Docker image archive containing `kestrel/ice-report:3.2`"
+        },
         {
           "type": "image_exists",
           "params": {
-            "name": "localhost:5000/myapp",
-            "tag": "v1 (after pull)"
+            "ref": "mainland/patchkit:7"
           },
-          "description": "name=localhost:5000/myapp, tag=v1 (after pull)"
+          "description": "The image `mainland/patchkit:7` has been loaded"
         },
         {
-          "type": "container_ran",
+          "type": "image_run",
           "params": {
-            "image": "localhost:5000/myapp:v1"
+            "ref": "mainland/patchkit:7",
+            "output_contains": "PATCHKIT 7"
           },
-          "description": "image=localhost:5000/myapp:v1"
+          "description": "`mainland/patchkit:7` runs and prints `PATCHKIT 7`"
         }
       ],
-      "initialState": {
-        "summary": "Clean Docker environment",
-        "workspaceFiles": []
-      }
+      "solution": [
+        "docker save -o outbox/ice-report.tar kestrel/ice-report:3.2",
+        "docker load -i inbox/mainland-patchkit.tar"
+      ],
+      "debrief": "`docker save` and `docker load` turn images into ordinary files, which is how images cross an air gap on a ship, a USB stick or anything else. Pro tip: pass several image names to one `docker save` to bundle them, and they share layers inside the tar."
     },
     {
       "id": "module_07_level_05",
       "moduleId": 7,
       "levelId": 5,
-      "title": "Image Layers and History",
-      "moduleTitle": "Registry & Distribution",
-      "difficulty": "hard",
-      "xp": 200,
-      "story": "Every Dockerfile instruction adds a layer. Understanding layers helps you optimize images. Inspect the layer history of `myapp:v1` and rebuild with optimized layers (fewer RUN commands merged).",
+      "title": "Many Names, One Image",
+      "moduleTitle": "The Satellite Link",
+      "difficulty": "medium",
+      "xp": 125,
+      "concepts": [
+        "semantic version tags",
+        "docker tag",
+        "manifest digest"
+      ],
+      "story": "Kip's release checklist, copied from the whiteboard:\n\n`[x] build kestrel/forecast:2.1.0`\n`[ ] push 2.1.0`\n`[ ] push 2.1, 2 and latest`\n`[ ] tell Ingrid`\n\nAmara spots the catch: the depot's `latest` still points at last week's 2.0.0, and every instrument host follows `latest`. Give the release all four names in the depot, 2.1.0, 2.1, 2 and latest, and make sure they are one and the same image.",
       "objectives": [
-        "Run `docker history myapp:v1` to see all layers",
-        "Identify layers that can be merged (multiple consecutive `RUN` commands)",
-        "Edit `/workspace/Dockerfile` to merge the RUN commands",
-        "Build `myapp:v2` and confirm it has fewer layers than `myapp:v1`"
+        "Publish `kestrel/forecast:2.1.0` to the depot as `localhost:5000/kestrel/forecast:2.1.0`",
+        "Also publish it as `2.1`, `2` and `latest` under `localhost:5000/kestrel/forecast`",
+        "All four tags resolve to the same manifest digest in the depot"
       ],
+      "startingState": "The depot already holds `kestrel/forecast` with the tags `2.0.0` and `latest` (both the old release). The new `kestrel/forecast:2.1.0` exists only locally.",
       "hints": [
-        "`docker history <image>` shows all layers and their sizes",
-        "Merge multiple `RUN` commands with `&&` to reduce layer count",
-        "```dockerfile"
+        "A release usually carries several names: a full version, shorter version prefixes, and a moving `latest`. They are all just tags, so one image can wear them all, and re-pushing a tag moves it.",
+        "Give the local image one extra name per tag with `docker tag SOURCE localhost:5000/kestrel/forecast:TAG`, then push each. Compare tags by asking the registry for each manifest's `Docker-Content-Digest` header.",
+        "```bash\nfor t in 2.1.0 2.1 2 latest; do\n  docker tag kestrel/forecast:2.1.0 localhost:5000/kestrel/forecast:$t\n  docker push localhost:5000/kestrel/forecast:$t\ndone\ncurl http://localhost:5000/v2/kestrel/forecast/tags/list\n```"
       ],
+      "setup": {
+        "files": [
+          {
+            "path": "v200/Dockerfile",
+            "content": "FROM alpine:3.20\nLABEL station=kestrel service=forecast version=2.0.0\nCMD [\"echo\", \"forecast 2.0.0\"]\n"
+          },
+          {
+            "path": "v210/Dockerfile",
+            "content": "FROM alpine:3.20\nLABEL station=kestrel service=forecast version=2.1.0\nCMD [\"echo\", \"forecast 2.1.0\"]\n"
+          }
+        ],
+        "commands": [
+          "docker run -d --name depot -p 5000:5000 registry:2",
+          "sleep 2",
+          "docker build -q -t localhost:5000/kestrel/forecast:2.0.0 v200",
+          "docker tag localhost:5000/kestrel/forecast:2.0.0 localhost:5000/kestrel/forecast:latest",
+          "docker push -q localhost:5000/kestrel/forecast:2.0.0",
+          "docker push -q localhost:5000/kestrel/forecast:latest",
+          "docker rmi localhost:5000/kestrel/forecast:2.0.0 localhost:5000/kestrel/forecast:latest",
+          "docker build -q -t kestrel/forecast:2.1.0 v210"
+        ]
+      },
       "validation": [
+        {
+          "type": "shell",
+          "params": {
+            "command": "curl -s http://localhost:5000/v2/kestrel/forecast/tags/list | jq -e '([\"2\",\"2.1\",\"2.1.0\",\"latest\"] - .tags) | length == 0'",
+            "output_contains": "true"
+          },
+          "description": "The depot lists the tags `2.1.0`, `2.1`, `2` and `latest` for `kestrel/forecast`"
+        },
+        {
+          "type": "shell",
+          "params": {
+            "command": "out=$(for t in 2.1.0 2.1 2 latest; do curl -sI -H 'Accept: application/vnd.oci.image.index.v1+json, application/vnd.oci.image.manifest.v1+json, application/vnd.docker.distribution.manifest.v2+json' http://localhost:5000/v2/kestrel/forecast/manifests/$t | tr -d '\\r' | awk -F': ' 'tolower($1)==\"docker-content-digest\"{print $2}'; done); [ \"$(echo \"$out\" | grep -c sha256)\" = 4 ] && [ \"$(echo \"$out\" | sort -u | wc -l)\" = 1 ] && echo all-same",
+            "output_contains": "all-same"
+          },
+          "description": "All four tags (`2.1.0`, `2.1`, `2`, `latest`) have the same manifest digest in the depot"
+        },
+        {
+          "type": "shell",
+          "params": {
+            "command": "[ \"$(curl -sI -H 'Accept: application/vnd.oci.image.index.v1+json, application/vnd.oci.image.manifest.v1+json, application/vnd.docker.distribution.manifest.v2+json' http://localhost:5000/v2/kestrel/forecast/manifests/latest | tr -d '\\r' | awk -F': ' 'tolower($1)==\"docker-content-digest\"{print $2}')\" != \"$(curl -sI -H 'Accept: application/vnd.oci.image.index.v1+json, application/vnd.oci.image.manifest.v1+json, application/vnd.docker.distribution.manifest.v2+json' http://localhost:5000/v2/kestrel/forecast/manifests/2.0.0 | tr -d '\\r' | awk -F': ' 'tolower($1)==\"docker-content-digest\"{print $2}')\" ] && echo moved",
+            "output_contains": "moved"
+          },
+          "description": "`latest` no longer points at the old `2.0.0` release"
+        },
         {
           "type": "image_exists",
           "params": {
-            "name": "myapp",
-            "tag": "v2"
+            "ref": "localhost:5000/kestrel/forecast:latest"
           },
-          "description": "name=myapp, tag=v2"
-        },
-        {
-          "type": "fewer_layers",
-          "params": {
-            "image_a": "myapp:v2",
-            "image_b": "myapp:v1"
-          },
-          "description": "image_a=myapp:v2, image_b=myapp:v1"
+          "description": "The local image has the name `localhost:5000/kestrel/forecast:latest`"
         }
       ],
-      "initialState": {
-        "summary": "- `myapp:v1` pre-built with at least 3 separate `RUN apt-get ...` instructions - `/workspace/Dockerfile` editable",
-        "workspaceFiles": [
-          {
-            "path": "Dockerfile",
-            "content": "FROM ubuntu:22.04\nRUN apt-get update\nRUN apt-get install -y curl\nRUN apt-get install -y wget\nRUN apt-get install -y git\nCMD [\"bash\", \"-lc\", \"echo mission ready\"]\n"
-          }
-        ]
-      }
+      "solution": [
+        "for t in 2.1.0 2.1 2 latest; do docker tag kestrel/forecast:2.1.0 localhost:5000/kestrel/forecast:$t; docker push -q localhost:5000/kestrel/forecast:$t; done"
+      ],
+      "debrief": "One image, four names: each push of an existing image only uploads a new tag, and every tag resolves to the same digest. `latest` is just a convention you have to move yourself. Pro tip: compare `Docker-Content-Digest` headers to prove that names really share one image."
     }
   ]
 }

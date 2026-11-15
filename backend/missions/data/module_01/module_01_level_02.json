@@ -2,31 +2,51 @@
   "id": "module_01_level_02",
   "moduleId": 1,
   "levelId": 2,
-  "title": "Detach and Name",
-  "moduleTitle": "Docker Basics",
+  "title": "Keep the Beacon Lit",
+  "moduleTitle": "Arrival",
   "difficulty": "easy",
   "xp": 50,
-  "story": "Running in the foreground blocks your terminal. Real operators run containers in the background. Name your assets so you can find them later.",
+  "concepts": [
+    "detached mode",
+    "-d",
+    "--name"
+  ],
+  "story": "NORA // 03:15 // ALERT. STATUS PAGE: DOWN. LAST HOST: OLD-SERVER. UPTIME RECORD: BROKEN.\n\nThe monitoring bot has been serving the station's status page from a server that now reboots every few hours. Each time it drops, the crew loses sight of the generators and the greenhouse heaters.\n\nGive the page a new home. Start `nginx:alpine` as a container called `beacon`, and run it in the background. Ingrid wants the terminal back for the next job, and the beacon has to keep burning while you work.",
   "objectives": [
-    "Run an `nginx` container named `webserver` in detached mode"
+    "Run `nginx:alpine` as a container named `beacon`",
+    "The container must be running in the background (detached), not holding your terminal"
   ],
+  "startingState": "Docker is installed and no containers exist. The `nginx:alpine` image is already downloaded.",
   "hints": [
-    "Use flags to detach and name: `-d` and `--name`",
-    "`docker run -d --name webserver nginx`",
-    "`docker run -d --name webserver nginx`"
+    "A container started normally is attached to your terminal and stops being useful the moment you press Ctrl+C. Docker can detach a container so it runs in the background.",
+    "Combine the detach flag `-d` with `--name` before the image: `docker run -d --name <name> <image>`. Check the result with `docker ps`.",
+    "```bash\ndocker run -d --name beacon nginx:alpine\ndocker ps\n```"
   ],
+  "setup": {
+    "files": [],
+    "commands": []
+  },
   "validation": [
     {
       "type": "container_running",
       "params": {
-        "name": "webserver",
-        "image": "nginx"
+        "name": "beacon",
+        "image": "nginx:alpine"
       },
-      "description": "name=webserver, image=nginx"
+      "description": "Container `beacon` is running from `nginx:alpine`"
+    },
+    {
+      "type": "container_exec",
+      "params": {
+        "name": "beacon",
+        "command": "wget -qO- http://localhost/",
+        "output_contains": "nginx"
+      },
+      "description": "The web server inside `beacon` answers on its own port 80"
     }
   ],
-  "initialState": {
-    "summary": "Clean Docker environment",
-    "workspaceFiles": []
-  }
+  "solution": [
+    "docker run -d --name beacon nginx:alpine"
+  ],
+  "debrief": "Detached mode (`-d`) starts the container's main process in the background and prints the container ID. Pro tip: `docker logs -f beacon` lets you watch a detached container without attaching to it."
 }

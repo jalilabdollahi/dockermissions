@@ -4,34 +4,50 @@ export interface ExecResult {
   stdout: string;
   stderr: string;
   exitCode: number;
+  timedOut?: boolean;
 }
 
-export function execCommand(command: string, args: string[], cwd?: string): Promise<ExecResult> {
-  return new Promise((resolve, reject) => {
+export interface ExecOptions {
+  cwd?: string;
+  timeoutMs?: number;
+  input?: string;
+}
+
+export function execCommand(command: string, args: string[], options: ExecOptions | string = {}): Promise<ExecResult> {
+  const opts: ExecOptions = typeof options === "string" ? { cwd: options } : options;
+  return new Promise((resolve) => {
     const child = spawn(command, args, {
-      cwd,
+      cwd: opts.cwd,
       env: process.env,
-      stdio: ["ignore", "pipe", "pipe"]
+      stdio: [opts.input === undefined ? "ignore" : "pipe", "pipe", "pipe"]
     });
 
     let stdout = "";
     let stderr = "";
+    let timedOut = false;
+    const timer = opts.timeoutMs
+      ? setTimeout(() => {
+          timedOut = true;
+          child.kill("SIGKILL");
+        }, opts.timeoutMs)
+      : null;
 
-    child.stdout.on("data", (chunk) => {
+    child.stdout?.on("data", (chunk) => {
       stdout += chunk.toString();
     });
-    child.stderr.on("data", (chunk) => {
+    child.stderr?.on("data", (chunk) => {
       stderr += chunk.toString();
     });
+    if (opts.input !== undefined && child.stdin) {
+      child.stdin.end(opts.input);
+    }
     child.on("error", (error) => {
-      resolve({
-        stdout: "",
-        stderr: error.message,
-        exitCode: 1
-      });
+      if (timer) clearTimeout(timer);
+      resolve({ stdout: "", stderr: error.message, exitCode: 127 });
     });
     child.on("close", (exitCode) => {
-      resolve({ stdout, stderr, exitCode: exitCode ?? 1 });
+      if (timer) clearTimeout(timer);
+      resolve({ stdout, stderr, exitCode: timedOut ? 124 : (exitCode ?? 1), timedOut });
     });
   });
 }

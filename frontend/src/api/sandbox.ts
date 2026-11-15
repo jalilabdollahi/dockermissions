@@ -3,15 +3,17 @@ import { apiClient } from "./client";
 export interface SandboxSession {
   sessionId: string;
   missionId: string;
-  mode: "docker-host" | "local-shell";
-  workspaceDir: string;
+  mode: "sandbox";
+  setupErrors: number;
   wsUrl: string;
 }
 
 export interface ValidationResult {
   passed: boolean;
+  checks: Array<{ description: string; passed: boolean }>;
   failedChecks: string[];
   message: string;
+  debrief?: string;
   progress?: {
     xpEarned: number;
     completed: boolean;

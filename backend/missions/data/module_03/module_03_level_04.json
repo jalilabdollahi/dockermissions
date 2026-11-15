@@ -2,48 +2,77 @@
   "id": "module_03_level_04",
   "moduleId": 3,
   "levelId": 4,
-  "title": "Expose vs Publish",
-  "moduleTitle": "Docker Networking",
+  "title": "The Sealed Vault",
+  "moduleTitle": "Station Network",
   "difficulty": "medium",
-  "xp": 100,
-  "story": "`EXPOSE` in a Dockerfile is documentation only — it doesn't publish the port to the host. You must use `-p` to actually publish. Run nginx publishing port 9090 on the host.",
+  "xp": 125,
+  "concepts": [
+    "internal network",
+    "--internal",
+    "network isolation"
+  ],
+  "story": "SEED VAULT COMMISSIONING CHECKLIST (Ingrid Halvorsen)\n[x] Service image chosen: nginx:alpine\n[x] Freezer room power confirmed\n[ ] Network: sealed. No route to the mainland, the satellite link or the crew wifi. If anything inside is ever compromised, it must not be able to call home.\n[ ] Service running as `seed-vault`\n\nTwo boxes are still open, and the vault holds the only copy of the station's seed collection. Create an internal network called `vault-net`, then run `seed-vault` on it and nowhere else. Prove it cannot reach the internet.",
   "objectives": [
-    "Run `nginx` container named `public-web` with host port `9090` mapped to container port `80`",
-    "Confirm the port is reachable on `localhost:9090`"
+    "Create the network `vault-net` as an internal network",
+    "Run `seed-vault` from `nginx:alpine` on `vault-net`",
+    "`seed-vault` must not be attached to the default `bridge` network",
+    "An outbound request from inside `seed-vault` to `1.1.1.1` must fail"
   ],
+  "startingState": "A clean engine. Nothing has been created for the vault yet.",
   "hints": [
-    "`-p <host>:<container>` publishes a port",
-    "`-p 9090:80`",
-    "`docker run -d --name public-web -p 9090:80 nginx`"
+    "Networks can be created with no gateway to the outside world. Look for a flag on `docker network create` that says the network is internal.",
+    "Create the network with `--internal`, then start the container with `--network vault-net` only. Attaching a second, normal network would give it a route out again.",
+    "```bash\ndocker network create --internal vault-net\ndocker run -d --name seed-vault --network vault-net nginx:alpine\ndocker exec seed-vault wget -T 3 -qO- http://1.1.1.1\n```"
   ],
+  "setup": {
+    "files": [],
+    "commands": []
+  },
   "validation": [
+    {
+      "type": "network_exists",
+      "params": {
+        "name": "vault-net",
+        "internal": true
+      },
+      "description": "Network `vault-net` exists and is internal"
+    },
     {
       "type": "container_running",
       "params": {
-        "name": "public-web"
+        "name": "seed-vault",
+        "image": "nginx:alpine"
       },
-      "description": "name=public-web"
+      "description": "Container `seed-vault` is running from `nginx:alpine`"
     },
     {
-      "type": "port_exposed",
+      "type": "container_on_network",
       "params": {
-        "container": "public-web",
-        "host_port": 9090,
-        "container_port": 80
+        "name": "seed-vault",
+        "network": "vault-net"
       },
-      "description": "container=public-web, host_port=9090, container_port=80"
+      "description": "`seed-vault` is attached to `vault-net`"
     },
     {
-      "type": "http_responds",
+      "type": "container_not_on_network",
       "params": {
-        "url": "http://localhost:9090",
-        "status": 200
+        "name": "seed-vault",
+        "network": "bridge"
       },
-      "description": "url=http://localhost:9090, status=200"
+      "description": "`seed-vault` is not attached to the default `bridge` network"
+    },
+    {
+      "type": "container_exec",
+      "params": {
+        "name": "seed-vault",
+        "command": "! wget -q -T 3 -O- http://1.1.1.1"
+      },
+      "description": "A request from `seed-vault` to `http://1.1.1.1` fails (no route out)"
     }
   ],
-  "initialState": {
-    "summary": "Clean Docker environment",
-    "workspaceFiles": []
-  }
+  "solution": [
+    "docker network create --internal vault-net",
+    "docker run -d --name seed-vault --network vault-net nginx:alpine"
+  ],
+  "debrief": "An internal network lets containers talk to each other but removes the gateway, so nothing on it can reach outside. Pro tip: a container attached to both an internal and a normal network is still exposed, so check `docker inspect` for stray attachments."
 }

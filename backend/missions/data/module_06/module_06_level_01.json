@@ -2,38 +2,72 @@
   "id": "module_06_level_01",
   "moduleId": 6,
   "levelId": 1,
-  "title": "Run as Non-Root",
-  "moduleTitle": "Docker Security",
+  "title": "Nobody Runs as Root",
+  "moduleTitle": "The Audit",
   "difficulty": "easy",
-  "xp": 50,
-  "story": "Containers running as root are dangerous. If they escape, they own your host. Run an alpine container as user ID `1000` instead of root.",
+  "xp": 60,
+  "concepts": [
+    "--user",
+    "least privilege"
+  ],
+  "story": "AUDIT FINDING F-01\nAuditor: Wren Achebe        Severity: HIGH\n\nObserved: the process inside container `telemetry` runs as uid 0. A single bug in the telemetry parser would hand an attacker root inside that container, with every kernel feature root can reach.\n\nRequired: the service has no reason to be root. Recreate `telemetry` from `alpine:3.20` so it runs as user and group 1000:1000, and keep it running. I will check with `id`.\n\nRemediation window: until the supply ship leaves Friday.",
   "objectives": [
-    "Run container `safe-app` from `alpine` as user `1000` (`sleep 3600`, detached)",
-    "Confirm the container process does NOT run as root"
+    "Remove the root-running container `telemetry`",
+    "Run a new container named `telemetry` from `alpine:3.20` with `sleep infinity`, in the background",
+    "It must run as user 1000 and group 1000"
   ],
+  "startingState": "A container `telemetry` (alpine:3.20, sleep infinity) is running as root.",
   "hints": [
-    "Use `--user <uid>` to set the container user",
-    "`--user 1000`",
-    "`docker run -d --name safe-app --user 1000 alpine sleep 3600`"
+    "A container's user is chosen when it is created; you cannot turn a running root container into an unprivileged one. You have to replace it, and `docker run` has an option that sets the user and group the main process runs as.",
+    "The flag is `--user` (short form `-u`) and takes `UID:GID`. Remove the old container with `docker rm -f` first, because the name `telemetry` is taken.",
+    "```bash\ndocker rm -f telemetry\ndocker run -d --name telemetry --user 1000:1000 alpine:3.20 sleep infinity\ndocker exec telemetry id\n```"
   ],
+  "setup": {
+    "files": [],
+    "commands": [
+      "docker run -d --name telemetry alpine:3.20 sleep infinity"
+    ]
+  },
   "validation": [
     {
       "type": "container_running",
       "params": {
-        "name": "safe-app"
+        "name": "telemetry",
+        "image": "alpine:3.20"
       },
-      "description": "name=safe-app"
+      "description": "Container `telemetry` is running from `alpine:3.20`"
     },
     {
-      "type": "no_root",
+      "type": "container_inspect",
       "params": {
-        "container": "safe-app"
+        "name": "telemetry",
+        "path": "Config.User",
+        "equals": "1000:1000"
       },
-      "description": "container=safe-app"
+      "description": "The container is configured to run as `1000:1000`"
+    },
+    {
+      "type": "container_exec",
+      "params": {
+        "name": "telemetry",
+        "command": "id -u",
+        "output_equals": "1000"
+      },
+      "description": "`id -u` inside `telemetry` prints 1000"
+    },
+    {
+      "type": "container_exec",
+      "params": {
+        "name": "telemetry",
+        "command": "id -g",
+        "output_equals": "1000"
+      },
+      "description": "`id -g` inside `telemetry` prints 1000"
     }
   ],
-  "initialState": {
-    "summary": "Clean Docker environment",
-    "workspaceFiles": []
-  }
+  "solution": [
+    "docker rm -f telemetry",
+    "docker run -d --name telemetry --user 1000:1000 alpine:3.20 sleep infinity"
+  ],
+  "debrief": "Running as a non-root user means an exploited process starts with far fewer powers, and `--user UID:GID` achieves that without rebuilding the image. Pro tip: use a numeric UID:GID rather than a name, because names only resolve if the image has a matching /etc/passwd entry."
 }

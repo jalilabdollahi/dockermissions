@@ -2,53 +2,79 @@
   "id": "module_02_level_07",
   "moduleId": 2,
   "levelId": 7,
-  "title": "Multi-Stage Build",
-  "moduleTitle": "Images & Dockerfile",
+  "title": "Travel Light",
+  "moduleTitle": "Instrument Images",
   "difficulty": "hard",
   "xp": 200,
-  "story": "Bloated images are a security risk and waste bandwidth. Use a multi-stage build to compile a Go binary in one stage and copy only the binary into a minimal `scratch` or `alpine` final image.",
+  "concepts": [
+    "multi-stage build",
+    "COPY --from",
+    "image size"
+  ],
+  "story": "BUILD LOG, tidegauge, Amara's laptop:\n\n  Step 1/4 : FROM golang:1.23-alpine\n  Successfully tagged kestrel/tidegauge:0.1\n  REPOSITORY         TAG   SIZE\n  kestrel/tidegauge  0.1   318MB\n\nThe tide gauge reader is a 30-line Go program, but the image ships the entire Go toolchain with it. Rafael will carry it over a metered satellite link, and 318 MB for one tiny tool is absurd.\n\nBuild `kestrel/tidegauge:1.0` in two stages: compile with `golang:1.23-alpine`, then ship only the binary on `alpine:3.20`. It must come in under 25 MB and carry no Go toolchain.",
   "objectives": [
-    "Write a multi-stage Dockerfile:",
-    "Stage 1 (`builder`): `FROM golang:1.21-alpine AS builder`, copy `main.go`, run `go build -o app .`",
-    "Stage 2: `FROM alpine:3.18`, `COPY --from=builder /build/app /app`, `CMD [\"/app\"]`",
-    "Build as `go-app:v1`",
-    "Final image size should be under 20MB"
+    "Write a multi-stage `/workspace/Dockerfile`: build stage on `golang:1.23-alpine`, final stage on `alpine:3.20`",
+    "Build `kestrel/tidegauge:1.0` (under 25 MB) whose default command prints the tide reading",
+    "The final image must not contain the `go` toolchain"
   ],
+  "startingState": "`/workspace` holds `main.go` and `go.mod` for the tide gauge reader. There is no Dockerfile.",
   "hints": [
-    "Multi-stage builds use multiple `FROM` lines; `COPY --from=<stage>` copies between stages",
-    "The builder stage has all dev tools; the final stage is lean",
-    "See the multi-stage Dockerfile structure in the objectives"
+    "A Dockerfile can contain several `FROM` lines. Each starts a new stage, and only the last stage becomes the final image, so build tools can live in an earlier stage and be left behind.",
+    "Name the first stage with `FROM ... AS build`, compile there with `go build`, then in the final stage use `COPY --from=build` to take just the binary. Setting `CGO_ENABLED=0` yields a static binary.",
+    "```bash\ncat > Dockerfile <<'EOF'\nFROM golang:1.23-alpine AS build\nWORKDIR /src\nCOPY go.mod main.go ./\nRUN CGO_ENABLED=0 go build -o /out/tidegauge .\n\nFROM alpine:3.20\nCOPY --from=build /out/tidegauge /usr/local/bin/tidegauge\nENTRYPOINT [\"tidegauge\"]\nEOF\ndocker build -t kestrel/tidegauge:1.0 .\n```"
   ],
+  "setup": {
+    "files": [
+      {
+        "path": "main.go",
+        "content": "package main\n\nimport \"fmt\"\n\nfunc main() {\n\tfmt.Println(\"Tide gauge: 1.42 m, rising\")\n}\n"
+      },
+      {
+        "path": "go.mod",
+        "content": "module tidegauge\n\ngo 1.23\n"
+      }
+    ],
+    "commands": []
+  },
   "validation": [
     {
-      "type": "image_exists",
+      "type": "workspace_file",
       "params": {
-        "name": "go-app",
-        "tag": "v1"
+        "path": "Dockerfile",
+        "matches": "FROM\\s+golang:1\\.23-alpine"
       },
-      "description": "name=go-app, tag=v1"
+      "description": "The Dockerfile builds on `golang:1.23-alpine`"
+    },
+    {
+      "type": "image_run",
+      "params": {
+        "ref": "kestrel/tidegauge:1.0",
+        "output_contains": "Tide gauge"
+      },
+      "description": "`kestrel/tidegauge:1.0` prints the tide reading by default"
     },
     {
       "type": "image_size_under",
       "params": {
-        "image": "go-app:v1",
-        "max_mb": 20
+        "ref": "kestrel/tidegauge:1.0",
+        "mb": 25
       },
-      "description": "image=go-app:v1, max_mb=20"
+      "description": "`kestrel/tidegauge:1.0` is smaller than 25 MB"
     },
     {
-      "type": "Container runs successfully",
-      "params": {},
-      "description": "Container runs successfully"
+      "type": "image_run",
+      "params": {
+        "ref": "kestrel/tidegauge:1.0",
+        "entrypoint": "which",
+        "args": "go",
+        "exit_code": 1
+      },
+      "description": "The `go` toolchain is not in the final image"
     }
   ],
-  "initialState": {
-    "summary": "`/workspace/main.go` pre-created (a simple Hello World Go program)",
-    "workspaceFiles": [
-      {
-        "path": "main.go",
-        "content": "package main\n\nimport \"fmt\"\n\nfunc main() {\n  fmt.Println(\"hello from DockerMissions\")\n}\n"
-      }
-    ]
-  }
+  "solution": [
+    "cat > Dockerfile <<'EOF'\nFROM golang:1.23-alpine AS build\nWORKDIR /src\nCOPY go.mod main.go ./\nRUN CGO_ENABLED=0 go build -o /out/tidegauge .\n\nFROM alpine:3.20\nCOPY --from=build /out/tidegauge /usr/local/bin/tidegauge\nENTRYPOINT [\"tidegauge\"]\nEOF",
+    "docker build -t kestrel/tidegauge:1.0 ."
+  ],
+  "debrief": "In a multi-stage build only the last stage is shipped, so compilers and sources stay behind in earlier stages. Pro tip: `docker build --target build .` stops at a named stage, which is handy for debugging the build step alone."
 }

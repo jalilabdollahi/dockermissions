@@ -2,47 +2,87 @@
   "id": "module_02_level_08",
   "moduleId": 2,
   "levelId": 8,
-  "title": ".dockerignore",
-  "moduleTitle": "Images & Dockerfile",
-  "difficulty": "medium",
-  "xp": 100,
-  "story": "Your build context is huge because it includes `node_modules` and `.git`. Create a `.dockerignore` file to exclude them and speed up builds.",
+  "title": "Ghost in the Layers",
+  "moduleTitle": "Instrument Images",
+  "difficulty": "hard",
+  "xp": 225,
+  "concepts": [
+    "image layers",
+    "docker history",
+    "docker save"
+  ],
+  "story": "From: Tomasz Wierzba\nSubject: URGENT, a password I deleted is still there\n\nThe legacy image `kestrel/legacy-archive:0.9` was built years ago. Its Dockerfile copied in a credentials file and then ran `rm` on it in the next step, so I assumed the password was gone. Wren's predecessor says it is not. Prove it.\n\nRecover the archive password from the image's layers and write it to `/workspace/recovered.txt`. The original source folder was deleted, so you only have the image. Then build a clean `kestrel/archive-clean:1.0` from `alpine:3.20` that ships `/workspace/index.txt` as `/srv/archive/index.txt`, with no trace of the password in any layer.",
   "objectives": [
-    "Create `/workspace/.dockerignore` that excludes `node_modules` and `.git`",
-    "Build image `clean-build:v1` from the existing Dockerfile in `/workspace`",
-    "Verify the build context sent to daemon is under 1KB"
+    "Recover the archive password (the `ARCHIVE_PASSWORD` value) from the layers of `kestrel/legacy-archive:0.9` and write it to `/workspace/recovered.txt`",
+    "Build `kestrel/archive-clean:1.0` from `alpine:3.20` that contains `/srv/archive/index.txt`",
+    "The clean image must have no password file and no trace of the password in its history"
   ],
+  "startingState": "The image `kestrel/legacy-archive:0.9` exists locally. `/workspace/index.txt` is the new archive index. The old build folder no longer exists.",
   "hints": [
-    "`.dockerignore` works like `.gitignore` — list patterns to exclude from build context",
-    "Add `node_modules` and `.git` on separate lines",
-    "Create `.dockerignore` with those two entries, then `docker build -t clean-build:v1 /workspace`"
+    "A deleted file is only hidden by a newer layer. The earlier layer that added it is still stored inside the image, and `docker history` lists the steps that created each layer.",
+    "Export the image with `docker save IMAGE -o file.tar` and unpack it with `tar`. Every layer is a gzipped tarball under `blobs/`; list their contents with `tar -tzf` until you find the file that `docker history` shows being copied in, then extract just that file to stdout. For the clean image, never copy the credentials file in at all.",
+    "```bash\ndocker history --no-trunc kestrel/legacy-archive:0.9\ndocker save kestrel/legacy-archive:0.9 -o legacy.tar\nmkdir -p x && tar -xf legacy.tar -C x\nfor b in x/blobs/sha256/*; do tar -tzf $b 2>/dev/null | grep -q archive.cred && tar -xzOf $b etc/archive.cred; done\n# write the password value to recovered.txt, then build an image from FROM + COPY index.txt only\n```"
   ],
+  "setup": {
+    "files": [
+      {
+        "path": "index.txt",
+        "content": "ice-core index, season 7: cores 1-240 catalogued\n"
+      }
+    ],
+    "commands": [
+      "mkdir -p /tmp/legacy-build && cd /tmp/legacy-build && printf 'ARCHIVE_PASSWORD=Borealis-7714-Tern\\n' > archive.cred && printf 'FROM alpine:3.20\\nCOPY archive.cred /etc/archive.cred\\nRUN rm /etc/archive.cred\\nCMD [\"echo\", \"archive ready\"]\\n' > Dockerfile && docker build -q -t kestrel/legacy-archive:0.9 . && cd / && rm -rf /tmp/legacy-build"
+    ]
+  },
   "validation": [
     {
-      "type": "file_exists",
+      "type": "workspace_file",
       "params": {
-        "path": "/workspace/.dockerignore"
+        "path": "recovered.txt",
+        "contains": "Borealis-7714-Tern"
       },
-      "description": "path=/workspace/.dockerignore"
-    },
-    {
-      "type": "dockerignore_excludes",
-      "params": {
-        "entries": "[node_modules, .git]"
-      },
-      "description": "entries=[node_modules, .git]"
+      "description": "`/workspace/recovered.txt` contains the recovered password"
     },
     {
       "type": "image_exists",
       "params": {
-        "name": "clean-build",
-        "tag": "v1"
+        "ref": "kestrel/archive-clean:1.0"
       },
-      "description": "name=clean-build, tag=v1"
+      "description": "Image `kestrel/archive-clean:1.0` exists"
+    },
+    {
+      "type": "image_run",
+      "params": {
+        "ref": "kestrel/archive-clean:1.0",
+        "entrypoint": "cat",
+        "args": "/srv/archive/index.txt",
+        "output_contains": "ice-core index"
+      },
+      "description": "The clean image ships `/srv/archive/index.txt`"
+    },
+    {
+      "type": "image_run",
+      "params": {
+        "ref": "kestrel/archive-clean:1.0",
+        "entrypoint": "ls",
+        "args": "/etc/archive.cred",
+        "exit_code": 1
+      },
+      "description": "The clean image has no `/etc/archive.cred`"
+    },
+    {
+      "type": "image_history",
+      "params": {
+        "ref": "kestrel/archive-clean:1.0",
+        "not_contains": "archive.cred"
+      },
+      "description": "The clean image's history never mentions the credentials"
     }
   ],
-  "initialState": {
-    "summary": "`/workspace` contains a Dockerfile, a small `index.js`, large `node_modules/` (fake, 100MB), `.git/`",
-    "workspaceFiles": []
-  }
+  "solution": [
+    "docker save kestrel/legacy-archive:0.9 -o /tmp/legacy.tar && mkdir -p /tmp/x && tar -xf /tmp/legacy.tar -C /tmp/x && for b in /tmp/x/blobs/sha256/*; do tar -tzf $b 2>/dev/null | grep -q archive.cred && tar -xzOf $b etc/archive.cred; done | sed 's/ARCHIVE_PASSWORD=//' > recovered.txt; cat recovered.txt",
+    "printf 'FROM alpine:3.20\\nCOPY index.txt /srv/archive/index.txt\\n' > Dockerfile",
+    "docker build -t kestrel/archive-clean:1.0 ."
+  ],
+  "debrief": "Image layers are append-only: deleting a file in a later layer only hides it, and anyone with the image can pull it back out. Pro tip: never COPY a secret into a build, and if you must use one, use a BuildKit secret mount so it never lands in a layer."
 }

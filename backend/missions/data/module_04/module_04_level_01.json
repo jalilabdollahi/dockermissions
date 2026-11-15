@@ -2,30 +2,59 @@
   "id": "module_04_level_01",
   "moduleId": 4,
   "levelId": 1,
-  "title": "Named Volume Basics",
-  "moduleTitle": "Volumes & Storage",
+  "title": "Cores Outlive Containers",
+  "moduleTitle": "Ice-Core Archive",
   "difficulty": "easy",
-  "xp": 50,
-  "story": "Containers are ephemeral — when they die, their data dies too. Named volumes live beyond containers. Create a volume named `app-data`.",
+  "xp": 75,
+  "concepts": [
+    "named volume",
+    "data persistence"
+  ],
+  "story": "From: Tomasz Wierzba\nSubject: Eleven days of readings, gone\n\nThe core logger kept eleven days of depth readings inside its own container. Tuesday's upgrade replaced that container, and the readings went with it. I am not going to describe how that felt.\n\nBefore I trust the new setup, I need proof. From a throwaway container called `core-logger`, write the depth reading of core 0417 into a volume named `ice-cores`. Then delete the container. The reading must still be there afterwards.",
   "objectives": [
-    "Create a Docker named volume called `app-data`"
+    "Create a named volume `ice-cores` and mount it at `/data` in a container named `core-logger` (`alpine:3.20`)",
+    "Write `DEPTH 1450 M` into the file `/data/core-0417.txt`",
+    "Remove the `core-logger` container",
+    "The volume `ice-cores` must still hold `core-0417.txt`"
   ],
+  "startingState": "A clean engine: no volumes and no containers.",
   "hints": [
-    "`docker volume create <name>` creates a named volume",
-    "`docker volume create app-data`",
-    "`docker volume create app-data`"
+    "Anything written in a container's own filesystem is deleted with the container. A named volume is stored separately and outlives it.",
+    "Mount the volume with `-v ice-cores:/data` (it is created if missing). Run a one-shot command that writes the file, then remove the container with `docker rm`.",
+    "```bash\ndocker run --name core-logger -v ice-cores:/data alpine:3.20 \\\n  sh -c 'echo \"DEPTH 1450 M\" > /data/core-0417.txt'\ndocker rm core-logger\ndocker run --rm -v ice-cores:/data alpine:3.20 cat /data/core-0417.txt\n```"
   ],
+  "setup": {
+    "files": [],
+    "commands": []
+  },
   "validation": [
     {
       "type": "volume_exists",
       "params": {
-        "name": "app-data"
+        "name": "ice-cores"
       },
-      "description": "name=app-data"
+      "description": "Volume `ice-cores` exists"
+    },
+    {
+      "type": "container_absent",
+      "params": {
+        "name": "core-logger"
+      },
+      "description": "Container `core-logger` has been removed"
+    },
+    {
+      "type": "shell",
+      "params": {
+        "command": "docker run --rm -v ice-cores:/data alpine:3.20 cat /data/core-0417.txt",
+        "output_contains": "DEPTH 1450 M"
+      },
+      "description": "A fresh container mounting `ice-cores` can still read `core-0417.txt` containing `DEPTH 1450 M`"
     }
   ],
-  "initialState": {
-    "summary": "Clean Docker environment",
-    "workspaceFiles": []
-  }
+  "solution": [
+    "docker volume create ice-cores",
+    "docker run --name core-logger -v ice-cores:/data alpine:3.20 sh -c 'echo \"DEPTH 1450 M\" > /data/core-0417.txt'",
+    "docker rm core-logger"
+  ],
+  "debrief": "A named volume lives under the engine's control, independent of any container, so removing the container leaves the data alone. Pro tip: `docker rm -v` only removes anonymous volumes; named ones are never deleted unless you run `docker volume rm`."
 }

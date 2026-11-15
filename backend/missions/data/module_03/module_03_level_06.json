@@ -2,38 +2,89 @@
   "id": "module_03_level_06",
   "moduleId": 3,
   "levelId": 6,
-  "title": "Connect Running Container to Network",
-  "moduleTitle": "Docker Networking",
+  "title": "Isolation Chamber",
+  "moduleTitle": "Station Network",
   "difficulty": "medium",
-  "xp": 100,
-  "story": "The container `late-joiner` is already running but needs to join `mission-net` without restarting. Connect it dynamically.",
+  "xp": 125,
+  "concepts": [
+    "network modes",
+    "--network none",
+    "--network host"
+  ],
+  "story": "03:12:07 NORA  CALIBRATOR: NET LINK UP (eth0 172.17.0.3)\n03:12:09 NORA  CALIBRATOR: CONTACTING telemetry.example.org\n03:12:09 NORA  WARNING: SENSOR BASELINE MAY BE CONTAMINATED\n03:12:44 NORA  BENCH-MONITOR: CANNOT SEE docker0 OR ANY STATION NIC\n\nAmara Okafor's calibration run must happen with no network at all: every packet it sends spoils the baseline. The new `bench-monitor` has the opposite job. It watches the station's real network cards, so it needs to see the engine host's network stack, not a private one.\n\nReplace `calibrator` with a fully offline container, and start `bench-monitor` sharing the host's network.",
   "objectives": [
-    "Connect running container `late-joiner` to network `mission-net` without stopping it"
+    "`calibrator` (`alpine:3.20`) is running with the network mode `none` (no `eth0`)",
+    "`bench-monitor` (`alpine:3.20`) is running with the network mode `host`",
+    "Inside `bench-monitor` the host interface `docker0` is visible"
   ],
+  "startingState": "A `calibrator` container is running on the default bridge, so it still has network access. `bench-monitor` does not exist.",
   "hints": [
-    "`docker network connect <network> <container>` attaches a running container",
-    "`docker network connect mission-net late-joiner`",
-    "`docker network connect mission-net late-joiner`"
+    "Besides user-defined networks, a container can run with no networking at all or share the host's stack. Both are chosen with the same `docker run` option. The mode of an existing container cannot be changed.",
+    "Use `--network none` for the offline container and `--network host` for the one that must see the host's interfaces. Remove the old `calibrator` first, since its name is taken.",
+    "```bash\ndocker rm -f calibrator\ndocker run -d --name calibrator --network none alpine:3.20 sleep infinity\ndocker run -d --name bench-monitor --network host alpine:3.20 sleep infinity\ndocker exec calibrator ls /sys/class/net\ndocker exec bench-monitor ls /sys/class/net\n```"
   ],
+  "setup": {
+    "files": [],
+    "commands": [
+      "docker run -d --name calibrator alpine:3.20 sleep infinity"
+    ]
+  },
   "validation": [
     {
       "type": "container_running",
       "params": {
-        "name": "late-joiner"
+        "name": "calibrator",
+        "image": "alpine:3.20"
       },
-      "description": "name=late-joiner"
+      "description": "Container `calibrator` is running from `alpine:3.20`"
     },
     {
-      "type": "container_on_network",
+      "type": "container_inspect",
       "params": {
-        "container": "late-joiner",
-        "network": "mission-net"
+        "name": "calibrator",
+        "path": "HostConfig.NetworkMode",
+        "equals": "none"
       },
-      "description": "container=late-joiner, network=mission-net"
+      "description": "`calibrator` uses the network mode `none`"
+    },
+    {
+      "type": "container_exec",
+      "params": {
+        "name": "calibrator",
+        "command": "! test -e /sys/class/net/eth0"
+      },
+      "description": "`calibrator` has no `eth0` interface"
+    },
+    {
+      "type": "container_running",
+      "params": {
+        "name": "bench-monitor",
+        "image": "alpine:3.20"
+      },
+      "description": "Container `bench-monitor` is running from `alpine:3.20`"
+    },
+    {
+      "type": "container_inspect",
+      "params": {
+        "name": "bench-monitor",
+        "path": "HostConfig.NetworkMode",
+        "equals": "host"
+      },
+      "description": "`bench-monitor` uses the network mode `host`"
+    },
+    {
+      "type": "container_exec",
+      "params": {
+        "name": "bench-monitor",
+        "command": "test -e /sys/class/net/docker0"
+      },
+      "description": "`bench-monitor` can see the host interface `docker0`"
     }
   ],
-  "initialState": {
-    "summary": "- Container `late-joiner` (alpine, running, `sleep 3600`) on default bridge - Network `mission-net` exists",
-    "workspaceFiles": []
-  }
+  "solution": [
+    "docker rm -f calibrator",
+    "docker run -d --name calibrator --network none alpine:3.20 sleep infinity",
+    "docker run -d --name bench-monitor --network host alpine:3.20 sleep infinity"
+  ],
+  "debrief": "`--network none` leaves only a loopback interface, while `--network host` removes network isolation completely. Pro tip: host mode skips port publishing, so anything it listens on is directly exposed on the host."
 }

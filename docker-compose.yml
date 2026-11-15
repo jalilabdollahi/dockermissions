@@ -1,3 +1,9 @@
+# Optional: run backend + frontend in containers instead of ./start.sh.
+# The backend drives the host's Docker to manage the isolated `dockermissions-sandbox`
+# container. Because that sandbox bind-mounts the session directory from the HOST,
+# SESSION_ROOT_HOST must be the absolute host path of ./tmp/sessions:
+#
+#   SESSION_ROOT_HOST="$PWD/tmp/sessions" docker compose up --build
 services:
   backend:
     build: ./backend
@@ -5,17 +11,20 @@ services:
     working_dir: /app
     volumes:
       - ./backend:/app
-      - ./modules:/modules:ro
-      - ./tmp:/tmp/dockermissions
+      - /app/node_modules
+      - ./docker/sandbox:/sandbox-build:ro
+      - ./tmp:/data
       - /var/run/docker.sock:/var/run/docker.sock
     ports:
-      - "3000:3000"
+      - "127.0.0.1:3001:3001"
     environment:
-      PORT: 3000
+      PORT: 3001
+      HOST: 0.0.0.0
       FRONTEND_ORIGIN: http://localhost:5173
-      MISSIONS_DIR: /modules
-      MISSION_DATA_DIR: /app/missions/data
-      SESSION_ROOT: /tmp/dockermissions
+      SESSION_ROOT: /data/sessions
+      SESSION_ROOT_HOST: ${SESSION_ROOT_HOST:?set SESSION_ROOT_HOST to the absolute path of ./tmp/sessions}
+      DATA_DIR: /data/data
+      SANDBOX_BUILD_DIR: /sandbox-build
 
   frontend:
     build: ./frontend
@@ -23,7 +32,10 @@ services:
     working_dir: /app
     volumes:
       - ./frontend:/app
+      - /app/node_modules
     ports:
-      - "5173:5173"
+      - "127.0.0.1:5173:5173"
+    environment:
+      BACKEND_URL: http://backend:3001
     depends_on:
       - backend

@@ -1,0 +1,23 @@
+#!/bin/bash
+# Return the inner Docker engine to a clean state before a mission starts.
+# Base images (listed in /etc/dockermissions/base-images) and the build cache survive;
+# everything a player or an earlier mission created is removed.
+set -u
+BASE=/etc/dockermissions/base-images
+
+docker swarm leave --force >/dev/null 2>&1 || true
+docker ps -aq | xargs -r docker rm -f >/dev/null 2>&1 || true
+docker network ls --filter type=custom -q | xargs -r docker network rm >/dev/null 2>&1 || true
+docker volume ls -q | xargs -r docker volume rm -f >/dev/null 2>&1 || true
+
+docker images --format '{{.Repository}}:{{.Tag}}' | while read -r ref; do
+  case "$ref" in *"<none>"*) continue ;; esac
+  grep -qxF "$ref" "$BASE" || docker rmi "$ref" >/dev/null 2>&1 || true
+done
+docker image prune -f >/dev/null 2>&1 || true
+
+docker context use default >/dev/null 2>&1 || true
+docker context ls -q 2>/dev/null | grep -vx default | xargs -r docker context rm -f >/dev/null 2>&1 || true
+docker buildx ls --format '{{.Name}}' 2>/dev/null | grep -vx default | xargs -r -n1 docker buildx rm -f >/dev/null 2>&1 || true
+rm -rf /root/.docker/config.json 2>/dev/null || true
+echo reset-ok

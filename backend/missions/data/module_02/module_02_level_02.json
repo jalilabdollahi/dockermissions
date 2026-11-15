@@ -2,31 +2,65 @@
   "id": "module_02_level_02",
   "moduleId": 2,
   "levelId": 2,
-  "title": "List and Remove Images",
-  "moduleTitle": "Images & Dockerfile",
+  "title": "A Recipe for Greetings",
+  "moduleTitle": "Instrument Images",
   "difficulty": "easy",
-  "xp": 50,
-  "story": "The local image store is cluttered with old images consuming disk space. Remove the image `busybox:latest` to free space.",
+  "xp": 60,
+  "concepts": [
+    "Dockerfile",
+    "FROM / COPY / CMD",
+    "docker build -t"
+  ],
+  "story": "#general, 09:12.\n\nKip: ok so I wrote a script that prints the morning greeting on the lobby screen and it works on my laptop!!! Amara says that is \"not a deployment\". what is a Dockerfile??\n\nAmara: Kip's script is `/workspace/greet.sh`. Write a Dockerfile that starts from `alpine:3.20`, copies the script into the image, and makes it the default command. Build it as `kestrel/greeter:1.0`. If a plain `docker run kestrel/greeter:1.0` greets the lobby, Kip has shipped their first image.",
   "objectives": [
-    "Remove image `busybox:latest`"
+    "Write `/workspace/Dockerfile` that starts `FROM alpine:3.20`, copies `greet.sh` into the image and runs it by default",
+    "Build the image with the tag `kestrel/greeter:1.0`"
   ],
+  "startingState": "`/workspace/greet.sh` exists and is executable. There is no Dockerfile yet.",
   "hints": [
-    "`docker images` lists local images; `docker rmi <image>` removes one",
-    "`docker rmi busybox:latest`",
-    "`docker rmi busybox:latest`"
+    "A Dockerfile is a text file of build instructions. Each instruction adds a step, and `docker build` turns the file plus a folder of files (the build context) into an image.",
+    "You need three instructions: `FROM` for the starting image, `COPY` to bring `greet.sh` in from the build context, and `CMD` for what runs by default. Then `docker build -t NAME:TAG .` from the folder that holds the Dockerfile.",
+    "```bash\ncat > Dockerfile <<'EOF'\nFROM alpine:3.20\nCOPY greet.sh /app/greet.sh\nCMD [\"/app/greet.sh\"]\nEOF\ndocker build -t kestrel/greeter:1.0 .\ndocker run --rm kestrel/greeter:1.0\n```"
   ],
+  "setup": {
+    "files": [
+      {
+        "path": "greet.sh",
+        "content": "#!/bin/sh\necho \"Good morning, Kestrel Point! Sunrise in 41 minutes. Wind 12 knots from the north.\"\n"
+      }
+    ],
+    "commands": [
+      "chmod +x greet.sh"
+    ]
+  },
   "validation": [
     {
-      "type": "image_not_exists",
+      "type": "workspace_file",
       "params": {
-        "name": "busybox",
-        "tag": "latest"
+        "path": "Dockerfile",
+        "contains": "FROM alpine:3.20"
       },
-      "description": "name=busybox, tag=latest"
+      "description": "`/workspace/Dockerfile` starts from `alpine:3.20`"
+    },
+    {
+      "type": "image_exists",
+      "params": {
+        "ref": "kestrel/greeter:1.0"
+      },
+      "description": "Image `kestrel/greeter:1.0` exists"
+    },
+    {
+      "type": "image_run",
+      "params": {
+        "ref": "kestrel/greeter:1.0",
+        "output_contains": "Good morning, Kestrel Point"
+      },
+      "description": "Running `kestrel/greeter:1.0` with no arguments prints the greeting"
     }
   ],
-  "initialState": {
-    "summary": "Image `busybox:latest` pre-pulled",
-    "workspaceFiles": []
-  }
+  "solution": [
+    "cat > Dockerfile <<'EOF'\nFROM alpine:3.20\nCOPY greet.sh /app/greet.sh\nCMD [\"/app/greet.sh\"]\nEOF",
+    "docker build -t kestrel/greeter:1.0 ."
+  ],
+  "debrief": "Your script now ships with its own runtime: `FROM` chose the base, `COPY` brought the file in and `CMD` decided what runs. Pro tip: keep the build context small and the Dockerfile at its root, so a plain `docker build .` always works."
 }

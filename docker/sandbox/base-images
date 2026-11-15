@@ -1,0 +1,10 @@
+alpine:3.20
+busybox:1.37
+nginx:alpine
+nginx:1.27-alpine
+httpd:2.4-alpine
+redis:7-alpine
+postgres:16-alpine
+python:3.12-alpine
+golang:1.23-alpine
+registry:2

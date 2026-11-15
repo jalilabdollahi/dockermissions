@@ -2,47 +2,80 @@
   "id": "module_07_level_02",
   "moduleId": 7,
   "levelId": 2,
-  "title": "Run a Local Registry",
-  "moduleTitle": "Registry & Distribution",
+  "title": "First Shipment",
+  "moduleTitle": "The Satellite Link",
   "difficulty": "easy",
-  "xp": 50,
-  "story": "You don't always need Docker Hub. Run a local Docker registry on port 5000.",
+  "xp": 75,
+  "concepts": [
+    "docker tag",
+    "docker push",
+    "registry address"
+  ],
+  "story": "NORA: `OUTBOUND QUEUE: 0 IMAGES. DEPOT: ONLINE. kestrel/beacon:1.0: LOCAL ONLY.`\n\nThe depot is up on port 5000, but the beacon image Amara built exists only on this one machine's disk. If the disk goes, the image goes with it, and Ingrid wants every instrument host to fetch its images from the depot instead.\n\nPublish `kestrel/beacon:1.0` to the depot, under the registry's own address, so anyone on the station can pull it.",
   "objectives": [
-    "Run a local registry container named `registry` from `registry:2` on port 5000 (detached)"
+    "Tag `kestrel/beacon:1.0` as `localhost:5000/kestrel/beacon:1.0`",
+    "Push `localhost:5000/kestrel/beacon:1.0` to the depot",
+    "The depot's catalog lists the repository `kestrel/beacon` with the tag `1.0`"
   ],
+  "startingState": "The `depot` registry is running on port 5000 and the image `kestrel/beacon:1.0` is built locally. The depot is empty.",
   "hints": [
-    "The official `registry:2` image runs a Docker-compatible registry",
-    "`docker run -d --name registry -p 5000:5000 registry:2`",
-    "`docker run -d --name registry -p 5000:5000 registry:2`"
+    "Docker decides where to push by reading the registry host out of the image name. An image called `kestrel/beacon` means Docker Hub; to reach the depot, the same image needs a second name that starts with the registry's address.",
+    "Add the name with `docker tag SOURCE TARGET`, where TARGET is `HOST:PORT/repo/name:tag`. Then `docker push TARGET`. You can read back what the depot holds at `http://localhost:5000/v2/_catalog`.",
+    "```bash\ndocker tag kestrel/beacon:1.0 localhost:5000/kestrel/beacon:1.0\ndocker push localhost:5000/kestrel/beacon:1.0\n\ncurl http://localhost:5000/v2/kestrel/beacon/tags/list\n```"
   ],
+  "setup": {
+    "files": [
+      {
+        "path": "beacon/Dockerfile",
+        "content": "FROM nginx:alpine\nLABEL station=kestrel role=beacon\nCOPY index.html /usr/share/nginx/html/index.html\n"
+      },
+      {
+        "path": "beacon/index.html",
+        "content": "<h1>KESTREL POINT BEACON</h1>\n"
+      }
+    ],
+    "commands": [
+      "docker run -d --name depot -p 5000:5000 registry:2",
+      "sleep 2",
+      "docker build -q -t kestrel/beacon:1.0 beacon"
+    ]
+  },
   "validation": [
     {
-      "type": "container_running",
+      "type": "image_exists",
       "params": {
-        "name": "registry"
+        "ref": "localhost:5000/kestrel/beacon:1.0"
       },
-      "description": "name=registry"
+      "description": "The image is tagged `localhost:5000/kestrel/beacon:1.0`"
     },
     {
-      "type": "port_exposed",
+      "type": "shell",
       "params": {
-        "container": "registry",
-        "host_port": 5000,
-        "container_port": 5000
+        "command": "curl -s http://localhost:5000/v2/_catalog",
+        "output_contains": "kestrel/beacon"
       },
-      "description": "container=registry, host_port=5000, container_port=5000"
+      "description": "The depot's catalog lists `kestrel/beacon`"
     },
     {
-      "type": "http_responds",
+      "type": "shell",
       "params": {
-        "url": "http://localhost:5000/v2/",
-        "status": 200
+        "command": "curl -s http://localhost:5000/v2/kestrel/beacon/tags/list",
+        "output_contains": "\"1.0\""
       },
-      "description": "url=http://localhost:5000/v2/, status=200"
+      "description": "The depot has the tag `1.0` for `kestrel/beacon`"
+    },
+    {
+      "type": "shell",
+      "params": {
+        "command": "curl -s -o /dev/null -w '%{http_code}' -H 'Accept: application/vnd.oci.image.index.v1+json, application/vnd.oci.image.manifest.v1+json, application/vnd.docker.distribution.manifest.v2+json' http://localhost:5000/v2/kestrel/beacon/manifests/1.0",
+        "output_equals": "200"
+      },
+      "description": "The manifest for `kestrel/beacon:1.0` can be fetched from the depot"
     }
   ],
-  "initialState": {
-    "summary": "Clean Docker environment",
-    "workspaceFiles": []
-  }
+  "solution": [
+    "docker tag kestrel/beacon:1.0 localhost:5000/kestrel/beacon:1.0",
+    "docker push localhost:5000/kestrel/beacon:1.0"
+  ],
+  "debrief": "The registry host is part of an image's name, so pushing somewhere new always starts with `docker tag`. Pro tip: a tag is only a pointer, so tagging costs nothing and the push uploads each layer once."
 }

@@ -1,354 +1,603 @@
 {
   "id": 2,
-  "title": "Images & Dockerfile",
-  "theme": "Building your own images",
+  "title": "Instrument Images",
+  "theme": "Package every instrument's software into proper images",
   "totalLevels": 8,
   "missions": [
     {
       "id": "module_02_level_01",
       "moduleId": 2,
       "levelId": 1,
-      "title": "Pull an Image",
-      "moduleTitle": "Images & Dockerfile",
+      "title": "Supplies from the Mainland",
+      "moduleTitle": "Instrument Images",
       "difficulty": "easy",
       "xp": 50,
-      "story": "Before you can deploy, you need the right image. Pull `redis:7-alpine` from Docker Hub — lightweight and battle-tested.",
+      "concepts": [
+        "docker pull",
+        "image tags",
+        "docker tag"
+      ],
+      "story": "PETREL CARGO MANIFEST, voyage 114. Item 22: one \"toolbox\", contents: software. Delivery: by network, because the ship's hold is full of fuel drums. Signed, Captain Rafael Duarte. Scribbled underneath: \"Satellite window opens in ten minutes. Pull it then, not later.\"\n\nIngrid's reply is clipped to the page. Tomasz's old scripts were only tested against BusyBox 1.36, not the newer release already on the machine, so pull exactly `busybox:1.36`. Then give it the station's own name, `kestrel/toolbox:1.0`, so the whole crew refers to one tag. Keep the original tag as well.",
       "objectives": [
-        "Pull image `redis:7-alpine` from Docker Hub"
+        "Pull the image `busybox:1.36` from the registry",
+        "Create a second tag `kestrel/toolbox:1.0` that points at the very same image"
       ],
+      "startingState": "The machine has several images pre-loaded, but `busybox:1.36` is not one of them.",
       "hints": [
-        "`docker pull <image>:<tag>` downloads an image",
-        "`docker pull redis:7-alpine`",
-        "`docker pull redis:7-alpine`"
+        "Images are downloaded from a registry, and every image can carry more than one name (tag). Downloading and renaming are two different commands.",
+        "Use `docker pull NAME:TAG` to fetch a specific version, and `docker tag SOURCE TARGET` to add a new name to an image that is already local.",
+        "```bash\ndocker pull busybox:1.36\ndocker tag busybox:1.36 kestrel/toolbox:1.0\ndocker images\n```"
       ],
+      "setup": {
+        "files": [],
+        "commands": []
+      },
       "validation": [
         {
           "type": "image_exists",
           "params": {
-            "name": "redis",
-            "tag": "7-alpine"
+            "ref": "busybox:1.36"
           },
-          "description": "name=redis, tag=7-alpine"
+          "description": "Image `busybox:1.36` is present locally"
+        },
+        {
+          "type": "image_exists",
+          "params": {
+            "ref": "kestrel/toolbox:1.0"
+          },
+          "description": "Image `kestrel/toolbox:1.0` exists"
+        },
+        {
+          "type": "shell",
+          "params": {
+            "command": "[ \"$(docker image inspect -f '{{.Id}}' busybox:1.36)\" = \"$(docker image inspect -f '{{.Id}}' kestrel/toolbox:1.0)\" ] && echo SAME-IMAGE",
+            "output_contains": "SAME-IMAGE"
+          },
+          "description": "`kestrel/toolbox:1.0` and `busybox:1.36` are the same image (identical ID)"
         }
       ],
-      "initialState": {
-        "summary": "Clean Docker environment",
-        "workspaceFiles": []
-      }
+      "solution": [
+        "docker pull busybox:1.36",
+        "docker tag busybox:1.36 kestrel/toolbox:1.0"
+      ],
+      "debrief": "A tag is just a movable label on an image, and `docker tag` adds a name without copying any data. Pro tip: always pull a specific tag, since `latest` can change underneath you."
     },
     {
       "id": "module_02_level_02",
       "moduleId": 2,
       "levelId": 2,
-      "title": "List and Remove Images",
-      "moduleTitle": "Images & Dockerfile",
+      "title": "A Recipe for Greetings",
+      "moduleTitle": "Instrument Images",
       "difficulty": "easy",
-      "xp": 50,
-      "story": "The local image store is cluttered with old images consuming disk space. Remove the image `busybox:latest` to free space.",
+      "xp": 60,
+      "concepts": [
+        "Dockerfile",
+        "FROM / COPY / CMD",
+        "docker build -t"
+      ],
+      "story": "#general, 09:12.\n\nKip: ok so I wrote a script that prints the morning greeting on the lobby screen and it works on my laptop!!! Amara says that is \"not a deployment\". what is a Dockerfile??\n\nAmara: Kip's script is `/workspace/greet.sh`. Write a Dockerfile that starts from `alpine:3.20`, copies the script into the image, and makes it the default command. Build it as `kestrel/greeter:1.0`. If a plain `docker run kestrel/greeter:1.0` greets the lobby, Kip has shipped their first image.",
       "objectives": [
-        "Remove image `busybox:latest`"
+        "Write `/workspace/Dockerfile` that starts `FROM alpine:3.20`, copies `greet.sh` into the image and runs it by default",
+        "Build the image with the tag `kestrel/greeter:1.0`"
       ],
+      "startingState": "`/workspace/greet.sh` exists and is executable. There is no Dockerfile yet.",
       "hints": [
-        "`docker images` lists local images; `docker rmi <image>` removes one",
-        "`docker rmi busybox:latest`",
-        "`docker rmi busybox:latest`"
+        "A Dockerfile is a text file of build instructions. Each instruction adds a step, and `docker build` turns the file plus a folder of files (the build context) into an image.",
+        "You need three instructions: `FROM` for the starting image, `COPY` to bring `greet.sh` in from the build context, and `CMD` for what runs by default. Then `docker build -t NAME:TAG .` from the folder that holds the Dockerfile.",
+        "```bash\ncat > Dockerfile <<'EOF'\nFROM alpine:3.20\nCOPY greet.sh /app/greet.sh\nCMD [\"/app/greet.sh\"]\nEOF\ndocker build -t kestrel/greeter:1.0 .\ndocker run --rm kestrel/greeter:1.0\n```"
       ],
+      "setup": {
+        "files": [
+          {
+            "path": "greet.sh",
+            "content": "#!/bin/sh\necho \"Good morning, Kestrel Point! Sunrise in 41 minutes. Wind 12 knots from the north.\"\n"
+          }
+        ],
+        "commands": [
+          "chmod +x greet.sh"
+        ]
+      },
       "validation": [
         {
-          "type": "image_not_exists",
+          "type": "workspace_file",
           "params": {
-            "name": "busybox",
-            "tag": "latest"
+            "path": "Dockerfile",
+            "contains": "FROM alpine:3.20"
           },
-          "description": "name=busybox, tag=latest"
+          "description": "`/workspace/Dockerfile` starts from `alpine:3.20`"
+        },
+        {
+          "type": "image_exists",
+          "params": {
+            "ref": "kestrel/greeter:1.0"
+          },
+          "description": "Image `kestrel/greeter:1.0` exists"
+        },
+        {
+          "type": "image_run",
+          "params": {
+            "ref": "kestrel/greeter:1.0",
+            "output_contains": "Good morning, Kestrel Point"
+          },
+          "description": "Running `kestrel/greeter:1.0` with no arguments prints the greeting"
         }
       ],
-      "initialState": {
-        "summary": "Image `busybox:latest` pre-pulled",
-        "workspaceFiles": []
-      }
+      "solution": [
+        "cat > Dockerfile <<'EOF'\nFROM alpine:3.20\nCOPY greet.sh /app/greet.sh\nCMD [\"/app/greet.sh\"]\nEOF",
+        "docker build -t kestrel/greeter:1.0 ."
+      ],
+      "debrief": "Your script now ships with its own runtime: `FROM` chose the base, `COPY` brought the file in and `CMD` decided what runs. Pro tip: keep the build context small and the Dockerfile at its root, so a plain `docker build .` always works."
     },
     {
       "id": "module_02_level_03",
       "moduleId": 2,
       "levelId": 3,
-      "title": "Your First Dockerfile",
-      "moduleTitle": "Images & Dockerfile",
+      "title": "Tools for the Field Kit",
+      "moduleTitle": "Instrument Images",
       "difficulty": "easy",
-      "xp": 50,
-      "story": "It's time to build something. Create a Dockerfile that starts from `alpine:3.18`, sets maintainer label `maintainer=recruit`, and runs `echo \"Mission Ready\"` as the default command.",
+      "xp": 75,
+      "concepts": [
+        "RUN",
+        "apk add --no-cache",
+        "image size"
+      ],
+      "story": "FIELD KIT PACKING LIST, laminated, signed I. Halvorsen.\n[x] Boots, two pairs\n[x] Satellite phone\n[ ] `curl`, to poll the weather feed\n[ ] `jq`, to read what the feed sends back\n\nThe last two are software. The field laptops run a container image, and plain `alpine:3.20` ships with neither tool. Build `kestrel/fieldkit:1.0` on top of `alpine:3.20` with both installed. Alpine's package manager is `apk`, and the satellite link is slow, so keep the image under 30 MB.",
       "objectives": [
-        "Write a `Dockerfile` in `/workspace`",
-        "Build it as image `mission-image:v1`"
+        "Write `/workspace/Dockerfile` based on `alpine:3.20` that installs `curl` and `jq` with `apk`",
+        "Build the image as `kestrel/fieldkit:1.0` and keep it under 30 MB"
       ],
+      "startingState": "An empty /workspace. The machine has internet access for downloading Alpine packages.",
       "hints": [
-        "A Dockerfile starts with `FROM`, then `LABEL`, then `CMD`",
-        "```",
-        "Write the Dockerfile above, then `docker build -t mission-image:v1 /workspace`"
+        "Installing software while building an image is done with a `RUN` instruction, which executes a command during the build and saves the result in the image.",
+        "On Alpine the install command is `apk add`. Add `--no-cache` so the package index is not stored in the image, and list both tools in one `RUN` line.",
+        "```bash\ncat > Dockerfile <<'EOF'\nFROM alpine:3.20\nRUN apk add --no-cache curl jq\nEOF\ndocker build -t kestrel/fieldkit:1.0 .\ndocker run --rm kestrel/fieldkit:1.0 jq --version\n```"
       ],
+      "setup": {
+        "files": [],
+        "commands": []
+      },
       "validation": [
         {
-          "type": "image_exists",
+          "type": "workspace_file",
           "params": {
-            "name": "mission-image",
-            "tag": "v1"
+            "path": "Dockerfile",
+            "contains": "apk add"
           },
-          "description": "name=mission-image, tag=v1"
+          "description": "`/workspace/Dockerfile` installs packages with `apk add`"
         },
         {
-          "type": "image_label",
+          "type": "image_run",
           "params": {
-            "image": "mission-image:v1",
-            "key": "maintainer",
-            "value": "recruit"
+            "ref": "kestrel/fieldkit:1.0",
+            "entrypoint": "curl",
+            "args": "--version",
+            "output_contains": "curl"
           },
-          "description": "image=mission-image:v1, key=maintainer, value=recruit"
+          "description": "`curl` runs inside `kestrel/fieldkit:1.0`"
+        },
+        {
+          "type": "image_run",
+          "params": {
+            "ref": "kestrel/fieldkit:1.0",
+            "entrypoint": "jq",
+            "args": "--version",
+            "output_contains": "jq-"
+          },
+          "description": "`jq` runs inside `kestrel/fieldkit:1.0`"
+        },
+        {
+          "type": "image_size_under",
+          "params": {
+            "ref": "kestrel/fieldkit:1.0",
+            "mb": 30
+          },
+          "description": "The image is smaller than 30 MB"
         }
       ],
-      "initialState": {
-        "summary": "`/workspace` directory exists and is empty",
-        "workspaceFiles": []
-      }
+      "solution": [
+        "cat > Dockerfile <<'EOF'\nFROM alpine:3.20\nRUN apk add --no-cache curl jq\nEOF",
+        "docker build -t kestrel/fieldkit:1.0 ."
+      ],
+      "debrief": "`RUN` executes during the build and bakes the result into a new layer, and `--no-cache` keeps apk's index files out of that layer. Pro tip: combine related installs in one `RUN` so they share a single layer."
     },
     {
       "id": "module_02_level_04",
       "moduleId": 2,
       "levelId": 4,
-      "title": "ADD vs COPY",
-      "moduleTitle": "Images & Dockerfile",
+      "title": "Celsius or Fahrenheit",
+      "moduleTitle": "Instrument Images",
       "difficulty": "medium",
       "xp": 100,
-      "story": "Your app needs its source code inside the image. Use COPY to add `app.py` from the build context into `/app/app.py` in the image.",
+      "concepts": [
+        "ENTRYPOINT",
+        "CMD",
+        "default arguments"
+      ],
+      "story": "NORA: UNIT MISMATCH. SENSOR GRID REPORTS CELSIUS. LEGACY DISPLAYS EXPECT FAHRENHEIT. FOURTEEN DISPLAYS SHOWING GARBAGE. CONVERTER SCRIPT FOUND AT /WORKSPACE/CONVERT.SH. NO IMAGE FOUND. NO OWNER FOUND.\n\nAmara's script takes a Celsius value as its first argument and defaults to 0. Package it as `kestrel/converter:1.0` so the image behaves like a command: `docker run kestrel/converter:1.0 100` must print `212.0 F`, and with no argument at all it must convert the default 0 and print `32.0 F`.\n\nThe trick is making the arguments replace the default instead of being appended to it.",
       "objectives": [
-        "Write a Dockerfile using `FROM python:3.11-alpine`, `COPY app.py /app/app.py`, `CMD [\"python\", \"/app/app.py\"]`",
-        "Build as `pyapp:v1`"
+        "Build `kestrel/converter:1.0` from `alpine:3.20` containing `convert.sh`",
+        "`docker run kestrel/converter:1.0` prints `32.0 F` (default argument 0)",
+        "`docker run kestrel/converter:1.0 100` prints `212.0 F` (argument replaces the default)"
       ],
+      "startingState": "`/workspace/convert.sh` exists and is executable. No Dockerfile has been written.",
       "hints": [
-        "`COPY <src> <dest>` copies files from build context to image",
-        "Dockerfile with FROM, COPY, CMD; build with `docker build -t pyapp:v1 /workspace`",
-        "Write the Dockerfile, then `docker build -t pyapp:v1 /workspace`"
+        "Two Dockerfile instructions control what runs at start: one fixes the program itself, the other supplies default arguments that anything after the image name replaces.",
+        "Put the script in `ENTRYPOINT` using the JSON (exec) form, and the default value in `CMD`, also in JSON form. Whatever you type after the image name replaces `CMD` only.",
+        "```bash\ncat > Dockerfile <<'EOF'\nFROM alpine:3.20\nCOPY convert.sh /app/convert.sh\nENTRYPOINT [\"/app/convert.sh\"]\nCMD [\"0\"]\nEOF\ndocker build -t kestrel/converter:1.0 .\ndocker run --rm kestrel/converter:1.0 100\n```"
       ],
+      "setup": {
+        "files": [
+          {
+            "path": "convert.sh",
+            "content": "#!/bin/sh\nawk -v c=\"${1:-0}\" 'BEGIN { printf \"%.1f F\\n\", c * 9 / 5 + 32 }'\n"
+          }
+        ],
+        "commands": [
+          "chmod +x convert.sh"
+        ]
+      },
       "validation": [
         {
-          "type": "image_exists",
+          "type": "image_inspect",
           "params": {
-            "name": "pyapp",
-            "tag": "v1"
+            "ref": "kestrel/converter:1.0",
+            "path": "Config.Entrypoint",
+            "exists": true
           },
-          "description": "name=pyapp, tag=v1"
+          "description": "`kestrel/converter:1.0` defines an ENTRYPOINT"
         },
         {
-          "type": "file_in_image",
+          "type": "image_run",
           "params": {
-            "image": "pyapp:v1",
-            "path": "/app/app.py"
+            "ref": "kestrel/converter:1.0",
+            "output_contains": "32.0 F"
           },
-          "description": "image=pyapp:v1, path=/app/app.py"
+          "description": "With no arguments the image prints `32.0 F`"
+        },
+        {
+          "type": "image_run",
+          "params": {
+            "ref": "kestrel/converter:1.0",
+            "args": "100",
+            "output_contains": "212.0 F"
+          },
+          "description": "With the argument `100` the image prints `212.0 F`"
         }
       ],
-      "initialState": {
-        "summary": "`/workspace/app.py` pre-created with `print(\"hello docker\")`",
-        "workspaceFiles": [
-          {
-            "path": "app.py",
-            "content": "print(\"hello docker\")\n"
-          }
-        ]
-      }
+      "solution": [
+        "cat > Dockerfile <<'EOF'\nFROM alpine:3.20\nCOPY convert.sh /app/convert.sh\nENTRYPOINT [\"/app/convert.sh\"]\nCMD [\"0\"]\nEOF",
+        "docker build -t kestrel/converter:1.0 ."
+      ],
+      "debrief": "`ENTRYPOINT` is the fixed program and `CMD` is its default arguments, which `docker run IMAGE args` replaces. Pro tip: `docker run --entrypoint sh` overrides the entrypoint itself when you need to debug an image."
     },
     {
       "id": "module_02_level_05",
       "moduleId": 2,
       "levelId": 5,
-      "title": "RUN Commands",
-      "moduleTitle": "Images & Dockerfile",
+      "title": "Label the Crates",
+      "moduleTitle": "Instrument Images",
       "difficulty": "medium",
-      "xp": 100,
-      "story": "A bare OS image needs software installed. Build an image based on `ubuntu:22.04` that has `curl` installed.",
+      "xp": 120,
+      "concepts": [
+        "LABEL",
+        "ENV",
+        "WORKDIR",
+        "ARG / --build-arg"
+      ],
+      "story": "Taped to crate 0417, in Tomasz's capital letters:\n\nTHE INVENTORY SYSTEM READS METADATA FROM THE IMAGE, NOT FROM ANYONE'S MEMORY. EVERY CRATE IMAGE NEEDS A STATION LABEL, ITS OWN CRATE ID, AND A KNOWN WORKING DIRECTORY. THE CRATE ID MUST NOT BE TYPED INTO THE FILE; IT IS PASSED IN AT BUILD TIME, OR WE WILL FORGET TO CHANGE IT.\n\nBuild `kestrel/crate:2.0` from `alpine:3.20` with a label `station=kestrel-point`, a label and an environment variable both carrying the crate ID `C-0417` (supplied as a build argument), and the working directory `/crate`.",
       "objectives": [
-        "Write a Dockerfile: `FROM ubuntu:22.04`, `RUN apt-get update && apt-get install -y curl`",
-        "Build as `curl-box:v1`",
-        "Verify: run a container from `curl-box:v1` and confirm `curl --version` works"
+        "Build `kestrel/crate:2.0` from `alpine:3.20` with `docker build --build-arg CRATE_ID=C-0417`",
+        "Label `station=kestrel-point` and label `crate-id` equal to the build argument value",
+        "Environment variable `CRATE_ID` equal to the same value, and `WORKDIR /crate`"
       ],
+      "startingState": "An empty /workspace. No Dockerfile exists.",
       "hints": [
-        "`RUN` executes commands during image build",
-        "Chain commands with `&&` to minimize layers",
-        "`RUN apt-get update && apt-get install -y curl`"
+        "Image metadata is set by Dockerfile instructions that describe the image rather than doing work. A build-time variable is declared with one instruction and fed a value from the command line.",
+        "Declare `ARG CRATE_ID`, then reuse it as `$CRATE_ID` in `ENV` and `LABEL`. Use `WORKDIR` for the directory, and pass the value with `docker build --build-arg NAME=value`. Give the ARG a default like `UNASSIGNED` so a forgotten flag is obvious.",
+        "```bash\ncat > Dockerfile <<'EOF'\nFROM alpine:3.20\nARG CRATE_ID=UNASSIGNED\nLABEL station=\"kestrel-point\" crate-id=\"$CRATE_ID\"\nENV CRATE_ID=$CRATE_ID\nWORKDIR /crate\nEOF\ndocker build --build-arg CRATE_ID=C-0417 -t kestrel/crate:2.0 .\n```"
       ],
+      "setup": {
+        "files": [],
+        "commands": []
+      },
       "validation": [
         {
-          "type": "image_exists",
+          "type": "image_inspect",
           "params": {
-            "name": "curl-box",
-            "tag": "v1"
+            "ref": "kestrel/crate:2.0",
+            "path": "Config.Labels.station",
+            "equals": "kestrel-point"
           },
-          "description": "name=curl-box, tag=v1"
+          "description": "Label `station` is `kestrel-point`"
         },
         {
-          "type": "binary_in_image",
+          "type": "image_inspect",
           "params": {
-            "image": "curl-box:v1",
-            "binary": "curl"
+            "ref": "kestrel/crate:2.0",
+            "path": "Config.Labels.crate-id",
+            "equals": "C-0417"
           },
-          "description": "image=curl-box:v1, binary=curl"
+          "description": "Label `crate-id` is `C-0417` (from the build argument)"
+        },
+        {
+          "type": "image_inspect",
+          "params": {
+            "ref": "kestrel/crate:2.0",
+            "path": "Config.Env",
+            "contains": "CRATE_ID=C-0417"
+          },
+          "description": "Environment variable `CRATE_ID=C-0417` is set in the image"
+        },
+        {
+          "type": "image_inspect",
+          "params": {
+            "ref": "kestrel/crate:2.0",
+            "path": "Config.WorkingDir",
+            "equals": "/crate"
+          },
+          "description": "The working directory is `/crate`"
         }
       ],
-      "initialState": {
-        "summary": "`/workspace` is empty",
-        "workspaceFiles": []
-      }
+      "solution": [
+        "cat > Dockerfile <<'EOF'\nFROM alpine:3.20\nARG CRATE_ID=UNASSIGNED\nLABEL station=\"kestrel-point\" crate-id=\"$CRATE_ID\"\nENV CRATE_ID=$CRATE_ID\nWORKDIR /crate\nEOF",
+        "docker build --build-arg CRATE_ID=C-0417 -t kestrel/crate:2.0 ."
+      ],
+      "debrief": "`ARG` exists only while building, while `ENV` persists into containers and `LABEL` records metadata that tools can query. Pro tip: read labels back with `docker image inspect -f '{{json .Config.Labels}}' IMAGE | jq`."
     },
     {
       "id": "module_02_level_06",
       "moduleId": 2,
       "levelId": 6,
-      "title": "ENV and WORKDIR",
-      "moduleTitle": "Images & Dockerfile",
+      "title": "Leave the Secrets Ashore",
+      "moduleTitle": "Instrument Images",
       "difficulty": "medium",
-      "xp": 100,
-      "story": "Well-structured images define their working directory and bake in environment configuration. Build an image with `WORKDIR /app` and `ENV NODE_ENV=production`.",
+      "xp": 125,
+      "concepts": [
+        ".dockerignore",
+        "build context",
+        "image size"
+      ],
+      "story": "RADIO, 11:58. Rafael Duarte, wind in the microphone.\n\n\"Engineer, the mainland lab pulls whatever image you hand me, and they scan it. Last time they found a credentials file inside and sent it straight back. Slow link, no second chances.\"\n\nThe `/workspace` folder holds the outbound report, a `secrets.env` full of credentials, and a 40 MB `raw/` folder of ice-dump data. The provided Dockerfile copies the whole folder with `COPY . /app`. Build `kestrel/outbound:1.0` from it so the report goes out and neither `secrets.env` nor `raw/` does. Do not change the Dockerfile.",
       "objectives": [
-        "Write a Dockerfile: `FROM node:18-alpine`, `WORKDIR /app`, `ENV NODE_ENV=production`, `CMD [\"node\", \"-e\", \"console.log(process.env.NODE_ENV)\"]`",
-        "Build as `node-app:v1`"
+        "Create `/workspace/.dockerignore` that excludes `secrets.env` and `raw`",
+        "Build the existing Dockerfile as `kestrel/outbound:1.0` (the image must be under 20 MB)",
+        "The image must contain `report.txt` but neither `secrets.env` nor `raw`"
       ],
+      "startingState": "`/workspace` contains a Dockerfile (`COPY . /app`), `report.txt`, `secrets.env` and `raw/ice-dump.bin` (40 MB).",
       "hints": [
-        "`WORKDIR` sets the working directory; `ENV` sets environment variables",
-        "Both are Dockerfile instructions, one per line",
-        "Write the Dockerfile with all four instructions, then build"
+        "`COPY .` sends everything in the build context into the image. A file named `.dockerignore` next to the Dockerfile tells Docker what to leave out of the context entirely.",
+        "`.dockerignore` lists one pattern per line, like a `.gitignore`. Name the credentials file and the data folder, then rebuild with `docker build -t NAME:TAG .`.",
+        "```bash\nprintf 'secrets.env\\nraw\\n' > .dockerignore\ndocker build -t kestrel/outbound:1.0 .\ndocker run --rm kestrel/outbound:1.0 ls /app\n```"
       ],
+      "setup": {
+        "files": [
+          {
+            "path": "Dockerfile",
+            "content": "FROM alpine:3.20\nWORKDIR /app\nCOPY . /app\nCMD [\"cat\", \"/app/report.txt\"]\n"
+          },
+          {
+            "path": "report.txt",
+            "content": "Kestrel Point weekly report: ice cores logged 14, generators nominal, morale cautious.\n"
+          },
+          {
+            "path": "secrets.env",
+            "content": "MAINLAND_API_KEY=kp-live-93f1c0a7\nMAINLAND_PASSWORD=hunter-two\n"
+          }
+        ],
+        "commands": [
+          "mkdir -p raw && head -c 40000000 /dev/zero > raw/ice-dump.bin"
+        ]
+      },
       "validation": [
         {
-          "type": "image_exists",
+          "type": "workspace_file",
           "params": {
-            "name": "node-app",
-            "tag": "v1"
+            "path": ".dockerignore",
+            "contains": "secrets.env"
           },
-          "description": "name=node-app, tag=v1"
+          "description": "`.dockerignore` excludes `secrets.env`"
         },
         {
-          "type": "env_var_in_image",
+          "type": "workspace_file",
           "params": {
-            "image": "node-app:v1",
-            "key": "NODE_ENV",
-            "value": "production"
+            "path": ".dockerignore",
+            "contains": "raw"
           },
-          "description": "image=node-app:v1, key=NODE_ENV, value=production"
+          "description": "`.dockerignore` excludes `raw`"
         },
         {
-          "type": "workdir_in_image",
+          "type": "image_size_under",
           "params": {
-            "image": "node-app:v1",
-            "path": "/app"
+            "ref": "kestrel/outbound:1.0",
+            "mb": 20
           },
-          "description": "image=node-app:v1, path=/app"
+          "description": "`kestrel/outbound:1.0` is smaller than 20 MB"
+        },
+        {
+          "type": "image_run",
+          "params": {
+            "ref": "kestrel/outbound:1.0",
+            "entrypoint": "ls",
+            "args": "/app",
+            "output_contains": "report.txt",
+            "output_not_contains": "secrets.env"
+          },
+          "description": "The image contains `report.txt` but no `secrets.env` and no `raw` folder"
         }
       ],
-      "initialState": {
-        "summary": "Clean Docker environment",
-        "workspaceFiles": []
-      }
+      "solution": [
+        "printf 'secrets.env\\nraw\\n' > .dockerignore",
+        "docker build -t kestrel/outbound:1.0 ."
+      ],
+      "debrief": "`.dockerignore` filters the build context before anything is sent to the builder, so excluded files cannot leak into any layer and builds get faster. Pro tip: ignore `.git`, `*.env` and bulk data by default in every project."
     },
     {
       "id": "module_02_level_07",
       "moduleId": 2,
       "levelId": 7,
-      "title": "Multi-Stage Build",
-      "moduleTitle": "Images & Dockerfile",
+      "title": "Travel Light",
+      "moduleTitle": "Instrument Images",
       "difficulty": "hard",
       "xp": 200,
-      "story": "Bloated images are a security risk and waste bandwidth. Use a multi-stage build to compile a Go binary in one stage and copy only the binary into a minimal `scratch` or `alpine` final image.",
+      "concepts": [
+        "multi-stage build",
+        "COPY --from",
+        "image size"
+      ],
+      "story": "BUILD LOG, tidegauge, Amara's laptop:\n\n  Step 1/4 : FROM golang:1.23-alpine\n  Successfully tagged kestrel/tidegauge:0.1\n  REPOSITORY         TAG   SIZE\n  kestrel/tidegauge  0.1   318MB\n\nThe tide gauge reader is a 30-line Go program, but the image ships the entire Go toolchain with it. Rafael will carry it over a metered satellite link, and 318 MB for one tiny tool is absurd.\n\nBuild `kestrel/tidegauge:1.0` in two stages: compile with `golang:1.23-alpine`, then ship only the binary on `alpine:3.20`. It must come in under 25 MB and carry no Go toolchain.",
       "objectives": [
-        "Write a multi-stage Dockerfile:",
-        "Stage 1 (`builder`): `FROM golang:1.21-alpine AS builder`, copy `main.go`, run `go build -o app .`",
-        "Stage 2: `FROM alpine:3.18`, `COPY --from=builder /build/app /app`, `CMD [\"/app\"]`",
-        "Build as `go-app:v1`",
-        "Final image size should be under 20MB"
+        "Write a multi-stage `/workspace/Dockerfile`: build stage on `golang:1.23-alpine`, final stage on `alpine:3.20`",
+        "Build `kestrel/tidegauge:1.0` (under 25 MB) whose default command prints the tide reading",
+        "The final image must not contain the `go` toolchain"
       ],
+      "startingState": "`/workspace` holds `main.go` and `go.mod` for the tide gauge reader. There is no Dockerfile.",
       "hints": [
-        "Multi-stage builds use multiple `FROM` lines; `COPY --from=<stage>` copies between stages",
-        "The builder stage has all dev tools; the final stage is lean",
-        "See the multi-stage Dockerfile structure in the objectives"
+        "A Dockerfile can contain several `FROM` lines. Each starts a new stage, and only the last stage becomes the final image, so build tools can live in an earlier stage and be left behind.",
+        "Name the first stage with `FROM ... AS build`, compile there with `go build`, then in the final stage use `COPY --from=build` to take just the binary. Setting `CGO_ENABLED=0` yields a static binary.",
+        "```bash\ncat > Dockerfile <<'EOF'\nFROM golang:1.23-alpine AS build\nWORKDIR /src\nCOPY go.mod main.go ./\nRUN CGO_ENABLED=0 go build -o /out/tidegauge .\n\nFROM alpine:3.20\nCOPY --from=build /out/tidegauge /usr/local/bin/tidegauge\nENTRYPOINT [\"tidegauge\"]\nEOF\ndocker build -t kestrel/tidegauge:1.0 .\n```"
       ],
+      "setup": {
+        "files": [
+          {
+            "path": "main.go",
+            "content": "package main\n\nimport \"fmt\"\n\nfunc main() {\n\tfmt.Println(\"Tide gauge: 1.42 m, rising\")\n}\n"
+          },
+          {
+            "path": "go.mod",
+            "content": "module tidegauge\n\ngo 1.23\n"
+          }
+        ],
+        "commands": []
+      },
       "validation": [
         {
-          "type": "image_exists",
+          "type": "workspace_file",
           "params": {
-            "name": "go-app",
-            "tag": "v1"
+            "path": "Dockerfile",
+            "matches": "FROM\\s+golang:1\\.23-alpine"
           },
-          "description": "name=go-app, tag=v1"
+          "description": "The Dockerfile builds on `golang:1.23-alpine`"
+        },
+        {
+          "type": "image_run",
+          "params": {
+            "ref": "kestrel/tidegauge:1.0",
+            "output_contains": "Tide gauge"
+          },
+          "description": "`kestrel/tidegauge:1.0` prints the tide reading by default"
         },
         {
           "type": "image_size_under",
           "params": {
-            "image": "go-app:v1",
-            "max_mb": 20
+            "ref": "kestrel/tidegauge:1.0",
+            "mb": 25
           },
-          "description": "image=go-app:v1, max_mb=20"
+          "description": "`kestrel/tidegauge:1.0` is smaller than 25 MB"
         },
         {
-          "type": "Container runs successfully",
-          "params": {},
-          "description": "Container runs successfully"
+          "type": "image_run",
+          "params": {
+            "ref": "kestrel/tidegauge:1.0",
+            "entrypoint": "which",
+            "args": "go",
+            "exit_code": 1
+          },
+          "description": "The `go` toolchain is not in the final image"
         }
       ],
-      "initialState": {
-        "summary": "`/workspace/main.go` pre-created (a simple Hello World Go program)",
-        "workspaceFiles": [
-          {
-            "path": "main.go",
-            "content": "package main\n\nimport \"fmt\"\n\nfunc main() {\n  fmt.Println(\"hello from DockerMissions\")\n}\n"
-          }
-        ]
-      }
+      "solution": [
+        "cat > Dockerfile <<'EOF'\nFROM golang:1.23-alpine AS build\nWORKDIR /src\nCOPY go.mod main.go ./\nRUN CGO_ENABLED=0 go build -o /out/tidegauge .\n\nFROM alpine:3.20\nCOPY --from=build /out/tidegauge /usr/local/bin/tidegauge\nENTRYPOINT [\"tidegauge\"]\nEOF",
+        "docker build -t kestrel/tidegauge:1.0 ."
+      ],
+      "debrief": "In a multi-stage build only the last stage is shipped, so compilers and sources stay behind in earlier stages. Pro tip: `docker build --target build .` stops at a named stage, which is handy for debugging the build step alone."
     },
     {
       "id": "module_02_level_08",
       "moduleId": 2,
       "levelId": 8,
-      "title": ".dockerignore",
-      "moduleTitle": "Images & Dockerfile",
-      "difficulty": "medium",
-      "xp": 100,
-      "story": "Your build context is huge because it includes `node_modules` and `.git`. Create a `.dockerignore` file to exclude them and speed up builds.",
+      "title": "Ghost in the Layers",
+      "moduleTitle": "Instrument Images",
+      "difficulty": "hard",
+      "xp": 225,
+      "concepts": [
+        "image layers",
+        "docker history",
+        "docker save"
+      ],
+      "story": "From: Tomasz Wierzba\nSubject: URGENT, a password I deleted is still there\n\nThe legacy image `kestrel/legacy-archive:0.9` was built years ago. Its Dockerfile copied in a credentials file and then ran `rm` on it in the next step, so I assumed the password was gone. Wren's predecessor says it is not. Prove it.\n\nRecover the archive password from the image's layers and write it to `/workspace/recovered.txt`. The original source folder was deleted, so you only have the image. Then build a clean `kestrel/archive-clean:1.0` from `alpine:3.20` that ships `/workspace/index.txt` as `/srv/archive/index.txt`, with no trace of the password in any layer.",
       "objectives": [
-        "Create `/workspace/.dockerignore` that excludes `node_modules` and `.git`",
-        "Build image `clean-build:v1` from the existing Dockerfile in `/workspace`",
-        "Verify the build context sent to daemon is under 1KB"
+        "Recover the archive password (the `ARCHIVE_PASSWORD` value) from the layers of `kestrel/legacy-archive:0.9` and write it to `/workspace/recovered.txt`",
+        "Build `kestrel/archive-clean:1.0` from `alpine:3.20` that contains `/srv/archive/index.txt`",
+        "The clean image must have no password file and no trace of the password in its history"
       ],
+      "startingState": "The image `kestrel/legacy-archive:0.9` exists locally. `/workspace/index.txt` is the new archive index. The old build folder no longer exists.",
       "hints": [
-        "`.dockerignore` works like `.gitignore` — list patterns to exclude from build context",
-        "Add `node_modules` and `.git` on separate lines",
-        "Create `.dockerignore` with those two entries, then `docker build -t clean-build:v1 /workspace`"
+        "A deleted file is only hidden by a newer layer. The earlier layer that added it is still stored inside the image, and `docker history` lists the steps that created each layer.",
+        "Export the image with `docker save IMAGE -o file.tar` and unpack it with `tar`. Every layer is a gzipped tarball under `blobs/`; list their contents with `tar -tzf` until you find the file that `docker history` shows being copied in, then extract just that file to stdout. For the clean image, never copy the credentials file in at all.",
+        "```bash\ndocker history --no-trunc kestrel/legacy-archive:0.9\ndocker save kestrel/legacy-archive:0.9 -o legacy.tar\nmkdir -p x && tar -xf legacy.tar -C x\nfor b in x/blobs/sha256/*; do tar -tzf $b 2>/dev/null | grep -q archive.cred && tar -xzOf $b etc/archive.cred; done\n# write the password value to recovered.txt, then build an image from FROM + COPY index.txt only\n```"
       ],
+      "setup": {
+        "files": [
+          {
+            "path": "index.txt",
+            "content": "ice-core index, season 7: cores 1-240 catalogued\n"
+          }
+        ],
+        "commands": [
+          "mkdir -p /tmp/legacy-build && cd /tmp/legacy-build && printf 'ARCHIVE_PASSWORD=Borealis-7714-Tern\\n' > archive.cred && printf 'FROM alpine:3.20\\nCOPY archive.cred /etc/archive.cred\\nRUN rm /etc/archive.cred\\nCMD [\"echo\", \"archive ready\"]\\n' > Dockerfile && docker build -q -t kestrel/legacy-archive:0.9 . && cd / && rm -rf /tmp/legacy-build"
+        ]
+      },
       "validation": [
         {
-          "type": "file_exists",
+          "type": "workspace_file",
           "params": {
-            "path": "/workspace/.dockerignore"
+            "path": "recovered.txt",
+            "contains": "Borealis-7714-Tern"
           },
-          "description": "path=/workspace/.dockerignore"
-        },
-        {
-          "type": "dockerignore_excludes",
-          "params": {
-            "entries": "[node_modules, .git]"
-          },
-          "description": "entries=[node_modules, .git]"
+          "description": "`/workspace/recovered.txt` contains the recovered password"
         },
         {
           "type": "image_exists",
           "params": {
-            "name": "clean-build",
-            "tag": "v1"
+            "ref": "kestrel/archive-clean:1.0"
           },
-          "description": "name=clean-build, tag=v1"
+          "description": "Image `kestrel/archive-clean:1.0` exists"
+        },
+        {
+          "type": "image_run",
+          "params": {
+            "ref": "kestrel/archive-clean:1.0",
+            "entrypoint": "cat",
+            "args": "/srv/archive/index.txt",
+            "output_contains": "ice-core index"
+          },
+          "description": "The clean image ships `/srv/archive/index.txt`"
+        },
+        {
+          "type": "image_run",
+          "params": {
+            "ref": "kestrel/archive-clean:1.0",
+            "entrypoint": "ls",
+            "args": "/etc/archive.cred",
+            "exit_code": 1
+          },
+          "description": "The clean image has no `/etc/archive.cred`"
+        },
+        {
+          "type": "image_history",
+          "params": {
+            "ref": "kestrel/archive-clean:1.0",
+            "not_contains": "archive.cred"
+          },
+          "description": "The clean image's history never mentions the credentials"
         }
       ],
-      "initialState": {
-        "summary": "`/workspace` contains a Dockerfile, a small `index.js`, large `node_modules/` (fake, 100MB), `.git/`",
-        "workspaceFiles": []
-      }
+      "solution": [
+        "docker save kestrel/legacy-archive:0.9 -o /tmp/legacy.tar && mkdir -p /tmp/x && tar -xf /tmp/legacy.tar -C /tmp/x && for b in /tmp/x/blobs/sha256/*; do tar -tzf $b 2>/dev/null | grep -q archive.cred && tar -xzOf $b etc/archive.cred; done | sed 's/ARCHIVE_PASSWORD=//' > recovered.txt; cat recovered.txt",
+        "printf 'FROM alpine:3.20\\nCOPY index.txt /srv/archive/index.txt\\n' > Dockerfile",
+        "docker build -t kestrel/archive-clean:1.0 ."
+      ],
+      "debrief": "Image layers are append-only: deleting a file in a later layer only hides it, and anyone with the image can pull it back out. Pro tip: never COPY a secret into a build, and if you must use one, use a BuildKit secret mount so it never lands in a layer."
     }
   ]
 }

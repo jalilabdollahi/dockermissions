@@ -1,332 +1,590 @@
 {
   "id": 8,
-  "title": "Advanced Docker",
-  "theme": "Optimization & production patterns",
+  "title": "Polar Night",
+  "theme": "Advanced tooling, resilience and cleanup for the long dark",
   "totalLevels": 7,
   "missions": [
     {
       "id": "module_08_level_01",
       "moduleId": 8,
       "levelId": 1,
-      "title": "BuildKit and Build Cache",
-      "moduleTitle": "Advanced Docker",
+      "title": "Don't Download Twice",
+      "moduleTitle": "Polar Night",
       "difficulty": "medium",
-      "xp": 100,
-      "story": "Docker BuildKit dramatically speeds up builds using intelligent caching and parallel execution. Enable BuildKit and rebuild an existing image to see cache hits.",
+      "xp": 125,
+      "concepts": [
+        "BuildKit cache mount",
+        "RUN --mount=type=cache",
+        "pip cache"
+      ],
+      "story": "**From:** Amara Okafor\n**Subject:** climate-fetch rebuilds are eating the satellite budget\n\nEvery time I touch one line of `requirements.txt`, pip downloads every package again. The Dockerfile even has `--no-cache-dir` in it, because someone once told me that keeps images small. Ten rebuilds a day over a metered link adds up fast.\n\nCan you make the build keep pip's download cache between builds, without baking the cache into the image? Build the result as `kestrel/climate-fetch:1.0`.",
       "objectives": [
-        "Set `DOCKER_BUILDKIT=1` environment variable",
-        "Build `cached-app:v1` from `/workspace/Dockerfile`",
-        "Modify only `index.html` (not the Dockerfile) and rebuild as `cached-app:v2`",
-        "Confirm the second build uses cache for unchanged layers"
+        "Edit `/workspace/Dockerfile` so the pip install step uses a BuildKit cache mount on `/root/.cache/pip`",
+        "Remove `--no-cache-dir` from the install step",
+        "Build the image as `kestrel/climate-fetch:1.0`; it must still run and print `climate-fetch ready`"
       ],
+      "startingState": "`/workspace` holds a working Dockerfile, `requirements.txt` and `fetch.py` for the climate-fetch tool, but nothing has been built yet.",
       "hints": [
-        "`DOCKER_BUILDKIT=1 docker build ...` enables BuildKit",
-        "Or set in Docker daemon config: `\"features\": {\"buildkit\": true}`",
-        "`DOCKER_BUILDKIT=1 docker build -t cached-app:v2 /workspace`"
+        "The build engine (BuildKit) can mount a directory that persists between builds but never becomes part of an image layer. That is exactly what a package manager's download cache needs.",
+        "Attach it to the install step with `RUN --mount=type=cache,target=DIR ...`. pip's cache lives in `/root/.cache/pip`, and `--no-cache-dir` would tell pip to ignore it, so it has to go.",
+        "```dockerfile\nFROM python:3.12-alpine\nWORKDIR /app\nCOPY requirements.txt .\nRUN --mount=type=cache,target=/root/.cache/pip \\\n    pip install -r requirements.txt\nCOPY fetch.py .\nCMD [\"python\", \"fetch.py\"]\n```\nThen `docker build -t kestrel/climate-fetch:1.0 .`"
       ],
-      "validation": [
-        {
-          "type": "image_exists",
-          "params": {
-            "name": "cached-app",
-            "tag": "v1"
-          },
-          "description": "name=cached-app, tag=v1"
-        },
-        {
-          "type": "image_exists",
-          "params": {
-            "name": "cached-app",
-            "tag": "v2"
-          },
-          "description": "name=cached-app, tag=v2"
-        },
-        {
-          "type": "build_used_cache",
-          "params": {
-            "image": "cached-app:v2"
-          },
-          "description": "image=cached-app:v2"
-        }
-      ],
-      "initialState": {
-        "summary": "`/workspace` with Dockerfile and source files",
-        "workspaceFiles": [
+      "setup": {
+        "files": [
           {
             "path": "Dockerfile",
-            "content": "FROM nginx:latest\nCOPY index.html /usr/share/nginx/html/index.html\n"
+            "content": "FROM python:3.12-alpine\nWORKDIR /app\nCOPY requirements.txt .\nRUN pip install --no-cache-dir -r requirements.txt\nCOPY fetch.py .\nCMD [\"python\", \"fetch.py\"]\n"
           },
           {
-            "path": "index.html",
-            "content": "<h1>Cache me if you can</h1>\n"
+            "path": "requirements.txt",
+            "content": "python-dateutil==2.9.0.post0\n"
+          },
+          {
+            "path": "fetch.py",
+            "content": "import dateutil.parser\nprint('climate-fetch ready', dateutil.parser.parse('2026-06-21').year)\n"
           }
-        ]
-      }
+        ],
+        "commands": []
+      },
+      "validation": [
+        {
+          "type": "workspace_file",
+          "params": {
+            "path": "Dockerfile",
+            "matches": "--mount=type=cache[^\\n]*/root/\\.cache/pip",
+            "not_contains": "--no-cache-dir"
+          },
+          "description": "The Dockerfile installs with `RUN --mount=type=cache,target=/root/.cache/pip` and without `--no-cache-dir`"
+        },
+        {
+          "type": "image_exists",
+          "params": {
+            "ref": "kestrel/climate-fetch:1.0"
+          },
+          "description": "The image `kestrel/climate-fetch:1.0` exists"
+        },
+        {
+          "type": "image_run",
+          "params": {
+            "ref": "kestrel/climate-fetch:1.0",
+            "output_contains": "climate-fetch ready"
+          },
+          "description": "`kestrel/climate-fetch:1.0` runs and prints `climate-fetch ready`"
+        }
+      ],
+      "solution": [
+        "cat > Dockerfile <<'EOF'\nFROM python:3.12-alpine\nWORKDIR /app\nCOPY requirements.txt .\nRUN --mount=type=cache,target=/root/.cache/pip \\\n    pip install -r requirements.txt\nCOPY fetch.py .\nCMD [\"python\", \"fetch.py\"]\nEOF",
+        "docker build -t kestrel/climate-fetch:1.0 ."
+      ],
+      "debrief": "The second build skipped the download because the cache mount survived between builds, and it never became part of a layer, so the image stays lean. Pro tip: the same trick works for `apk` (`/var/cache/apk`), Go (`/root/.cache/go-build`) and `npm`."
     },
     {
       "id": "module_08_level_02",
       "moduleId": 8,
       "levelId": 2,
-      "title": "Cache Mount in BuildKit",
-      "moduleTitle": "Advanced Docker",
+      "title": "Whisper to the Builder",
+      "moduleTitle": "Polar Night",
       "difficulty": "hard",
-      "xp": 200,
-      "story": "Package manager downloads are slow and happen on every build. Use BuildKit's `--mount=type=cache` to cache `apt` downloads across builds.",
+      "xp": 175,
+      "concepts": [
+        "BuildKit secrets",
+        "RUN --mount=type=secret",
+        "docker history"
+      ],
+      "story": "Excerpt from the mainland's image-scan report on `kestrel/uplink:0.9`:\n\n`FINDING HIGH  layer 2  ARG MAINLAND_TOKEN=KP-4e9b... is readable with docker history`\n\nThe uplink build has to prove it can authenticate, so it really does need the mainland token while it builds. But the token must not survive in any layer, environment variable or history line. The token file is `/workspace/secrets/mainland.token`.\n\nRewrite the Dockerfile so BuildKit hands the token over as a secret, and build `kestrel/uplink:1.0`.",
       "objectives": [
-        "Edit `/workspace/Dockerfile` to use `RUN --mount=type=cache,target=/var/cache/apt apt-get install ...`",
-        "Build `cache-mount:v1` and then `cache-mount:v2` (same Dockerfile, second build should be faster)"
+        "Rewrite `/workspace/Dockerfile` to read the token through `RUN --mount=type=secret,id=mainland_token` and drop the `ARG`",
+        "Build `kestrel/uplink:1.0` passing `secrets/mainland.token` as the secret `mainland_token`",
+        "The build still wrote `token-ok` to `/opt/uplink-status`, but the token appears nowhere in the image or its history"
       ],
+      "startingState": "`/workspace/Dockerfile` is the leaky version that takes the token as `ARG MAINLAND_TOKEN`; `/workspace/secrets/mainland.token` holds the token. No image has been built.",
       "hints": [
-        "`RUN --mount=type=cache,target=/var/cache/apt` caches the apt directory",
-        "This is a BuildKit-only feature",
-        "```dockerfile"
+        "Build arguments and environment variables are recorded in image metadata forever. BuildKit has a different channel: a secret is mounted for a single `RUN` step as a temporary file and leaves no trace.",
+        "In the Dockerfile, add `--mount=type=secret,id=NAME` to the `RUN` that needs it; the value appears as the file `/run/secrets/NAME`. At build time supply it with `docker build --secret id=NAME,src=FILE`.",
+        "```dockerfile\nFROM alpine:3.20\nRUN --mount=type=secret,id=mainland_token \\\n    grep -q '^KP-' /run/secrets/mainland_token \\\n    && echo token-ok > /opt/uplink-status\nCMD [\"cat\", \"/opt/uplink-status\"]\n```\n```bash\ndocker build -t kestrel/uplink:1.0 \\\n  --secret id=mainland_token,src=secrets/mainland.token .\n```"
       ],
-      "validation": [
-        {
-          "type": "image_exists",
-          "params": {
-            "name": "cache-mount",
-            "tag": "v1"
-          },
-          "description": "name=cache-mount, tag=v1"
-        },
-        {
-          "type": "image_exists",
-          "params": {
-            "name": "cache-mount",
-            "tag": "v2"
-          },
-          "description": "name=cache-mount, tag=v2"
-        },
-        {
-          "type": "dockerfile_uses_cache_mount",
-          "params": {
-            "path": "/workspace/Dockerfile"
-          },
-          "description": "path=/workspace/Dockerfile"
-        }
-      ],
-      "initialState": {
-        "summary": "`/workspace/Dockerfile` with plain `RUN apt-get install` instructions",
-        "workspaceFiles": [
+      "setup": {
+        "files": [
           {
             "path": "Dockerfile",
-            "content": "FROM ubuntu:22.04\nRUN apt-get update && apt-get install -y curl\n"
+            "content": "FROM alpine:3.20\nARG MAINLAND_TOKEN\nRUN echo \"$MAINLAND_TOKEN\" | grep -q '^KP-' && echo token-ok > /opt/uplink-status\nCMD [\"cat\", \"/opt/uplink-status\"]\n"
+          },
+          {
+            "path": "secrets/mainland.token",
+            "content": "KP-4e9b27d1-polar-7781\n"
           }
-        ]
-      }
+        ],
+        "commands": []
+      },
+      "validation": [
+        {
+          "type": "workspace_file",
+          "params": {
+            "path": "Dockerfile",
+            "matches": "--mount=type=secret[^\\n]*id=mainland_token|--mount=[^\\n]*id=mainland_token[^\\n]*type=secret",
+            "not_contains": "ARG MAINLAND_TOKEN"
+          },
+          "description": "The Dockerfile uses `--mount=type=secret,id=mainland_token` and no longer declares `ARG MAINLAND_TOKEN`"
+        },
+        {
+          "type": "image_exists",
+          "params": {
+            "ref": "kestrel/uplink:1.0"
+          },
+          "description": "The image `kestrel/uplink:1.0` exists"
+        },
+        {
+          "type": "image_run",
+          "params": {
+            "ref": "kestrel/uplink:1.0",
+            "entrypoint": "cat",
+            "args": "/opt/uplink-status",
+            "output_contains": "token-ok"
+          },
+          "description": "The build consumed the token: `/opt/uplink-status` in the image contains `token-ok`"
+        },
+        {
+          "type": "image_history",
+          "params": {
+            "ref": "kestrel/uplink:1.0",
+            "not_contains": "KP-4e9b27d1-"
+          },
+          "description": "The token does not appear in `docker history --no-trunc kestrel/uplink:1.0`"
+        },
+        {
+          "type": "shell",
+          "params": {
+            "command": "if docker image inspect kestrel/uplink:1.0 | grep -q KP-4e9b27d1- || docker run --rm --entrypoint sh kestrel/uplink:1.0 -c 'grep -rsq KP-4e9b27d1- /etc /opt /root /home /tmp /var /usr /app'; then echo LEAK; else echo CLEAN; fi",
+            "output_contains": "CLEAN"
+          },
+          "description": "The token is not stored in the image metadata (env, labels) or anywhere in its filesystem"
+        }
+      ],
+      "solution": [
+        "cat > Dockerfile <<'EOF'\nFROM alpine:3.20\nRUN --mount=type=secret,id=mainland_token \\\n    grep -q '^KP-' /run/secrets/mainland_token \\\n    && echo token-ok > /opt/uplink-status\nCMD [\"cat\", \"/opt/uplink-status\"]\nEOF",
+        "docker build -t kestrel/uplink:1.0 --secret id=mainland_token,src=secrets/mainland.token ."
+      ],
+      "debrief": "A `--build-arg` or `ENV` is written into the image for everyone who can pull it, while a secret mount exists only for the one `RUN` step that asks for it. Pro tip: `--secret id=x,env=VAR` reads the secret from an environment variable instead of a file."
     },
     {
       "id": "module_08_level_03",
       "moduleId": 8,
       "levelId": 3,
-      "title": "Docker Init",
-      "moduleTitle": "Advanced Docker",
+      "title": "A Graceful Goodbye",
+      "moduleTitle": "Polar Night",
       "difficulty": "medium",
-      "xp": 100,
-      "story": "PID 1 in a container must properly handle signals and reap zombie processes. Use `--init` to run an init process as PID 1.",
+      "xp": 150,
+      "concepts": [
+        "--init",
+        "--stop-signal",
+        "--stop-timeout"
+      ],
+      "story": "NORA: `TIDE-LOGGER STOP TOOK 10.0 S. EXIT CODE 137. LAST FLUSH: NEVER. ORPHANED PROCESSES: 41.`\n\nThe tide logger keeps its readings in memory and only writes them out when it receives SIGINT. Docker's default stop sends SIGTERM, which the logger ignores, so after ten seconds the engine kills it and a night of readings is lost. It also leaves defunct child processes behind, because nothing reaps them.\n\nReplace the running `tide-logger` container: give it a proper init process, SIGINT as its stop signal, and a 20-second grace period.",
       "objectives": [
-        "Run container `signal-safe` from `node:18-alpine` with `--init` flag",
-        "Confirm PID 1 is `docker-init` (tini), not the Node process directly"
+        "Remove the old `tide-logger` container and run a new detached `tide-logger` from `kestrel/tide-logger:1.0`",
+        "Run it with Docker's built-in init process (`--init`)",
+        "Stop signal `SIGINT`, grace period of `20` seconds before the kill"
       ],
+      "startingState": "The image `kestrel/tide-logger:1.0` is built and a naive container `tide-logger` is running from it with default settings.",
       "hints": [
-        "`--init` injects a tiny init process (tini) as PID 1",
-        "The actual application becomes a child of PID 1",
-        "`docker run -d --init --name signal-safe node:18-alpine node -e \"setInterval(()=>{}, 1000)\"`"
+        "Two separate problems: the process at PID 1 does not forward or reap anything, and `docker stop` sends a signal the application does not handle. Both are fixed with options on the container, no code changes.",
+        "`--init` puts a tiny init program at PID 1. `--stop-signal SIGINT` changes the signal `docker stop` sends, and `--stop-timeout SECONDS` changes how long it waits before SIGKILL. These are `docker run` flags, so the old container has to be replaced.",
+        "```bash\ndocker rm -f tide-logger\ndocker run -d --name tide-logger \\\n  --init \\\n  --stop-signal SIGINT \\\n  --stop-timeout 20 \\\n  kestrel/tide-logger:1.0\n\ndocker stop tide-logger && docker logs tide-logger | tail -2\n```"
       ],
+      "setup": {
+        "files": [
+          {
+            "path": "tide/Dockerfile",
+            "content": "FROM alpine:3.20\nCOPY logger.sh /logger.sh\nRUN chmod +x /logger.sh\nCMD [\"/logger.sh\"]\n"
+          },
+          {
+            "path": "tide/logger.sh",
+            "content": "#!/bin/sh\nbuf=0\nflush() { echo \"FLUSHED $buf readings\"; exit 0; }\ntrap flush INT\necho \"tide-logger started\"\nwhile true; do\n  buf=$((buf + 1))\n  ( sleep 1 & )\n  sleep 1\ndone\n"
+          }
+        ],
+        "commands": [
+          "docker build -q -t kestrel/tide-logger:1.0 tide",
+          "docker run -d --name tide-logger kestrel/tide-logger:1.0"
+        ]
+      },
       "validation": [
         {
           "type": "container_running",
           "params": {
-            "name": "signal-safe"
+            "name": "tide-logger",
+            "image": "kestrel/tide-logger:1.0"
           },
-          "description": "name=signal-safe"
+          "description": "Container `tide-logger` is running from `kestrel/tide-logger:1.0`"
         },
         {
-          "type": "uses_init",
+          "type": "container_inspect",
           "params": {
-            "container": "signal-safe"
+            "name": "tide-logger",
+            "path": "HostConfig.Init",
+            "equals": true
           },
-          "description": "container=signal-safe"
+          "description": "`tide-logger` runs with an init process (`--init`)"
+        },
+        {
+          "type": "container_inspect",
+          "params": {
+            "name": "tide-logger",
+            "path": "Config.StopSignal",
+            "contains": "INT"
+          },
+          "description": "`tide-logger` has the stop signal `SIGINT`"
+        },
+        {
+          "type": "container_inspect",
+          "params": {
+            "name": "tide-logger",
+            "path": "Config.StopTimeout",
+            "equals": 20
+          },
+          "description": "`tide-logger` has a stop timeout of 20 seconds"
+        },
+        {
+          "type": "container_exec",
+          "params": {
+            "name": "tide-logger",
+            "command": "tr '\\0' ' ' < /proc/1/cmdline",
+            "output_contains": "docker-init"
+          },
+          "description": "PID 1 inside `tide-logger` is the init process, not the logger script"
         }
       ],
-      "initialState": {
-        "summary": "Clean Docker environment",
-        "workspaceFiles": []
-      }
+      "solution": [
+        "docker rm -f tide-logger",
+        "docker run -d --name tide-logger --init --stop-signal SIGINT --stop-timeout 20 kestrel/tide-logger:1.0"
+      ],
+      "debrief": "`docker stop` is a polite request (the stop signal) followed by a deadline (the timeout); if your program answers to a different signal, change the request rather than the program. Pro tip: put `STOPSIGNAL SIGINT` in the Dockerfile to make the right signal the image's default."
     },
     {
       "id": "module_08_level_04",
       "moduleId": 8,
       "levelId": 4,
-      "title": "Docker Context",
-      "moduleTitle": "Advanced Docker",
+      "title": "The Other Station",
+      "moduleTitle": "Polar Night",
       "difficulty": "medium",
       "xp": 100,
-      "story": "Docker contexts let you switch between different Docker daemons (local, remote, production). Create a context named `production` pointing to a remote Docker socket.",
+      "concepts": [
+        "docker context",
+        "context create",
+        "context use"
+      ],
+      "story": "Ingrid, on the handheld radio, voice thin against the wind:\n\n\"Engineer, the hut at Skua Ridge keeps a second Docker engine as our fallback. When we need it, it will be midnight and somebody will be typing endpoints from memory. I don't want that. Give the hut a name the CLI understands, and prove the name works by starting a probe container there. The cable isn't laid yet, so for now point it at the endpoint in `/workspace/hut-endpoint.txt`. Over.\"",
       "objectives": [
-        "Create a Docker context named `production` with host `ssh://deploy@10.0.0.100`",
-        "List contexts to confirm it exists",
-        "Switch back to `default` context after inspection"
+        "Create a context named `backup-station` for the endpoint in `/workspace/hut-endpoint.txt`, with the description `Backup hut engine`",
+        "Make `backup-station` the active context with `docker context use`",
+        "Through that context, run a detached `hut-probe` container from `alpine:3.20` that sleeps (`sleep infinity`)"
       ],
+      "startingState": "Only the `default` context exists. The file `/workspace/hut-endpoint.txt` holds the endpoint to use.",
       "hints": [
-        "`docker context create <name> --docker \"host=<endpoint>\"` creates a context",
-        "`docker context ls` lists all contexts",
-        "`docker context create production --docker \"host=ssh://deploy@10.0.0.100\"`"
+        "The Docker CLI can talk to several engines. A context bundles an endpoint with a name, so switching engines is one short command instead of environment variables or long flags.",
+        "Create it with `docker context create NAME --docker host=ENDPOINT --description TEXT`, then switch to it with `docker context use NAME`. `docker context ls` marks the active one with an asterisk.",
+        "```bash\ndocker context create backup-station \\\n  --docker host=$(cat hut-endpoint.txt) \\\n  --description \"Backup hut engine\"\ndocker context use backup-station\ndocker context show\ndocker run -d --name hut-probe alpine:3.20 sleep infinity\n```"
       ],
+      "setup": {
+        "files": [
+          {
+            "path": "hut-endpoint.txt",
+            "content": "unix:///var/run/docker.sock\n"
+          }
+        ],
+        "commands": []
+      },
       "validation": [
         {
-          "type": "context_exists",
+          "type": "shell",
           "params": {
-            "name": "production"
+            "command": "docker context inspect backup-station --format '{{.Endpoints.docker.Host}}'",
+            "output_contains": "unix:///var/run/docker.sock"
           },
-          "description": "name=production"
+          "description": "A context `backup-station` exists and points at `unix:///var/run/docker.sock`"
         },
         {
-          "type": "context_host",
+          "type": "shell",
           "params": {
-            "name": "production",
-            "host": "ssh://deploy@10.0.0.100"
+            "command": "docker context inspect backup-station | jq -r '.[0].Metadata.Description'",
+            "output_equals": "Backup hut engine"
           },
-          "description": "name=production, host=ssh://deploy@10.0.0.100"
+          "description": "The context `backup-station` has the description `Backup hut engine`"
+        },
+        {
+          "type": "shell",
+          "params": {
+            "command": "docker context show",
+            "output_equals": "backup-station"
+          },
+          "description": "`backup-station` is the active context (`docker context use backup-station`)"
+        },
+        {
+          "type": "container_running",
+          "params": {
+            "name": "hut-probe",
+            "image": "alpine:3.20"
+          },
+          "description": "Container `hut-probe` is running from `alpine:3.20`"
         }
       ],
-      "initialState": {
-        "summary": "Clean Docker environment",
-        "workspaceFiles": []
-      }
+      "solution": [
+        "docker context create backup-station --docker host=unix:///var/run/docker.sock --description 'Backup hut engine'",
+        "docker context use backup-station",
+        "docker run -d --name hut-probe alpine:3.20 sleep infinity"
+      ],
+      "debrief": "Switching engines is now one word instead of a remembered socket path: the context bundles endpoint and description under a name. Pro tip: `docker --context NAME ps` runs a single command elsewhere without changing the active context."
     },
     {
       "id": "module_08_level_05",
       "moduleId": 8,
       "levelId": 5,
-      "title": "Healthcheck in Dockerfile",
-      "moduleTitle": "Advanced Docker",
+      "title": "A Swarm in the Dark",
+      "moduleTitle": "Polar Night",
       "difficulty": "medium",
-      "xp": 100,
-      "story": "Docker can monitor your container's health and restart it if it becomes unhealthy. Add a HEALTHCHECK to a Dockerfile for an HTTP service.",
+      "xp": 150,
+      "concepts": [
+        "docker swarm init",
+        "docker service create",
+        "replicas"
+      ],
+      "story": "The aurora forecast printout on the corkboard has a circled line in Tomasz's tidy handwriting:\n\n`KP index 8 tonight. Expect every screen on the station, plus the mainland, on the aurora page.`\n\nBeneath it Ingrid has added, in pen: \"One container will fall over. Three copies, spread by the engine, one front door for all of them. Use swarm.\"\n\nTurn this engine into a swarm and publish the `aurora-feed` service on port 8090, with three replicas of `nginx:alpine`.",
       "objectives": [
-        "Edit `/workspace/Dockerfile` (nginx-based) to add:",
-        "Build as `healthy-nginx:v1`",
-        "Run a container and confirm it reaches `healthy` status"
+        "Initialise Docker Swarm on this engine",
+        "Create the service `aurora-feed` from `nginx:alpine` with `3` replicas",
+        "Publish host port `8090` to container port `80` through the service",
+        "All three replicas are running and `http://localhost:8090` answers"
       ],
+      "startingState": "A plain engine, not part of any swarm. `nginx:alpine` is already on the machine.",
       "hints": [
-        "`HEALTHCHECK` is a Dockerfile instruction",
-        "The CMD must return 0 for healthy, 1 for unhealthy",
-        "Wait ~30 seconds after starting for the health status to be `healthy`"
+        "Swarm mode turns one engine into a cluster manager that schedules services rather than single containers. You first switch the mode on, and then describe the service you want kept alive.",
+        "`docker swarm init` enables it (add `--advertise-addr 127.0.0.1` if Docker complains about several addresses). Then `docker service create --name NAME --replicas N -p HOST:CONTAINER IMAGE`. `--detach=false` makes the command wait for convergence.",
+        "```bash\ndocker swarm init\ndocker service create --detach=false \\\n  --name aurora-feed \\\n  --replicas 3 \\\n  -p 8090:80 \\\n  nginx:alpine\ndocker service ls\n```"
       ],
+      "setup": {
+        "files": [],
+        "commands": []
+      },
       "validation": [
         {
-          "type": "image_exists",
+          "type": "shell",
           "params": {
-            "name": "healthy-nginx",
-            "tag": "v1"
+            "command": "docker info --format '{{.Swarm.LocalNodeState}}'",
+            "output_equals": "active"
           },
-          "description": "name=healthy-nginx, tag=v1"
+          "description": "Swarm mode is active on this engine"
         },
         {
-          "type": "dockerfile_has_healthcheck",
+          "type": "swarm_service",
           "params": {
-            "path": "/workspace/Dockerfile"
+            "name": "aurora-feed",
+            "replicas": 3,
+            "image_contains": "nginx:alpine",
+            "running": 3
           },
-          "description": "path=/workspace/Dockerfile"
+          "description": "Service `aurora-feed` has 3 replicas of `nginx:alpine`, all running"
         },
         {
-          "type": "container_health_healthy",
+          "type": "shell",
           "params": {
-            "name": "*healthy-nginx*"
+            "command": "docker service inspect aurora-feed --format '{{range .Endpoint.Ports}}{{.PublishedPort}}->{{.TargetPort}} {{end}}'",
+            "output_contains": "8090->80"
           },
-          "description": "name=*healthy-nginx*"
+          "description": "`aurora-feed` publishes port `8090` to container port `80`"
+        },
+        {
+          "type": "http",
+          "params": {
+            "url": "http://localhost:8090",
+            "status": 200,
+            "body_contains": "nginx"
+          },
+          "description": "`http://localhost:8090` answers with the nginx page"
         }
       ],
-      "initialState": {
-        "summary": "Clean Docker environment",
-        "workspaceFiles": []
-      }
+      "solution": [
+        "docker swarm init --advertise-addr 127.0.0.1 || docker swarm init",
+        "docker service create --detach=false --name aurora-feed --replicas 3 -p 8090:80 nginx:alpine"
+      ],
+      "debrief": "A service is a desired state, so swarm keeps replacing replicas until reality matches the number you declared. Pro tip: the published port works on every swarm node via the routing mesh, whichever node actually runs a replica."
     },
     {
       "id": "module_08_level_06",
       "moduleId": 8,
       "levelId": 6,
-      "title": "Docker Swarm Init",
-      "moduleTitle": "Advanced Docker",
+      "title": "Change the Watch",
+      "moduleTitle": "Polar Night",
       "difficulty": "hard",
       "xp": 200,
-      "story": "Docker Swarm turns your Docker host into a cluster manager. Initialize a single-node Swarm.",
+      "concepts": [
+        "docker service update",
+        "rolling update",
+        "update-parallelism",
+        "rollback"
+      ],
+      "story": "Station chat, after the aurora page went white.\n\n**Kip:** I pushed the new feed image to all three replicas at once and the whole page was down for forty seconds. Sorry!\n\n**Ingrid:** Nobody does it that way again. One replica at a time, a short pause between each, and if the new version fails to come up, the old one goes back on its own. Engineer, roll `aurora-feed` onto `nginx:alpine` the proper way, and make those rules part of the service so they apply next time too.",
       "objectives": [
-        "Initialize Docker Swarm with `docker swarm init`",
-        "Deploy a service named `web` with 3 replicas using `nginx` image",
-        "Confirm all 3 replicas are running"
+        "Update the running service `aurora-feed` to the image `nginx:alpine`",
+        "Set the update parallelism to `1` and the update delay to `5s`",
+        "Set the update failure action to `rollback`",
+        "The service still has 3 running replicas and the update has completed"
       ],
+      "startingState": "A swarm is running with the service `aurora-feed` (3 replicas of `nginx:1.27-alpine`, port 8091). It has never been updated.",
       "hints": [
-        "`docker swarm init` initializes the Swarm",
-        "`docker service create --name web --replicas 3 nginx`",
-        "`docker service ls` shows services; `docker service ps web` shows tasks"
+        "A swarm service is replaced task by task. How fast, how many at once, and what happens on failure are properties of the service's update configuration, and they apply to this update and every later one.",
+        "Use `docker service update` on the existing service. Relevant flags: `--image`, `--update-parallelism N`, `--update-delay DURATION`, `--update-failure-action rollback`. `--detach=false` waits until the rollout finishes.",
+        "```bash\ndocker service update --detach=false \\\n  --image nginx:alpine \\\n  --update-parallelism 1 \\\n  --update-delay 5s \\\n  --update-failure-action rollback \\\n  aurora-feed\n\ndocker service inspect aurora-feed --pretty\n```"
       ],
+      "setup": {
+        "files": [],
+        "commands": [
+          "docker swarm init --advertise-addr 127.0.0.1 || docker swarm init",
+          "docker service create --detach=false --name aurora-feed --replicas 3 -p 8091:80 nginx:1.27-alpine"
+        ]
+      },
       "validation": [
         {
-          "type": "swarm_active",
+          "type": "swarm_service",
           "params": {
-            "mode": "active"
+            "name": "aurora-feed",
+            "replicas": 3,
+            "image_contains": "nginx:alpine",
+            "running": 3
           },
-          "description": "mode=active"
+          "description": "`aurora-feed` runs 3 replicas, all running `nginx:alpine`"
         },
         {
-          "type": "swarm_service_running",
+          "type": "shell",
           "params": {
-            "name": "web",
-            "replicas": 3
+            "command": "docker service inspect aurora-feed --format '{{.Spec.UpdateConfig.Parallelism}}'",
+            "output_equals": "1"
           },
-          "description": "name=web, replicas=3"
+          "description": "The update parallelism of `aurora-feed` is `1`"
+        },
+        {
+          "type": "shell",
+          "params": {
+            "command": "docker service inspect aurora-feed --format '{{.Spec.UpdateConfig.Delay}}'",
+            "output_equals": "5s"
+          },
+          "description": "The update delay of `aurora-feed` is `5s`"
+        },
+        {
+          "type": "shell",
+          "params": {
+            "command": "docker service inspect aurora-feed --format '{{.Spec.UpdateConfig.FailureAction}}'",
+            "output_equals": "rollback"
+          },
+          "description": "The update failure action of `aurora-feed` is `rollback`"
+        },
+        {
+          "type": "shell",
+          "params": {
+            "command": "for i in $(seq 14); do s=$(docker service inspect aurora-feed --format '{{.UpdateStatus.State}}'); [ \"$s\" = completed ] && break; sleep 1; done; echo $s",
+            "output_equals": "completed"
+          },
+          "description": "The rolling update of `aurora-feed` has completed"
         }
       ],
-      "initialState": {
-        "summary": "Clean Docker environment",
-        "workspaceFiles": []
-      }
+      "solution": [
+        "docker service update --detach=false --image nginx:alpine --update-parallelism 1 --update-delay 5s --update-failure-action rollback aurora-feed"
+      ],
+      "debrief": "Swarm swapped the tasks one at a time, with a pause between them, so the feed never went fully dark, and a failed task would have triggered a rollback. Pro tip: `docker service rollback aurora-feed` undoes the last update by hand."
     },
     {
       "id": "module_08_level_07",
       "moduleId": 8,
       "levelId": 7,
-      "title": "Prune Everything",
-      "moduleTitle": "Advanced Docker",
-      "difficulty": "easy",
+      "title": "Clearing the Snowdrifts",
+      "moduleTitle": "Polar Night",
+      "difficulty": "hard",
       "xp": 200,
-      "story": "Your Docker host is running out of disk space. Clean up all stopped containers, unused images, unused networks, and dangling volumes in one sweep.",
+      "concepts": [
+        "docker prune",
+        "--filter",
+        "label filters"
+      ],
+      "story": "Ingrid's pre-winter checklist, last page:\n\n`[ ] free disk space: the engine is at 94%`\n`[ ] keep everything labelled keep=true (Tomasz's cores)`\n`[ ] keep whatever is running or in use`\n\nTomasz has labelled the three things he cannot lose: a stopped container, a volume and an image, all `keep=true`. Everything else that nobody is using must go: stopped containers, unused volumes and dangling images. A bare `prune` would take his data with it, so use label filters.",
       "objectives": [
-        "Remove all stopped containers",
-        "Remove all unused images (not just dangling)",
-        "Remove all unused networks",
-        "Remove all unused volumes",
-        "Confirm disk space is recovered"
+        "Remove every stopped container except `keeper-log` (label `keep=true`)",
+        "Remove every unused volume except `ledger-vol` (label `keep=true`); `gauge-data` is in use and must stay",
+        "Remove every dangling image except the one labelled `keep=true`",
+        "Leave the running container `snow-gauge` and the tagged images `kestrel/drift:latest` and `kestrel/ledger-snap:latest` untouched"
       ],
+      "startingState": "Three throwaway stopped containers, two unused volumes and a few dangling images are mixed in with the things that must survive. A container `snow-gauge` is running and uses the volume `gauge-data`.",
       "hints": [
-        "`docker system prune -a --volumes` cleans everything at once (with `-a` for all images)",
-        "Or run individually: `docker container prune`, `docker image prune -a`, `docker volume prune`, `docker network prune`",
-        "`docker system prune -a --volumes -f`"
+        "Docker has a `prune` command for each kind of object. Pruning removes only what is unused, and most prune commands accept filters, so you can exclude anything carrying a particular label.",
+        "Try `docker container prune`, `docker volume prune` and `docker image prune`, each with `-f` and `--filter \"label!=keep=true\"`. Since Docker 23, `volume prune` skips named volumes unless you add `--all` (`-a`). Check with `docker ps -a`, `docker volume ls` and `docker images -f dangling=true`.",
+        "```bash\ndocker container prune -f --filter \"label!=keep=true\"\ndocker volume prune -af --filter \"label!=keep=true\"\ndocker image prune -f --filter \"label!=keep=true\"\n\ndocker ps -a\ndocker volume ls\ndocker images -f dangling=true\n```"
       ],
+      "setup": {
+        "files": [],
+        "commands": [
+          "docker volume create gauge-data",
+          "docker run -d --name snow-gauge -v gauge-data:/data alpine:3.20 sleep infinity",
+          "for i in 1 2 3; do docker run --name drift-$i alpine:3.20 true; done",
+          "docker run --name keeper-log --label keep=true alpine:3.20 true",
+          "docker volume create drift-vol-1",
+          "docker volume create drift-vol-2",
+          "docker volume create --label keep=true ledger-vol",
+          "for v in 1 2; do printf \"FROM alpine:3.20\\nRUN echo snow-$v > /marker\\n\" | docker build -q -f - . ; done",
+          "printf 'FROM alpine:3.20\\nRUN echo drift-tag > /marker\\n' | docker build -q -t kestrel/drift:latest -f - .",
+          "printf 'FROM alpine:3.20\\nLABEL keep=true\\nRUN echo ledger-old > /marker\\n' | docker build -q -f - .",
+          "printf 'FROM alpine:3.20\\nLABEL keep=true\\nRUN echo ledger-tag > /marker\\n' | docker build -q -t kestrel/ledger-snap:latest -f - ."
+        ]
+      },
       "validation": [
         {
-          "type": "no_stopped_containers",
-          "params": {},
-          "description": "true"
+          "type": "shell",
+          "params": {
+            "command": "docker ps -a --filter status=exited --format '{{.Names}}'",
+            "output_equals": "keeper-log"
+          },
+          "description": "Only `keeper-log` remains among the stopped containers"
         },
         {
-          "type": "no_dangling_images",
-          "params": {},
-          "description": "true"
+          "type": "container_running",
+          "params": {
+            "name": "snow-gauge"
+          },
+          "description": "The running container `snow-gauge` is untouched"
         },
         {
-          "type": "no_unused_volumes",
-          "params": {},
-          "description": "true"
+          "type": "shell",
+          "params": {
+            "command": "docker volume ls --format '{{.Name}}' | sort | paste -sd, -",
+            "output_equals": "gauge-data,ledger-vol"
+          },
+          "description": "Only the volumes `gauge-data` and `ledger-vol` remain"
+        },
+        {
+          "type": "shell",
+          "params": {
+            "command": "echo \"$(docker images -f dangling=true -q | wc -l | tr -d ' ')/$(docker images -f dangling=true -f label=keep=true -q | wc -l | tr -d ' ')\"",
+            "output_equals": "1/1"
+          },
+          "description": "Exactly one dangling image remains, and it is the one labelled `keep=true`"
+        },
+        {
+          "type": "image_exists",
+          "params": {
+            "ref": "kestrel/drift:latest"
+          },
+          "description": "The tagged image `kestrel/drift:latest` still exists"
+        },
+        {
+          "type": "image_exists",
+          "params": {
+            "ref": "kestrel/ledger-snap:latest"
+          },
+          "description": "The tagged image `kestrel/ledger-snap:latest` still exists"
         }
       ],
-      "initialState": {
-        "summary": "Many stopped containers, unused images, and dangling volumes pre-created",
-        "workspaceFiles": []
-      }
+      "solution": [
+        "docker container prune -f --filter 'label!=keep=true'",
+        "docker volume prune -af --filter 'label!=keep=true'",
+        "docker image prune -f --filter 'label!=keep=true'"
+      ],
+      "debrief": "Each `prune` removes only what is unused, and `--filter label!=...` lets you fence off whatever you labelled to protect. Pro tip: `--filter until=720h` limits a prune to objects older than 30 days, which makes a safe scheduled job."
     }
   ]
 }

@@ -2,40 +2,119 @@
   "id": "module_05_level_06",
   "moduleId": 5,
   "levelId": 6,
-  "title": "Health Checks and Depends_on",
-  "moduleTitle": "Docker Compose",
+  "title": "Front Door, Back Room",
+  "moduleTitle": "The Station Stack",
   "difficulty": "hard",
   "xp": 200,
-  "story": "The `web` service crashes on startup because `db` isn't ready. Use `depends_on` with a health check to make `web` wait for `db` to be healthy before starting.",
+  "concepts": [
+    "compose networks",
+    "segmentation",
+    "least exposure"
+  ],
+  "story": "FRONT-DOOR CHECKLIST -- Ingrid Halvorsen, unsigned\n\n[ ] Crew traffic enters through `proxy` on port 8120 and nowhere else.\n[ ] `db` lives in the back room: `proxy` must have no route to it, ever.\n[ ] `api` is the only service allowed to stand in both rooms.\n\nRight now all three services share one flat network, so a compromised proxy could talk straight to the database. Rework the stack in Compose project `frontdoor` with two networks, `front` and `back`, and bring it up again. Tick every box.",
   "objectives": [
-    "Add a `healthcheck` to the `db` service: `pg_isready -U postgres`",
-    "Add `depends_on: db: condition: service_healthy` to the `web` service",
-    "Redeploy and confirm `web` starts only after `db` is healthy"
+    "In `/workspace/compose.yaml` (project `frontdoor`) define networks `front` and `back`",
+    "`proxy` joins only `front`; `db` joins only `back`; `api` joins both",
+    "The stack runs, and http://localhost:8120 returns the API answer including `db=PONG`",
+    "From inside `proxy`, the hostname `db` must not resolve"
   ],
+  "startingState": "Project `frontdoor` runs with `proxy`, `api` and `db` all on Compose's default flat network.",
   "hints": [
-    "`healthcheck` has `test`, `interval`, `timeout`, `retries` keys",
-    "`depends_on` can take a `condition: service_healthy` qualifier",
-    "```yaml"
+    "Compose creates one default network for a project, and every service on it can see every other. Containers can only resolve each other when they share at least one network, so segmentation means declaring your own networks and attaching each service only where it belongs.",
+    "Add a top-level `networks:` section with `front` and `back`, and a `networks:` list under every service. Once every service lists networks explicitly, the default one disappears. Then apply the change with `docker compose up -d`.",
+    "Keep the services you have and add the network wiring:\n\n```yaml\nservices:\n  proxy:\n    networks: [front]\n  api:\n    networks: [front, back]\n  db:\n    networks: [back]\nnetworks:\n  front:\n  back:\n```"
   ],
+  "setup": {
+    "files": [
+      {
+        "path": "compose.yaml",
+        "content": "name: frontdoor\nservices:\n  proxy:\n    image: nginx:alpine\n    ports:\n      - \"8120:80\"\n    volumes:\n      - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro\n    depends_on:\n      - api\n  api:\n    image: python:3.12-alpine\n    command: [\"python\", \"/app/app.py\"]\n    volumes:\n      - ./api:/app:ro\n    environment:\n      DB_HOST: db\n  db:\n    image: redis:7-alpine\n"
+      },
+      {
+        "path": "nginx.conf",
+        "content": "server {\n  listen 80;\n  location / {\n    proxy_pass http://api:8000;\n  }\n}\n"
+      },
+      {
+        "path": "api/app.py",
+        "content": "import os, socket\nfrom http.server import BaseHTTPRequestHandler, HTTPServer\n\nDB = os.environ[\"DB_HOST\"]\n\n\ndef ping():\n    with socket.create_connection((DB, 6379), timeout=2) as s:\n        s.sendall(b\"PING\\r\\n\")\n        return s.recv(16).decode().strip().lstrip(\"+\")\n\n\nclass Api(BaseHTTPRequestHandler):\n    def do_GET(self):\n        try:\n            body = f\"API OK db={ping()}\\n\".encode()\n        except OSError:\n            body = b\"API OK db=DOWN\\n\"\n        self.send_response(200)\n        self.end_headers()\n        self.wfile.write(body)\n\n\nHTTPServer((\"0.0.0.0\", 8000), Api).serve_forever()\n"
+      }
+    ],
+    "commands": [
+      "docker compose up -d"
+    ]
+  },
   "validation": [
     {
-      "type": "service_has_healthcheck",
+      "type": "shell",
       "params": {
-        "service": "db"
+        "command": "docker inspect -f '{{range $k,$v := .NetworkSettings.Networks}}{{$k}} {{end}}' $(docker ps -q --filter label=com.docker.compose.project=frontdoor --filter label=com.docker.compose.service=proxy) | xargs -n1 | sort | xargs",
+        "output_equals": "frontdoor_front"
       },
-      "description": "service=db"
+      "description": "`proxy` is attached only to the `front` network"
     },
     {
-      "type": "depends_on_healthy",
+      "type": "shell",
       "params": {
-        "service": "web",
-        "depends_on": "db"
+        "command": "docker inspect -f '{{range $k,$v := .NetworkSettings.Networks}}{{$k}} {{end}}' $(docker ps -q --filter label=com.docker.compose.project=frontdoor --filter label=com.docker.compose.service=api) | xargs -n1 | sort | xargs",
+        "output_equals": "frontdoor_back frontdoor_front"
       },
-      "description": "service=web, depends_on=db"
+      "description": "`api` is attached to both `front` and `back`"
+    },
+    {
+      "type": "shell",
+      "params": {
+        "command": "docker inspect -f '{{range $k,$v := .NetworkSettings.Networks}}{{$k}} {{end}}' $(docker ps -q --filter label=com.docker.compose.project=frontdoor --filter label=com.docker.compose.service=db) | xargs -n1 | sort | xargs",
+        "output_equals": "frontdoor_back"
+      },
+      "description": "`db` is attached only to the `back` network"
+    },
+    {
+      "type": "compose_service",
+      "params": {
+        "project": "frontdoor",
+        "service": "proxy",
+        "running": 1
+      },
+      "description": "`proxy` is running"
+    },
+    {
+      "type": "compose_service",
+      "params": {
+        "project": "frontdoor",
+        "service": "api",
+        "running": 1
+      },
+      "description": "`api` is running"
+    },
+    {
+      "type": "compose_service",
+      "params": {
+        "project": "frontdoor",
+        "service": "db",
+        "running": 1
+      },
+      "description": "`db` is running"
+    },
+    {
+      "type": "http",
+      "params": {
+        "url": "http://localhost:8120",
+        "body_contains": "db=PONG"
+      },
+      "description": "The API can still reach the database through the proxy"
+    },
+    {
+      "type": "shell",
+      "params": {
+        "command": "docker compose -p frontdoor exec -T proxy sh -c 'getent hosts db || echo UNREACHABLE'",
+        "output_contains": "UNREACHABLE"
+      },
+      "description": "From inside `proxy`, the name `db` does not resolve"
     }
   ],
-  "initialState": {
-    "summary": "Clean Docker environment",
-    "workspaceFiles": []
-  }
+  "solution": [
+    "cat > compose.yaml <<'EOF'\nname: frontdoor\nservices:\n  proxy:\n    image: nginx:alpine\n    ports:\n      - \"8120:80\"\n    volumes:\n      - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro\n    depends_on:\n      - api\n    networks: [front]\n  api:\n    image: python:3.12-alpine\n    command: [\"python\", \"/app/app.py\"]\n    volumes:\n      - ./api:/app:ro\n    environment:\n      DB_HOST: db\n    networks: [front, back]\n  db:\n    image: redis:7-alpine\n    networks: [back]\nnetworks:\n  front:\n  back:\nEOF",
+    "docker compose up -d --remove-orphans"
+  ],
+  "debrief": "Multiple networks turn a flat 'everything talks to everything' layout into rooms with doors: only the service standing in both rooms can carry traffic between them. Pro tip: mark a network `internal: true` in Compose to also cut it off from the outside world."
 }

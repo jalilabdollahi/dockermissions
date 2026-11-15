@@ -98,11 +98,11 @@ export function Terminal({ wsUrl, mode }: { wsUrl: string; mode?: string }) {
             <div className="terminal-dot yellow" />
             <div className="terminal-dot green" />
           </div>
-          <span className="terminal-title">bash — dockermissions sandbox</span>
+          <span className="terminal-title">bash — kestrel point sandbox</span>
         </div>
         <div className="terminal-status">
           <div className="status-dot" />
-          {mode === "docker-host" ? "Docker ready" : "Shell mode"}
+          {mode === "sandbox" ? "Isolated Docker sandbox" : "Connecting…"}
         </div>
       </div>
       <div className="terminal-shell" ref={containerRef} />

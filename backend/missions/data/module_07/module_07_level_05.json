@@ -2,47 +2,84 @@
   "id": "module_07_level_05",
   "moduleId": 7,
   "levelId": 5,
-  "title": "Image Layers and History",
-  "moduleTitle": "Registry & Distribution",
-  "difficulty": "hard",
-  "xp": 200,
-  "story": "Every Dockerfile instruction adds a layer. Understanding layers helps you optimize images. Inspect the layer history of `myapp:v1` and rebuild with optimized layers (fewer RUN commands merged).",
+  "title": "Many Names, One Image",
+  "moduleTitle": "The Satellite Link",
+  "difficulty": "medium",
+  "xp": 125,
+  "concepts": [
+    "semantic version tags",
+    "docker tag",
+    "manifest digest"
+  ],
+  "story": "Kip's release checklist, copied from the whiteboard:\n\n`[x] build kestrel/forecast:2.1.0`\n`[ ] push 2.1.0`\n`[ ] push 2.1, 2 and latest`\n`[ ] tell Ingrid`\n\nAmara spots the catch: the depot's `latest` still points at last week's 2.0.0, and every instrument host follows `latest`. Give the release all four names in the depot, 2.1.0, 2.1, 2 and latest, and make sure they are one and the same image.",
   "objectives": [
-    "Run `docker history myapp:v1` to see all layers",
-    "Identify layers that can be merged (multiple consecutive `RUN` commands)",
-    "Edit `/workspace/Dockerfile` to merge the RUN commands",
-    "Build `myapp:v2` and confirm it has fewer layers than `myapp:v1`"
+    "Publish `kestrel/forecast:2.1.0` to the depot as `localhost:5000/kestrel/forecast:2.1.0`",
+    "Also publish it as `2.1`, `2` and `latest` under `localhost:5000/kestrel/forecast`",
+    "All four tags resolve to the same manifest digest in the depot"
   ],
+  "startingState": "The depot already holds `kestrel/forecast` with the tags `2.0.0` and `latest` (both the old release). The new `kestrel/forecast:2.1.0` exists only locally.",
   "hints": [
-    "`docker history <image>` shows all layers and their sizes",
-    "Merge multiple `RUN` commands with `&&` to reduce layer count",
-    "```dockerfile"
+    "A release usually carries several names: a full version, shorter version prefixes, and a moving `latest`. They are all just tags, so one image can wear them all, and re-pushing a tag moves it.",
+    "Give the local image one extra name per tag with `docker tag SOURCE localhost:5000/kestrel/forecast:TAG`, then push each. Compare tags by asking the registry for each manifest's `Docker-Content-Digest` header.",
+    "```bash\nfor t in 2.1.0 2.1 2 latest; do\n  docker tag kestrel/forecast:2.1.0 localhost:5000/kestrel/forecast:$t\n  docker push localhost:5000/kestrel/forecast:$t\ndone\ncurl http://localhost:5000/v2/kestrel/forecast/tags/list\n```"
   ],
+  "setup": {
+    "files": [
+      {
+        "path": "v200/Dockerfile",
+        "content": "FROM alpine:3.20\nLABEL station=kestrel service=forecast version=2.0.0\nCMD [\"echo\", \"forecast 2.0.0\"]\n"
+      },
+      {
+        "path": "v210/Dockerfile",
+        "content": "FROM alpine:3.20\nLABEL station=kestrel service=forecast version=2.1.0\nCMD [\"echo\", \"forecast 2.1.0\"]\n"
+      }
+    ],
+    "commands": [
+      "docker run -d --name depot -p 5000:5000 registry:2",
+      "sleep 2",
+      "docker build -q -t localhost:5000/kestrel/forecast:2.0.0 v200",
+      "docker tag localhost:5000/kestrel/forecast:2.0.0 localhost:5000/kestrel/forecast:latest",
+      "docker push -q localhost:5000/kestrel/forecast:2.0.0",
+      "docker push -q localhost:5000/kestrel/forecast:latest",
+      "docker rmi localhost:5000/kestrel/forecast:2.0.0 localhost:5000/kestrel/forecast:latest",
+      "docker build -q -t kestrel/forecast:2.1.0 v210"
+    ]
+  },
   "validation": [
+    {
+      "type": "shell",
+      "params": {
+        "command": "curl -s http://localhost:5000/v2/kestrel/forecast/tags/list | jq -e '([\"2\",\"2.1\",\"2.1.0\",\"latest\"] - .tags) | length == 0'",
+        "output_contains": "true"
+      },
+      "description": "The depot lists the tags `2.1.0`, `2.1`, `2` and `latest` for `kestrel/forecast`"
+    },
+    {
+      "type": "shell",
+      "params": {
+        "command": "out=$(for t in 2.1.0 2.1 2 latest; do curl -sI -H 'Accept: application/vnd.oci.image.index.v1+json, application/vnd.oci.image.manifest.v1+json, application/vnd.docker.distribution.manifest.v2+json' http://localhost:5000/v2/kestrel/forecast/manifests/$t | tr -d '\\r' | awk -F': ' 'tolower($1)==\"docker-content-digest\"{print $2}'; done); [ \"$(echo \"$out\" | grep -c sha256)\" = 4 ] && [ \"$(echo \"$out\" | sort -u | wc -l)\" = 1 ] && echo all-same",
+        "output_contains": "all-same"
+      },
+      "description": "All four tags (`2.1.0`, `2.1`, `2`, `latest`) have the same manifest digest in the depot"
+    },
+    {
+      "type": "shell",
+      "params": {
+        "command": "[ \"$(curl -sI -H 'Accept: application/vnd.oci.image.index.v1+json, application/vnd.oci.image.manifest.v1+json, application/vnd.docker.distribution.manifest.v2+json' http://localhost:5000/v2/kestrel/forecast/manifests/latest | tr -d '\\r' | awk -F': ' 'tolower($1)==\"docker-content-digest\"{print $2}')\" != \"$(curl -sI -H 'Accept: application/vnd.oci.image.index.v1+json, application/vnd.oci.image.manifest.v1+json, application/vnd.docker.distribution.manifest.v2+json' http://localhost:5000/v2/kestrel/forecast/manifests/2.0.0 | tr -d '\\r' | awk -F': ' 'tolower($1)==\"docker-content-digest\"{print $2}')\" ] && echo moved",
+        "output_contains": "moved"
+      },
+      "description": "`latest` no longer points at the old `2.0.0` release"
+    },
     {
       "type": "image_exists",
       "params": {
-        "name": "myapp",
-        "tag": "v2"
+        "ref": "localhost:5000/kestrel/forecast:latest"
       },
-      "description": "name=myapp, tag=v2"
-    },
-    {
-      "type": "fewer_layers",
-      "params": {
-        "image_a": "myapp:v2",
-        "image_b": "myapp:v1"
-      },
-      "description": "image_a=myapp:v2, image_b=myapp:v1"
+      "description": "The local image has the name `localhost:5000/kestrel/forecast:latest`"
     }
   ],
-  "initialState": {
-    "summary": "- `myapp:v1` pre-built with at least 3 separate `RUN apt-get ...` instructions - `/workspace/Dockerfile` editable",
-    "workspaceFiles": [
-      {
-        "path": "Dockerfile",
-        "content": "FROM ubuntu:22.04\nRUN apt-get update\nRUN apt-get install -y curl\nRUN apt-get install -y wget\nRUN apt-get install -y git\nCMD [\"bash\", \"-lc\", \"echo mission ready\"]\n"
-      }
-    ]
-  }
+  "solution": [
+    "for t in 2.1.0 2.1 2 latest; do docker tag kestrel/forecast:2.1.0 localhost:5000/kestrel/forecast:$t; docker push -q localhost:5000/kestrel/forecast:$t; done"
+  ],
+  "debrief": "One image, four names: each push of an existing image only uploads a new tag, and every tag resolves to the same digest. `latest` is just a convention you have to move yourself. Pro tip: compare `Docker-Content-Digest` headers to prove that names really share one image."
 }

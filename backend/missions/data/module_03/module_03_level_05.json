@@ -2,39 +2,86 @@
   "id": "module_03_level_05",
   "moduleId": 3,
   "levelId": 5,
-  "title": "Host Network",
-  "moduleTitle": "Docker Networking",
+  "title": "Admin Eyes Only",
+  "moduleTitle": "Station Network",
   "difficulty": "medium",
   "xp": 100,
-  "story": "For maximum performance (no NAT), some containers run on the host network. Run a container using the `host` network driver and confirm it sees the host's network interfaces.",
+  "concepts": [
+    "published ports",
+    "loopback binding",
+    "-p 127.0.0.1"
+  ],
+  "story": "[RADIO] Kestrel Control, this is Halvorsen. Kip ran a port scan from the crew wifi and found the admin panel on port 9090, wide open to anybody on the station network. It has the door controls and the generator schedule on it. Kip says it \"looked like a printer\".\n\nThe panel is the container `admin-panel`, started last week with a plain `-p 9090:80`. Only a shell on the control machine itself should reach it. Recreate it with the same page and the same read-only mount, but with port 9090 listening on loopback only. Confirm from your side. Halvorsen out.",
   "objectives": [
-    "Run container `host-mode` from `alpine` using `--network host` running `sleep 3600` (detached)",
-    "Exec into it and run `ip addr` — confirm `eth0` or host interface is visible"
+    "Run `admin-panel` from `nginx:alpine` with `/workspace/panel` mounted read-only at `/usr/share/nginx/html`",
+    "Publish container port 80 on `127.0.0.1:9090` only (not on `0.0.0.0`)",
+    "`http://127.0.0.1:9090/` from the control machine still serves the admin console page"
   ],
+  "startingState": "`admin-panel` is already running but published on every interface (`0.0.0.0:9090`). Its page is in `/workspace/panel`.",
   "hints": [
-    "`--network host` attaches container directly to host network",
-    "No port mapping needed or possible with host mode",
-    "`docker run -d --name host-mode --network host alpine sleep 3600`"
+    "A published port can be tied to one host address. The address goes in front of the port numbers in the publish option. A running container's ports cannot be edited, so you will recreate it.",
+    "The `-p` syntax is `[host-ip:]host-port:container-port`. Remove the old container first, then start a new one with the same name, the same bind mount and a loopback host-ip.",
+    "```bash\ndocker rm -f admin-panel\ndocker run -d --name admin-panel \\\n  -p 127.0.0.1:9090:80 \\\n  -v /workspace/panel:/usr/share/nginx/html:ro \\\n  nginx:alpine\ndocker port admin-panel\n```"
   ],
+  "setup": {
+    "files": [
+      {
+        "path": "panel/index.html",
+        "content": "<!doctype html>\n<title>Kestrel Admin</title>\n<h1>KESTREL ADMIN CONSOLE</h1>\n<p>Doors, generators, heating.</p>\n"
+      }
+    ],
+    "commands": [
+      "docker run -d --name admin-panel -p 9090:80 -v /workspace/panel:/usr/share/nginx/html:ro nginx:alpine"
+    ]
+  },
   "validation": [
     {
       "type": "container_running",
       "params": {
-        "name": "host-mode"
+        "name": "admin-panel",
+        "image": "nginx:alpine"
       },
-      "description": "name=host-mode"
+      "description": "Container `admin-panel` is running from `nginx:alpine`"
     },
     {
-      "type": "container_network_mode",
+      "type": "shell",
       "params": {
-        "container": "host-mode",
-        "mode": "host"
+        "command": "docker port admin-panel 80/tcp",
+        "output_contains": "127.0.0.1:9090"
       },
-      "description": "container=host-mode, mode=host"
+      "description": "Port 9090 is published on `127.0.0.1`"
+    },
+    {
+      "type": "shell",
+      "params": {
+        "command": "docker port admin-panel 80/tcp",
+        "output_not_contains": "0.0.0.0"
+      },
+      "description": "Port 9090 is NOT published on `0.0.0.0`"
+    },
+    {
+      "type": "mount",
+      "params": {
+        "name": "admin-panel",
+        "destination": "/usr/share/nginx/html",
+        "type": "bind",
+        "source": "/workspace/panel",
+        "rw": false
+      },
+      "description": "`/workspace/panel` is bind-mounted read-only at `/usr/share/nginx/html`"
+    },
+    {
+      "type": "http",
+      "params": {
+        "url": "http://127.0.0.1:9090/",
+        "body_contains": "KESTREL ADMIN CONSOLE"
+      },
+      "description": "`http://127.0.0.1:9090/` serves the admin console"
     }
   ],
-  "initialState": {
-    "summary": "Clean Docker environment",
-    "workspaceFiles": []
-  }
+  "solution": [
+    "docker rm -f admin-panel",
+    "docker run -d --name admin-panel -p 127.0.0.1:9090:80 -v /workspace/panel:/usr/share/nginx/html:ro nginx:alpine"
+  ],
+  "debrief": "Publishing with `-p 9090:80` means every interface; adding a host IP such as `127.0.0.1` narrows who can connect. Pro tip: `docker port <name>` shows the real bindings, which is the quickest way to audit exposure."
 }

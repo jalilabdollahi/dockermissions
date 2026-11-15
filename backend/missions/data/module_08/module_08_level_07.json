@@ -2,42 +2,95 @@
   "id": "module_08_level_07",
   "moduleId": 8,
   "levelId": 7,
-  "title": "Prune Everything",
-  "moduleTitle": "Advanced Docker",
-  "difficulty": "easy",
+  "title": "Clearing the Snowdrifts",
+  "moduleTitle": "Polar Night",
+  "difficulty": "hard",
   "xp": 200,
-  "story": "Your Docker host is running out of disk space. Clean up all stopped containers, unused images, unused networks, and dangling volumes in one sweep.",
+  "concepts": [
+    "docker prune",
+    "--filter",
+    "label filters"
+  ],
+  "story": "Ingrid's pre-winter checklist, last page:\n\n`[ ] free disk space: the engine is at 94%`\n`[ ] keep everything labelled keep=true (Tomasz's cores)`\n`[ ] keep whatever is running or in use`\n\nTomasz has labelled the three things he cannot lose: a stopped container, a volume and an image, all `keep=true`. Everything else that nobody is using must go: stopped containers, unused volumes and dangling images. A bare `prune` would take his data with it, so use label filters.",
   "objectives": [
-    "Remove all stopped containers",
-    "Remove all unused images (not just dangling)",
-    "Remove all unused networks",
-    "Remove all unused volumes",
-    "Confirm disk space is recovered"
+    "Remove every stopped container except `keeper-log` (label `keep=true`)",
+    "Remove every unused volume except `ledger-vol` (label `keep=true`); `gauge-data` is in use and must stay",
+    "Remove every dangling image except the one labelled `keep=true`",
+    "Leave the running container `snow-gauge` and the tagged images `kestrel/drift:latest` and `kestrel/ledger-snap:latest` untouched"
   ],
+  "startingState": "Three throwaway stopped containers, two unused volumes and a few dangling images are mixed in with the things that must survive. A container `snow-gauge` is running and uses the volume `gauge-data`.",
   "hints": [
-    "`docker system prune -a --volumes` cleans everything at once (with `-a` for all images)",
-    "Or run individually: `docker container prune`, `docker image prune -a`, `docker volume prune`, `docker network prune`",
-    "`docker system prune -a --volumes -f`"
+    "Docker has a `prune` command for each kind of object. Pruning removes only what is unused, and most prune commands accept filters, so you can exclude anything carrying a particular label.",
+    "Try `docker container prune`, `docker volume prune` and `docker image prune`, each with `-f` and `--filter \"label!=keep=true\"`. Since Docker 23, `volume prune` skips named volumes unless you add `--all` (`-a`). Check with `docker ps -a`, `docker volume ls` and `docker images -f dangling=true`.",
+    "```bash\ndocker container prune -f --filter \"label!=keep=true\"\ndocker volume prune -af --filter \"label!=keep=true\"\ndocker image prune -f --filter \"label!=keep=true\"\n\ndocker ps -a\ndocker volume ls\ndocker images -f dangling=true\n```"
   ],
+  "setup": {
+    "files": [],
+    "commands": [
+      "docker volume create gauge-data",
+      "docker run -d --name snow-gauge -v gauge-data:/data alpine:3.20 sleep infinity",
+      "for i in 1 2 3; do docker run --name drift-$i alpine:3.20 true; done",
+      "docker run --name keeper-log --label keep=true alpine:3.20 true",
+      "docker volume create drift-vol-1",
+      "docker volume create drift-vol-2",
+      "docker volume create --label keep=true ledger-vol",
+      "for v in 1 2; do printf \"FROM alpine:3.20\\nRUN echo snow-$v > /marker\\n\" | docker build -q -f - . ; done",
+      "printf 'FROM alpine:3.20\\nRUN echo drift-tag > /marker\\n' | docker build -q -t kestrel/drift:latest -f - .",
+      "printf 'FROM alpine:3.20\\nLABEL keep=true\\nRUN echo ledger-old > /marker\\n' | docker build -q -f - .",
+      "printf 'FROM alpine:3.20\\nLABEL keep=true\\nRUN echo ledger-tag > /marker\\n' | docker build -q -t kestrel/ledger-snap:latest -f - ."
+    ]
+  },
   "validation": [
     {
-      "type": "no_stopped_containers",
-      "params": {},
-      "description": "true"
+      "type": "shell",
+      "params": {
+        "command": "docker ps -a --filter status=exited --format '{{.Names}}'",
+        "output_equals": "keeper-log"
+      },
+      "description": "Only `keeper-log` remains among the stopped containers"
     },
     {
-      "type": "no_dangling_images",
-      "params": {},
-      "description": "true"
+      "type": "container_running",
+      "params": {
+        "name": "snow-gauge"
+      },
+      "description": "The running container `snow-gauge` is untouched"
     },
     {
-      "type": "no_unused_volumes",
-      "params": {},
-      "description": "true"
+      "type": "shell",
+      "params": {
+        "command": "docker volume ls --format '{{.Name}}' | sort | paste -sd, -",
+        "output_equals": "gauge-data,ledger-vol"
+      },
+      "description": "Only the volumes `gauge-data` and `ledger-vol` remain"
+    },
+    {
+      "type": "shell",
+      "params": {
+        "command": "echo \"$(docker images -f dangling=true -q | wc -l | tr -d ' ')/$(docker images -f dangling=true -f label=keep=true -q | wc -l | tr -d ' ')\"",
+        "output_equals": "1/1"
+      },
+      "description": "Exactly one dangling image remains, and it is the one labelled `keep=true`"
+    },
+    {
+      "type": "image_exists",
+      "params": {
+        "ref": "kestrel/drift:latest"
+      },
+      "description": "The tagged image `kestrel/drift:latest` still exists"
+    },
+    {
+      "type": "image_exists",
+      "params": {
+        "ref": "kestrel/ledger-snap:latest"
+      },
+      "description": "The tagged image `kestrel/ledger-snap:latest` still exists"
     }
   ],
-  "initialState": {
-    "summary": "Many stopped containers, unused images, and dangling volumes pre-created",
-    "workspaceFiles": []
-  }
+  "solution": [
+    "docker container prune -f --filter 'label!=keep=true'",
+    "docker volume prune -af --filter 'label!=keep=true'",
+    "docker image prune -f --filter 'label!=keep=true'"
+  ],
+  "debrief": "Each `prune` removes only what is unused, and `--filter label!=...` lets you fence off whatever you labelled to protect. Pro tip: `--filter until=720h` limits a prune to objects older than 30 days, which makes a safe scheduled job."
 }

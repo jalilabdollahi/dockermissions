@@ -2,46 +2,98 @@
   "id": "module_03_level_07",
   "moduleId": 3,
   "levelId": 7,
-  "title": "Isolate with None Network",
-  "moduleTitle": "Docker Networking",
+  "title": "Fixed Addresses",
+  "moduleTitle": "Station Network",
   "difficulty": "hard",
-  "xp": 200,
-  "story": "Some workloads must be completely isolated with no network access. Run a container with no networking at all and confirm it cannot reach the outside world.",
+  "xp": 175,
+  "concepts": [
+    "custom subnet",
+    "--subnet",
+    "--ip",
+    "static addressing"
+  ],
+  "story": "#kestrel-ops\nAmara: the 2011 sensor firmware has the collector's addresses burned in. no DNS, no config, just numbers\nKip: so can we just change the numbers?\nAmara: it is flashed on 31 sensors, on a glacier, Kip.\n\nThe addresses the emulated sensors must answer on are in `legacy/sensors.conf`. Build a network called `sensor-grid` on the subnet from that file and start the three sensors (nginx stand-ins) so each sits on its burned-in address. A `collector` container must be able to fetch each sensor's page by IP.",
   "objectives": [
-    "Run container `isolated` from `alpine` with no network (`--network none`) running `sleep 3600`",
-    "Confirm it has no network interfaces except `lo`"
+    "Create the network `sensor-grid` with the subnet listed in `/workspace/legacy/sensors.conf`",
+    "Run `sensor-07`, `sensor-12` and `sensor-31` from `nginx:alpine` on `sensor-grid` with the IPs from that file",
+    "Run `collector` from `alpine:3.20` on `sensor-grid`",
+    "From inside `collector`, `http://172.28.0.31/` must answer"
   ],
+  "startingState": "`/workspace/legacy/sensors.conf` lists the subnet and the three addresses. No networks or containers exist yet.",
   "hints": [
-    "`--network none` disables all networking",
-    "The container will only have the loopback `lo` interface",
-    "`docker run -d --name isolated --network none alpine sleep 3600`"
+    "Docker normally picks addresses for you. To control them you need to define the network's address range yourself and then ask for a specific address when you start each container. Read the config file first.",
+    "`docker network create --subnet <cidr> <name>` fixes the range; `docker run --network <name> --ip <addr>` requests an address inside it. `--ip` only works on user-defined networks that have a subnet.",
+    "```bash\ncat legacy/sensors.conf\ndocker network create --subnet 172.28.0.0/24 sensor-grid\ndocker run -d --name sensor-07 --network sensor-grid --ip 172.28.0.7 nginx:alpine\n# ...repeat for sensor-12 and sensor-31, then:\ndocker run -d --name collector --network sensor-grid alpine:3.20 sleep infinity\ndocker exec collector wget -qO- http://172.28.0.7/\n```"
   ],
+  "setup": {
+    "files": [
+      {
+        "path": "legacy/sensors.conf",
+        "content": "# Burned into the 2011 sensor firmware. Do not change.\nSUBNET=172.28.0.0/24\nsensor-07=172.28.0.7\nsensor-12=172.28.0.12\nsensor-31=172.28.0.31\n"
+      }
+    ],
+    "commands": []
+  },
   "validation": [
+    {
+      "type": "network_exists",
+      "params": {
+        "name": "sensor-grid",
+        "subnet": "172.28.0.0/24"
+      },
+      "description": "Network `sensor-grid` exists with subnet `172.28.0.0/24`"
+    },
+    {
+      "type": "container_on_network",
+      "params": {
+        "name": "sensor-07",
+        "network": "sensor-grid",
+        "ip": "172.28.0.7"
+      },
+      "description": "`sensor-07` has IP `172.28.0.7` on `sensor-grid`"
+    },
+    {
+      "type": "container_on_network",
+      "params": {
+        "name": "sensor-12",
+        "network": "sensor-grid",
+        "ip": "172.28.0.12"
+      },
+      "description": "`sensor-12` has IP `172.28.0.12` on `sensor-grid`"
+    },
+    {
+      "type": "container_on_network",
+      "params": {
+        "name": "sensor-31",
+        "network": "sensor-grid",
+        "ip": "172.28.0.31"
+      },
+      "description": "`sensor-31` has IP `172.28.0.31` on `sensor-grid`"
+    },
     {
       "type": "container_running",
       "params": {
-        "name": "isolated"
+        "name": "sensor-31",
+        "image": "nginx:alpine"
       },
-      "description": "name=isolated"
+      "description": "`sensor-31` is running from `nginx:alpine`"
     },
     {
-      "type": "container_network_mode",
+      "type": "http",
       "params": {
-        "container": "isolated",
-        "mode": "none"
+        "url": "http://172.28.0.31/",
+        "from": "collector",
+        "body_contains": "nginx"
       },
-      "description": "container=isolated, mode=none"
-    },
-    {
-      "type": "no_external_network",
-      "params": {
-        "container": "isolated"
-      },
-      "description": "container=isolated"
+      "description": "`collector` can fetch `http://172.28.0.31/` from the sensor"
     }
   ],
-  "initialState": {
-    "summary": "Clean Docker environment",
-    "workspaceFiles": []
-  }
+  "solution": [
+    "docker network create --subnet 172.28.0.0/24 sensor-grid",
+    "docker run -d --name sensor-07 --network sensor-grid --ip 172.28.0.7 nginx:alpine",
+    "docker run -d --name sensor-12 --network sensor-grid --ip 172.28.0.12 nginx:alpine",
+    "docker run -d --name sensor-31 --network sensor-grid --ip 172.28.0.31 nginx:alpine",
+    "docker run -d --name collector --network sensor-grid alpine:3.20 sleep infinity"
+  ],
+  "debrief": "Static addressing needs a network you control: define the subnet first, then pin containers to addresses inside it. Pro tip: keep fixed addresses out of the range Docker hands out automatically (`--ip-range`) so a random container never grabs one first."
 }

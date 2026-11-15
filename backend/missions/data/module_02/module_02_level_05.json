@@ -2,41 +2,73 @@
   "id": "module_02_level_05",
   "moduleId": 2,
   "levelId": 5,
-  "title": "RUN Commands",
-  "moduleTitle": "Images & Dockerfile",
+  "title": "Label the Crates",
+  "moduleTitle": "Instrument Images",
   "difficulty": "medium",
-  "xp": 100,
-  "story": "A bare OS image needs software installed. Build an image based on `ubuntu:22.04` that has `curl` installed.",
+  "xp": 120,
+  "concepts": [
+    "LABEL",
+    "ENV",
+    "WORKDIR",
+    "ARG / --build-arg"
+  ],
+  "story": "Taped to crate 0417, in Tomasz's capital letters:\n\nTHE INVENTORY SYSTEM READS METADATA FROM THE IMAGE, NOT FROM ANYONE'S MEMORY. EVERY CRATE IMAGE NEEDS A STATION LABEL, ITS OWN CRATE ID, AND A KNOWN WORKING DIRECTORY. THE CRATE ID MUST NOT BE TYPED INTO THE FILE; IT IS PASSED IN AT BUILD TIME, OR WE WILL FORGET TO CHANGE IT.\n\nBuild `kestrel/crate:2.0` from `alpine:3.20` with a label `station=kestrel-point`, a label and an environment variable both carrying the crate ID `C-0417` (supplied as a build argument), and the working directory `/crate`.",
   "objectives": [
-    "Write a Dockerfile: `FROM ubuntu:22.04`, `RUN apt-get update && apt-get install -y curl`",
-    "Build as `curl-box:v1`",
-    "Verify: run a container from `curl-box:v1` and confirm `curl --version` works"
+    "Build `kestrel/crate:2.0` from `alpine:3.20` with `docker build --build-arg CRATE_ID=C-0417`",
+    "Label `station=kestrel-point` and label `crate-id` equal to the build argument value",
+    "Environment variable `CRATE_ID` equal to the same value, and `WORKDIR /crate`"
   ],
+  "startingState": "An empty /workspace. No Dockerfile exists.",
   "hints": [
-    "`RUN` executes commands during image build",
-    "Chain commands with `&&` to minimize layers",
-    "`RUN apt-get update && apt-get install -y curl`"
+    "Image metadata is set by Dockerfile instructions that describe the image rather than doing work. A build-time variable is declared with one instruction and fed a value from the command line.",
+    "Declare `ARG CRATE_ID`, then reuse it as `$CRATE_ID` in `ENV` and `LABEL`. Use `WORKDIR` for the directory, and pass the value with `docker build --build-arg NAME=value`. Give the ARG a default like `UNASSIGNED` so a forgotten flag is obvious.",
+    "```bash\ncat > Dockerfile <<'EOF'\nFROM alpine:3.20\nARG CRATE_ID=UNASSIGNED\nLABEL station=\"kestrel-point\" crate-id=\"$CRATE_ID\"\nENV CRATE_ID=$CRATE_ID\nWORKDIR /crate\nEOF\ndocker build --build-arg CRATE_ID=C-0417 -t kestrel/crate:2.0 .\n```"
   ],
+  "setup": {
+    "files": [],
+    "commands": []
+  },
   "validation": [
     {
-      "type": "image_exists",
+      "type": "image_inspect",
       "params": {
-        "name": "curl-box",
-        "tag": "v1"
+        "ref": "kestrel/crate:2.0",
+        "path": "Config.Labels.station",
+        "equals": "kestrel-point"
       },
-      "description": "name=curl-box, tag=v1"
+      "description": "Label `station` is `kestrel-point`"
     },
     {
-      "type": "binary_in_image",
+      "type": "image_inspect",
       "params": {
-        "image": "curl-box:v1",
-        "binary": "curl"
+        "ref": "kestrel/crate:2.0",
+        "path": "Config.Labels.crate-id",
+        "equals": "C-0417"
       },
-      "description": "image=curl-box:v1, binary=curl"
+      "description": "Label `crate-id` is `C-0417` (from the build argument)"
+    },
+    {
+      "type": "image_inspect",
+      "params": {
+        "ref": "kestrel/crate:2.0",
+        "path": "Config.Env",
+        "contains": "CRATE_ID=C-0417"
+      },
+      "description": "Environment variable `CRATE_ID=C-0417` is set in the image"
+    },
+    {
+      "type": "image_inspect",
+      "params": {
+        "ref": "kestrel/crate:2.0",
+        "path": "Config.WorkingDir",
+        "equals": "/crate"
+      },
+      "description": "The working directory is `/crate`"
     }
   ],
-  "initialState": {
-    "summary": "`/workspace` is empty",
-    "workspaceFiles": []
-  }
+  "solution": [
+    "cat > Dockerfile <<'EOF'\nFROM alpine:3.20\nARG CRATE_ID=UNASSIGNED\nLABEL station=\"kestrel-point\" crate-id=\"$CRATE_ID\"\nENV CRATE_ID=$CRATE_ID\nWORKDIR /crate\nEOF",
+    "docker build --build-arg CRATE_ID=C-0417 -t kestrel/crate:2.0 ."
+  ],
+  "debrief": "`ARG` exists only while building, while `ENV` persists into containers and `LABEL` records metadata that tools can query. Pro tip: read labels back with `docker image inspect -f '{{json .Config.Labels}}' IMAGE | jq`."
 }
